@@ -1,0 +1,9 @@
+[project]
+name = "translume-ui"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ['gradio', 'httpx']
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

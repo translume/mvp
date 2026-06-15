@@ -1,0 +1,184 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: translume
+      POSTGRES_USER: translume
+      POSTGRES_PASSWORD: translume
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U translume -d translume"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: translume-dev-password-123!
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  vllm-clinical:
+    image: vllm/vllm-openai:latest
+    profiles: ["gpu"]
+    command: >
+      ${VLLM_MODEL:?Set VLLM_MODEL to the local/HuggingFace clinical structured-output model id}
+      --host 0.0.0.0
+      --port 8000
+      --structured-outputs-config.backend=auto
+    gpus:
+      - device_ids: ["0"]
+        capabilities: ["gpu"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 60
+
+  vllm-docling:
+    image: vllm/vllm-openai:latest
+    profiles: ["gpu", "docling"]
+    command: >
+      ibm-granite/granite-docling-258M
+      --revision untied
+      --host 0.0.0.0
+      --port 8000
+      --dtype bfloat16
+      --max-model-len 8192
+      --max-num-seqs 512
+      --max-num-batched-tokens 8192
+      --gpu-memory-utilization 0.90
+      --enable-chunked-prefill
+      --structured-outputs-config.backend=auto
+      --limit-mm-per-prompt '{"image":1}'
+    gpus:
+      - device_ids: ["0"]
+        capabilities: ["gpu"]
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 60
+
+  docling-service:
+    build:
+      context: .
+      dockerfile: docker/docling.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  optimuskg-service:
+    build:
+      context: .
+      dockerfile: docker/optimuskg-service.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    ports:
+      - "8091:8091"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  tooluniverse-service:
+    build:
+      context: .
+      dockerfile: docker/tooluniverse-service.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    ports:
+      - "8092:8092"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8092/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  medea-service:
+    build:
+      context: .
+      dockerfile: docker/medea-service.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    ports:
+      - "8093:8093"
+    depends_on:
+      - vllm-clinical
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8093/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  translume-api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      docling-service:
+        condition: service_healthy
+      optimuskg-service:
+        condition: service_healthy
+      tooluniverse-service:
+        condition: service_healthy
+      medea-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  translume-ui:
+    build:
+      context: .
+      dockerfile: docker/ui.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    ports:
+      - "7860:7860"
+    depends_on:
+      translume-api:
+        condition: service_healthy
+
+  translume-worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    env_file: ${TRANSLUME_ENV_FILE:-.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  opensearch-data:

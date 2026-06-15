@@ -1,0 +1,6 @@
+allowed_workflows:
+  - literature_validation
+  - pathway_context
+  - target_context
+  - variant_context
+  - trial_context_review

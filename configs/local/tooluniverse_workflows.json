@@ -1,0 +1,17 @@
+{
+  "workflows": {
+    "target_context": {
+      "steps": [
+        {
+          "tool_name": "load_disease_targets",
+          "config": {},
+          "arguments": {
+            "disease_name": "$first_disease",
+            "use_api": true,
+            "attributes": ["otGeneticsPortal", "chembl"]
+          }
+        }
+      ]
+    }
+  }
+}

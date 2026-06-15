@@ -1,0 +1,161 @@
+{
+  "required_environment": [
+    "TRANSLUME_E2E_REPORT_PATH",
+    "VLLM_MODEL"
+  ],
+  "service_health": [
+    {
+      "name": "api",
+      "url_env": "TRANSLUME_API_URL",
+      "default_url": "http://localhost:8080",
+      "path": "/health",
+      "required_fields": {
+        "status": "ok"
+      }
+    },
+    {
+      "name": "docling",
+      "url_env": "DOCLING_PUBLIC_URL",
+      "default_url": "http://localhost:8090",
+      "path": "/health",
+      "required_fields": {
+        "status": "ok",
+        "docling_available": true
+      }
+    },
+    {
+      "name": "optimuskg",
+      "url_env": "OPTIMUSKG_PUBLIC_URL",
+      "default_url": "http://localhost:8091",
+      "path": "/health",
+      "required_fields": {
+        "status": "ok",
+        "vendor_available": true
+      }
+    },
+    {
+      "name": "tooluniverse",
+      "url_env": "TOOLUNIVERSE_PUBLIC_URL",
+      "default_url": "http://localhost:8092",
+      "path": "/health",
+      "required_fields": {
+        "status": "ok",
+        "vendor_available": true
+      }
+    },
+    {
+      "name": "medea",
+      "url_env": "MEDEA_PUBLIC_URL",
+      "default_url": "http://localhost:8093",
+      "path": "/health",
+      "required_fields": {
+        "status": "ok",
+        "vendor_available": true
+      }
+    }
+  ],
+  "opensearch": {
+    "url_env": "OPENSEARCH_PUBLIC_URL",
+    "default_url": "http://localhost:9200",
+    "health_path": "/_cluster/health",
+    "required_indices": [
+      "translume_document_chunks",
+      "translume_report_findings",
+      "translume_artifacts",
+      "translume_normalized_entities",
+      "translume_graph_evidence",
+      "translume_tool_outputs",
+      "translume_medea_reasoning",
+      "translume_evidence_claims",
+      "translume_artifact_provenance",
+      "translume_validation_decisions",
+      "translume_ledger_events"
+    ]
+  },
+  "postgres": {
+    "dsn_env": "POSTGRES_PUBLIC_DSN",
+    "default_dsn": "postgresql://translume:translume@localhost:5432/translume",
+    "required_tables": [
+      "case_sessions",
+      "source_files",
+      "document_chunks",
+      "artifacts",
+      "report_findings",
+      "normalized_entities",
+      "graph_evidence",
+      "tool_outputs",
+      "medea_reasoning",
+      "evidence_claims",
+      "artifact_provenance",
+      "validation_decisions",
+      "ledger_events",
+      "review_packets"
+    ]
+  },
+  "vllm": {
+    "base_url_env": "VLLM_PUBLIC_BASE_URL",
+    "default_base_url": "http://localhost:8000/v1",
+    "model_env": "VLLM_MODEL",
+    "model_id_disallowed_exact": [
+      "",
+      "local-clinical-model",
+      "placeholder",
+      "mock",
+      "dummy",
+      "test"
+    ],
+    "structured_schema": {
+      "name": "translume_preflight_result",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "translume"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ]
+      }
+    }
+  },
+  "review_packet_required_non_empty_paths": [
+    "chunks",
+    "bundle.extraction.molecular_findings",
+    "bundle.entities.entities",
+    "bundle.evidence_context.graph_evidence.nodes",
+    "bundle.evidence_context.graph_evidence.edges",
+    "bundle.evidence_context.tool_outputs",
+    "bundle.evidence_context.medea_reasoning.summary",
+    "bundle.phenotype.axes",
+    "bundle.matrix.rows",
+    "bundle.sankey.nodes",
+    "bundle.sankey.links",
+    "bundle.confirmatory.tests",
+    "bundle.tumor_behavior.state_evidence",
+    "bundle.claims",
+    "bundle.provenance",
+    "bundle.ledger_events",
+    "bundle.narrative.markdown"
+  ],
+  "review_packet_required_absent_phrases": [
+    "recommended treatment",
+    "should receive",
+    "best treatment",
+    "will respond",
+    "will benefit",
+    "will relapse"
+  ]
+}
