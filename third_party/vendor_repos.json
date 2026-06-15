@@ -1,0 +1,19 @@
+{
+  "repositories": [
+    {
+      "name": "ToolUniverse",
+      "url": "https://github.com/mims-harvard/ToolUniverse.git",
+      "target": "third_party/upstream/ToolUniverse"
+    },
+    {
+      "name": "OptimusKG",
+      "url": "https://github.com/mims-harvard/OptimusKG.git",
+      "target": "third_party/upstream/OptimusKG"
+    },
+    {
+      "name": "Medea",
+      "url": "https://github.com/mims-harvard/Medea.git",
+      "target": "third_party/upstream/Medea"
+    }
+  ]
+}
