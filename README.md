@@ -1,4 +1,103 @@
-# Translume MVP Production Workflow
+# Translume
+
+<p align="center">
+  <img src="docs/assets/translume-logo.png" alt="Translume logo" width="900"/>
+</p>
+
+<p align="center">
+  <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence.</strong>
+</p>
+
+<p align="center">
+  <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/>
+  <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/>
+  <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/>
+  <img alt="Paper on arXiv" src="https://img.shields.io/badge/Paper%20on-arXiv-4c8eda?style=for-the-badge"/>
+  <img alt="Project Website" src="https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge"/>
+  <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/>
+</p>
+
+
+Translume is a clinical output compiler for translational oncology. It ingests an oncology molecular report, extracts structured molecular findings, maps them into biological axes, ranks molecular fits for expert review, explains “why from omics,” builds a Finding → Mechanism → Molecular Fit → Validation Test chain, identifies confirmatory testing needs, and produces a source-backed tumor-behavior hypothesis without making treatment recommendations.
+
+Modern oncology teams do not lack molecular data. They lack a fast, defensible way to turn NGS, WGS, FISH, IHC, RNA, pathology, and research reports into reviewable clinical-translational reasoning. Molecular reports surface variants, copy-number changes, expression signals, limitations, and negative findings, but those facts usually remain disconnected from mechanism, evidence strength, validation needs, and disease behavior. Translume closes that gap by converting raw report content into a structured review surface where every major claim is tied to source text, evidence class, uncertainty, provenance, and human validation.
+
+The MVP focuses on one high-value workflow: one oncology report becomes one structured, explainable, clinician-reviewable tumor-behavior intelligence packet. The output shows what the report found, why each finding may matter biologically, what is unsupported, what must be validated next, which claims are facts versus hypotheses, and who accepted, rejected, or flagged each claim. This reduces tumor-board and translational review burden while creating reusable structured reasoning that can later support longitudinal disease modeling.
+
+The system is intentionally not a treatment recommendation engine, diagnostic device, outcome predictor, or adaptive precision oncology platform yet. It is the foundation those future systems require: accurate document extraction, source-backed chunks, local structured model outputs, biomedical graph context, governed scientific-tool evidence, bounded omics/literature reasoning, human validation controls, and a provenance-backed ledger.
+
+## Current MVP Scope
+
+```text
+PDF report
+→ Docling / Granite Docling document extraction
+→ section-aware chunks
+→ OpenSearch indexing
+→ local vLLM structured clinical extraction
+→ normalized molecular entities
+→ OptimusKG graph context
+→ ToolUniverse governed evidence workflows
+→ Medea bounded omics/literature reasoning
+→ molecular phenotype
+→ molecular-fit matrix
+→ mechanism Sankey
+→ confirmatory testing plan
+→ tumor-behavior model
+→ evidence-classified claim cards
+→ human validation
+→ ledger export
+```
+
+## What Translume Produces
+
+Translume produces a reviewable packet containing:
+
+```text
+source-backed molecular findings
+normalized biomedical entities
+graph/evidence-enriched biological context
+patient-specific omics readout
+molecular phenotype
+molecular-fit review matrix
+mechanism Sankey
+confirmatory testing plan
+tumor-behavior state hypotheses
+evidence-classified claim cards
+human validation decisions
+provenance-backed ledger export
+```
+
+## What Translume Does Not Claim
+
+Translume does not claim to diagnose cancer, recommend treatment, predict survival, select therapy, replace a tumor board, or prove adaptive precision oncology from a single report. Its outputs are hypothesis-generating, evidence-labeled, and clinician-reviewable. Every clinically meaningful statement must remain tied to source text, retrieved evidence, structured artifacts, or human validation.
+
+## Future Direction
+
+The near-term MVP is a single-report clinical output compiler. The next expansion is archived-sample and lesion-sample comparison, followed by clonal lineage reconstruction, niche-risk modeling, and a DDCS/cartilage-lesion registry. Only after sufficient longitudinal data exists should Translume add Markov-state learning, clone-survival simulation, early-warning surveillance, and adaptive precision oncology workflows.
+
+The future research path is:
+
+```text
+report or lesion sample
+→ structured reasoning packet
+→ expert validation
+→ cartilage-lesion / DDCS registry
+→ longitudinal imaging, ctDNA, proteomic, fibrotic-niche, and bioelectric signals
+→ Markov-state early-warning model
+→ prospective validation
+→ adaptive precision oncology infrastructure
+```
+
+For DDCS and suspicious cartilage/bone lesions, the long-term model is best framed as a hypothesis-generating surveillance architecture. Plasma proteomics may provide systemic or cell-type stress signals, fibrotic-niche biology may indicate a tumor-permissive microenvironment, bioelectricity may represent local tissue quality-control failure, and a Markov model can integrate those signals with imaging, symptoms, pathology, ctDNA, and molecular findings over time. This does not prove DDCS diagnosis or prevention today; it defines a safe research pathway for identifying dangerous transitions earlier and routing cases to sarcoma-board review, biopsy, molecular validation, or local intervention when warranted.
+
+## Core Thesis
+
+Translume’s durable value is not that it summarizes oncology reports faster. Its value is that it turns fragmented molecular findings, biological evidence, literature, pathway knowledge, expert interpretation, validation decisions, and tumor-behavior hypotheses into a structured translational reasoning process that can be reviewed, reused, audited, and improved over time.
+
+Translume turns one-off expert reasoning into a compounding institutional asset.
+
+
+### Translume MVP Production Workflow
 
 Translume is a local-first clinical output compiler that turns one oncology molecular report into reviewable tumor-behavior intelligence: source-backed findings, evidence-classified claims, mechanism paths, validation tests, human review controls, and provenance-backed ledger export.
 
