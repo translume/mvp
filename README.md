@@ -1,7 +1,7 @@
 # Translume
 
 <p align="center">
-  <img src="docs/assets/translume-logo.png" alt="Translume logo" width="900"/>
+  <img src="docs/translume-logo.png" alt="Translume logo" width="900"/>
 </p>
 
 <p align="center">
