@@ -1,0 +1,10 @@
+from __future__ import annotations
+
+from fastapi import FastAPI
+
+app = FastAPI(title="translume_worker")
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "translume_worker", "port": "8099"}

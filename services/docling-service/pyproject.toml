@@ -1,0 +1,9 @@
+[project]
+name = "docling-service"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ['fastapi', 'uvicorn', 'pydantic', 'python-multipart', 'docling>=2.102.2']
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
