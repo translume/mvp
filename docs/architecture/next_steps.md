@@ -62,8 +62,8 @@ ToolUniverse, or Medea.
 6. Repair 6 — Convert clinical artifact generation to local vLLM structured outputs — done.
 7. Repair 7 — Make report extraction source-grounded and model-driven — done.
 8. Repair 8 — Enforce narrative containment in the production path — done.
-9. Repair 9 — Replace generic OptimusKG edge-file loading with true OptimusKG usage — next.
-10. Repair 10 — Configure all required ToolUniverse workflows — pending.
+9. Repair 9 — Replace generic OptimusKG edge-file loading with true OptimusKG usage — done.
+10. Repair 10 — Configure all required ToolUniverse workflows — done.
 11. Repair 11 — Prove Medea local runtime and remote-provider blocking — pending.
 12. Repair 12 — Generate tumor behavior dynamically from evidence — pending.
 13. Repair 13 — Add artifact-specific provenance everywhere — pending.
@@ -119,9 +119,20 @@ Next repair is Tutorial 9: replace generic OptimusKG edge-file loading with real
 
 The production workflow now validates `ClinicalNarrativeCompilerOutput` before packet export and persistence. The containment validator checks that gene-like, therapy-like, alteration-like, and source-artifact references in the narrative are present in the structured artifact bundle; unsupported content raises a hard failure and records a `narrative_fact_containment_failed` ledger event through the existing workflow stage machinery. Successful containment generates a `NarrativeContainmentReport`, adds deterministic containment provenance, stores the report in the review packet, and indexes it with the rest of the packet. This keeps the final narrative as a readable rendering of source-backed structured artifacts rather than a freeform chatbot answer.
 
-Next repair is Tutorial 9: replace generic OptimusKG edge-file loading with true OptimusKG package/data usage so graph evidence comes from the actual MIMS repository path.
+Tutorial 9 is complete: OptimusKG context now comes from the real OptimusKG Python client/parquet path rather than generic edge-file loading.
+
+Tutorial 10 is complete: ToolUniverse workflow coverage now includes literature_validation, pathway_context, target_context, variant_context, and trial_context_review, with every workflow mapped to explicit real ToolUniverse tool names. Missing workflow config, missing tool names, or missing required context now fails loudly instead of yielding placeholder evidence.
+
+Next repair is Tutorial 11: prove Medea local runtime and remote-provider blocking.
 
 
 ## Tutorial 8 — Replace generic OptimusKG edge-file loading with true OptimusKG usage
 
 Code now routes OptimusKG context through the real OptimusKG Python client and parquet tables using Polars. Generic CSV/JSON/JSONL edge discovery is removed from the production path. Runtime still requires a real OptimusKG git checkout and available OptimusKG cache/download access; Docker/VM validation remains required.
+
+
+## Tutorial 10 completed: required ToolUniverse workflow coverage
+
+The production ToolUniverse path now requires all MVP evidence workflows: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. `configs/local/tooluniverse_workflows.json` maps each workflow to explicit ToolUniverse tools such as PubMed, Europe PMC, KEGG, OpenTargets, ClinVar, CIViC, and ClinicalTrials.gov tools. The ToolUniverse service now loads the real vendored ToolUniverse engine, calls `load_tools` for the configured tools, executes only configured workflows, normalizes outputs to `ToolRunArtifact`, and fails loudly if a workflow, tool, config, or required context value is missing. No precomputed ToolUniverse evidence files are accepted in the production path.
+
+Next repair is Tutorial 11: prove Medea local runtime and remote-provider blocking.

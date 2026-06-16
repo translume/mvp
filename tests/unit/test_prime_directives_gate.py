@@ -36,7 +36,7 @@ REQUIRED_ENV = {
     "MEDEA_SERVICE_URL": "http://medea-service:8093",
     "OPENSEARCH_URL": "http://opensearch:9200",
     "POSTGRES_DSN": "postgresql://translume:translume@postgres:5432/translume",
-    "TRANSLUME_TOOL_WORKFLOWS": "target_context",
+    "TRANSLUME_TOOL_WORKFLOWS": "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
 }
 
 
@@ -88,6 +88,37 @@ def _write_vendor_config(root: Path) -> None:
     )
 
 
+def _write_tooluniverse_workflow_config(root: Path) -> None:
+    config = root / "configs" / "local" / "tooluniverse_workflows.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    workflows = [
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    ]
+    config.write_text(
+        json.dumps(
+            {
+                "required_workflows": workflows,
+                "workflows": {
+                    workflow: {
+                        "steps": [
+                            {
+                                "tool_name": "EuropePMC_search_articles",
+                                "arguments": {"query": "$literature_query"},
+                            }
+                        ]
+                    }
+                    for workflow in workflows
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_ui_dockerfile(root: Path, content: str | None = None) -> None:
     docker = root / "docker"
     docker.mkdir(parents=True, exist_ok=True)
@@ -102,7 +133,36 @@ def _prepare_root(tmp_path: Path) -> Path:
     root.mkdir()
     (root / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
     (root / "pyproject.toml").write_text("[project]\nname='x'\nversion='0'\n", encoding="utf-8")
+    workflow_config = root / "configs" / "local" / "tooluniverse_workflows.json"
+    workflow_config.parent.mkdir(parents=True, exist_ok=True)
+    required = [
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    ]
+    workflow_config.write_text(
+        json.dumps(
+            {
+                "required_workflows": required,
+                "workflows": {
+                    workflow: {
+                        "steps": [
+                            {
+                                "tool_name": "PubMed_search_articles",
+                                "arguments": {"query": "$literature_query"},
+                            }
+                        ]
+                    }
+                    for workflow in required
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     _write_vendor_config(root)
+    _write_tooluniverse_workflow_config(root)
     _write_ui_dockerfile(root)
     return root
 

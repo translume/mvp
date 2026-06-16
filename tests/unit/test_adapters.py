@@ -141,29 +141,67 @@ async def test_optimuskg_provider_rejects_csv_substitute(tmp_path) -> None:
         await OptimusKGGraphProvider(edge_file).retrieve_context(_entities())
 
 
-@pytest.mark.asyncio
-async def test_tooluniverse_provider_enforces_allow_list_and_reads_artifact(tmp_path) -> None:
-    evidence_dir = tmp_path / "tool"
-    evidence_dir.mkdir()
-    (evidence_dir / "literature_validation.json").write_text(
-        json.dumps(
-            {
-                "summary": "Local ToolUniverse evidence requires review.",
-                "evidence_items": [{"source": "local_tooluniverse"}],
-            }
-        ),
+def _write_fake_tooluniverse_repo(tmp_path):
+    repo = tmp_path / "ToolUniverse"
+    package = repo / "tooluniverse"
+    package.mkdir(parents=True)
+    package.joinpath("__init__.py").write_text(
+        "class ToolUniverse:\n"
+        "    def __init__(self):\n"
+        "        self.all_tool_dict = {}\n"
+        "    def load_tools(self, include_tools=None, quiet=True, **kwargs):\n"
+        "        self.all_tool_dict = {name: {} for name in (include_tools or [])}\n"
+        "    def run_one_function(self, function_call_json, use_cache=False, validate=True, stream_callback=None):\n"
+        "        return {\"summary\": \"real fake-package ToolUniverse tool executed\", \"call\": function_call_json}\n",
         encoding="utf-8",
     )
+    return repo
+
+
+def _write_tooluniverse_workflow_config(tmp_path, required=None):
+    workflows = required or [
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    ]
+    payload = {
+        "required_workflows": workflows,
+        "workflows": {
+            workflow: {
+                "steps": [
+                    {
+                        "tool_name": "PubMed_search_articles",
+                        "required_context": ["literature_query"],
+                        "arguments": {"query": "$literature_query", "limit": 1},
+                    }
+                ]
+            }
+            for workflow in workflows
+        },
+    }
+    path = tmp_path / "tooluniverse_workflows.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+@pytest.mark.asyncio
+async def test_tooluniverse_provider_executes_real_configured_runtime(tmp_path, monkeypatch) -> None:
+    monkeypatch.delitem(__import__("sys").modules, "tooluniverse", raising=False)
+    repo = _write_fake_tooluniverse_repo(tmp_path)
+    config_path = _write_tooluniverse_workflow_config(tmp_path)
     entities = _entities()
     graph = GraphEvidenceArtifact(artifact_id="g", source_entity_ids=[], nodes=[], edges=[])
-    provider = ToolUniverseProvider({"literature_validation"}, evidence_dir)
+    provider = ToolUniverseProvider(repo, config_path)
     outputs = await provider.run_workflows(
         workflows=["literature_validation"],
         entities=entities,
         graph=graph,
     )
     assert outputs[0].workflow == "literature_validation"
-    with pytest.raises(ValueError, match="allow-listed"):
+    assert outputs[0].evidence_items[0]["tool_name"] == "PubMed_search_articles"
+    with pytest.raises(Exception, match="not configured"):
         await provider.run_workflows(workflows=["unsafe"], entities=entities, graph=graph)
 
 

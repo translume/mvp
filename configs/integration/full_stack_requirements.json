@@ -40,7 +40,17 @@
       "path": "/health",
       "required_fields": {
         "status": "ok",
-        "vendor_available": true
+        "vendor_available": true,
+        "workflow_config_valid": true,
+        "required_workflows_configured": true,
+        "missing_required_workflows": [],
+        "configured_workflows": [
+          "literature_validation",
+          "pathway_context",
+          "target_context",
+          "variant_context",
+          "trial_context_review"
+        ]
       }
     },
     {

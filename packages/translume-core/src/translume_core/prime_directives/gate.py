@@ -70,6 +70,14 @@ REQUIRED_NONEMPTY_ENV: tuple[str, ...] = (
     "POSTGRES_DSN",
 )
 
+REQUIRED_TOOLUNIVERSE_WORKFLOWS: tuple[str, ...] = (
+    "literature_validation",
+    "pathway_context",
+    "target_context",
+    "variant_context",
+    "trial_context_review",
+)
+
 REMOTE_PROVIDER_SECRET_ENV: tuple[str, ...] = (
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",
@@ -147,7 +155,7 @@ def validate_prime_directives(
     findings.extend(validate_remote_provider_environment(environment))
     findings.extend(validate_vendor_repositories(root))
     findings.extend(validate_ui_docker_entrypoint(root))
-    findings.extend(validate_required_tool_workflows(environment))
+    findings.extend(validate_required_tool_workflows(environment, root))
     ok = all(finding.severity != "error" for finding in findings)
     return PrimeDirectiveGateReport(
         ok=ok,
@@ -336,33 +344,122 @@ def validate_ui_docker_entrypoint(root: Path) -> tuple[PrimeDirectiveFinding, ..
 
 def validate_required_tool_workflows(
     environment: Mapping[str, str],
+    root: Path,
 ) -> tuple[PrimeDirectiveFinding, ...]:
-    """Validate at least one governed ToolUniverse workflow is configured.
+    """Validate all required governed ToolUniverse workflows are configured.
 
-    Full workflow coverage is repaired in Tutorial 9. This gate only prevents a
-    blank ToolUniverse product path in production/demo mode.
+    Acceptance criteria:
+        1. TRANSLUME_TOOL_WORKFLOWS must include every MVP-required workflow.
+        2. The ToolUniverse workflow config file must exist.
+        3. The config must define each required workflow with executable steps.
+        4. Missing workflows are production-gate errors, not warnings.
     """
-    workflows = [
+    findings: list[PrimeDirectiveFinding] = []
+    requested = {
         item.strip()
         for item in env_value("TRANSLUME_TOOL_WORKFLOWS", environment).split(",")
         if item.strip()
-    ]
-    if not workflows:
-        return (
+    }
+    missing_requested = sorted(set(REQUIRED_TOOLUNIVERSE_WORKFLOWS) - requested)
+    if missing_requested:
+        findings.append(
             PrimeDirectiveFinding(
-                rule_id="tooluniverse:workflows_nonempty",
+                rule_id="tooluniverse:required_workflows_requested",
                 severity="error",
                 message=(
-                    "TRANSLUME_TOOL_WORKFLOWS must name real governed workflows. "
-                    "A blank ToolUniverse path would hide missing evidence enrichment."
+                    "TRANSLUME_TOOL_WORKFLOWS must include every MVP-required "
+                    "governed workflow. Missing: " + ", ".join(missing_requested)
                 ),
                 next_actions=(
-                    "Set TRANSLUME_TOOL_WORKFLOWS to configured workflow names.",
-                    "Tutorial 9 must map every required workflow to a real ToolUniverse tool.",
+                    "Set TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review.",
+                    "Rerun `make validate-prime-directives`.",
                 ),
-            ),
+            )
         )
-    return ()
+    config_path = Path(
+        env_value("TOOLUNIVERSE_WORKFLOW_CONFIG", environment)
+        or "configs/local/tooluniverse_workflows.json"
+    )
+    if not config_path.is_absolute():
+        config_path = root / config_path
+    if not config_path.exists():
+        findings.append(
+            PrimeDirectiveFinding(
+                rule_id="tooluniverse:workflow_config_exists",
+                severity="error",
+                message=f"ToolUniverse workflow config is missing: {config_path}",
+                next_actions=(
+                    "Restore configs/local/tooluniverse_workflows.json or set TOOLUNIVERSE_WORKFLOW_CONFIG.",
+                    "Do not bypass ToolUniverse evidence enrichment in production/demo mode.",
+                ),
+            )
+        )
+        return tuple(findings)
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        findings.append(
+            PrimeDirectiveFinding(
+                rule_id="tooluniverse:workflow_config_valid_json",
+                severity="error",
+                message=f"ToolUniverse workflow config is invalid JSON: {error}",
+                next_actions=("Fix the JSON syntax and rerun the production gate.",),
+            )
+        )
+        return tuple(findings)
+    workflows = payload.get("workflows") if isinstance(payload, dict) else None
+    if not isinstance(workflows, dict):
+        findings.append(
+            PrimeDirectiveFinding(
+                rule_id="tooluniverse:workflow_config_object",
+                severity="error",
+                message="ToolUniverse workflow config must contain a workflows object.",
+                next_actions=("Define a workflows object keyed by workflow name.",),
+            )
+        )
+        return tuple(findings)
+    missing_configured = sorted(set(REQUIRED_TOOLUNIVERSE_WORKFLOWS) - set(workflows.keys()))
+    if missing_configured:
+        findings.append(
+            PrimeDirectiveFinding(
+                rule_id="tooluniverse:required_workflows_configured",
+                severity="error",
+                message=(
+                    "ToolUniverse workflow config must define every MVP-required workflow. Missing: "
+                    + ", ".join(missing_configured)
+                ),
+                next_actions=(
+                    "Configure literature_validation, pathway_context, target_context, variant_context, and trial_context_review.",
+                    "Each workflow must map to real ToolUniverse tools and executable steps.",
+                ),
+            )
+        )
+    for workflow_name in REQUIRED_TOOLUNIVERSE_WORKFLOWS:
+        spec = workflows.get(workflow_name)
+        if not isinstance(spec, dict):
+            continue
+        steps = spec.get("steps")
+        if not isinstance(steps, list) or not steps:
+            findings.append(
+                PrimeDirectiveFinding(
+                    rule_id=f"tooluniverse:workflow_steps:{workflow_name}",
+                    severity="error",
+                    message=f"ToolUniverse workflow has no executable steps: {workflow_name}",
+                    next_actions=("Add at least one step with a real ToolUniverse tool_name.",),
+                )
+            )
+            continue
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict) or not str(step.get("tool_name", "")).strip():
+                findings.append(
+                    PrimeDirectiveFinding(
+                        rule_id=f"tooluniverse:workflow_tool_name:{workflow_name}:{index}",
+                        severity="error",
+                        message=f"ToolUniverse workflow step missing tool_name: {workflow_name}[{index}]",
+                        next_actions=("Set tool_name to an actual ToolUniverse registry tool.",),
+                    )
+                )
+    return tuple(findings)
 
 
 def env_value(name: str, environment: Mapping[str, str]) -> str:

@@ -172,21 +172,21 @@ async def test_tooluniverse_service_runs_real_registry_tool(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delitem(sys.modules, "tooluniverse", raising=False)
     repo = tmp_path / "ToolUniverse"
     _write_package(
         repo,
         "tooluniverse",
         {
-            "__init__.py": "",
-            "tool_registry.py": """
-class EchoTool:
-    def __init__(self, config):
-        self.config = config
-    def run(self, args):
-        return {"summary": "validated " + args["disease_name"], "args": args}
-
-def get_tool_registry():
-    return {"echo_disease": EchoTool}
+            "__init__.py": """
+class ToolUniverse:
+    def __init__(self):
+        self.all_tool_dict = {}
+    def load_tools(self, include_tools=None, quiet=True, **kwargs):
+        self.all_tool_dict = {name: {} for name in (include_tools or [])}
+    def run_one_function(self, function_call_json, use_cache=False, validate=True, stream_callback=None):
+        args = function_call_json.get('arguments', {})
+        return {'summary': 'validated ' + args.get('disease_name', ''), 'args': args}
 """,
         },
     )
@@ -194,16 +194,30 @@ def get_tool_registry():
     config_path.write_text(
         json.dumps(
             {
+                "required_workflows": [
+                    "literature_validation",
+                    "pathway_context",
+                    "target_context",
+                    "variant_context",
+                    "trial_context_review",
+                ],
                 "workflows": {
-                    "target_context": {
+                    workflow: {
                         "steps": [
                             {
                                 "tool_name": "echo_disease",
-                                "config": {},
+                                "required_context": ["first_disease"],
                                 "arguments": {"disease_name": "$first_disease"},
                             }
                         ]
                     }
+                    for workflow in [
+                        "literature_validation",
+                        "pathway_context",
+                        "target_context",
+                        "variant_context",
+                        "trial_context_review",
+                    ]
                 }
             }
         ),

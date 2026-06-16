@@ -183,11 +183,7 @@ MIMS runtime rules:
 6. No service fabricates successful evidence artifacts.
 ```
 
-The default ToolUniverse workflow config includes `target_context` because the
-Medea/ToolUniverse usage notes identify `load_disease_targets` as a ToolUniverse
-registry tool. If your vendored ToolUniverse version uses different tool names,
-update `configs/local/tooluniverse_workflows.json` rather than editing Translume
-core code.
+The default ToolUniverse workflow config includes `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. Each workflow maps to named ToolUniverse tools in `configs/local/tooluniverse_workflows.json`; the ToolUniverse service loads those tools through the real vendored `ToolUniverse` runtime and fails if a configured tool cannot be loaded or executed. If an upstream ToolUniverse update renames a tool, update the workflow configuration or Translume adapter mapping rather than editing the Harvard MIMS repository directly.
 
 
 ## Gradio UI production launch
@@ -391,3 +387,8 @@ The production workflow now validates the generated clinical narrative before re
 ### OptimusKG graph context
 
 Translume now requires OptimusKG graph context to come from the real OptimusKG Python client and its parquet graph tables. The production path does not read arbitrary CSV/JSON edge files as a substitute. Configure `OPTIMUSKG_CACHE_DIR`, `OPTIMUSKG_USE_LCC`, `OPTIMUSKG_MAX_EDGES`, and `OPTIMUSKG_FORCE_DOWNLOAD` as needed. Missing OptimusKG package/data fails loudly.
+
+
+## ToolUniverse workflow coverage
+
+The default ToolUniverse workflow config includes `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. Each workflow maps to explicit ToolUniverse tool names and dynamic arguments derived from normalized entities and graph evidence. If your vendored ToolUniverse version changes tool names or parameters, update `configs/local/tooluniverse_workflows.json` and rerun `make validate-prime-directives`, `make vendor-status`, and `make test`; do not edit Translume core compiler code or the upstream ToolUniverse repo.

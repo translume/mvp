@@ -1,14 +1,144 @@
 {
+  "required_workflows": [
+    "literature_validation",
+    "pathway_context",
+    "target_context",
+    "variant_context",
+    "trial_context_review"
+  ],
   "workflows": {
-    "target_context": {
+    "literature_validation": {
+      "description": "Retrieve source literature candidates for report-derived disease, gene, and alteration terms.",
+      "required_context": ["literature_query"],
       "steps": [
         {
-          "tool_name": "load_disease_targets",
-          "config": {},
+          "tool_name": "PubMed_search_articles",
+          "required_context": ["literature_query"],
+          "use_cache": true,
           "arguments": {
+            "query": "$literature_query",
+            "limit": 5,
+            "include_abstract": true
+          }
+        },
+        {
+          "tool_name": "EuropePMC_search_articles",
+          "required_context": ["literature_query"],
+          "use_cache": true,
+          "arguments": {
+            "query": "$literature_query",
+            "limit": 5,
+            "enrich_missing_abstract": false
+          }
+        }
+      ]
+    },
+    "pathway_context": {
+      "description": "Retrieve pathway and biological-process context for report-derived gene or graph terms.",
+      "required_context": ["pathway_query"],
+      "steps": [
+        {
+          "tool_name": "ReactomeContent_search",
+          "required_context": ["pathway_query"],
+          "use_cache": true,
+          "arguments": {
+            "query": "$pathway_query",
+            "species": "Homo sapiens",
+            "types": "Pathway"
+          }
+        },
+        {
+          "tool_name": "PathwayCommons_search",
+          "required_context": ["pathway_query"],
+          "use_cache": true,
+          "arguments": {
+            "query": "$pathway_query",
+            "type": "pathway",
+            "organism": "9606"
+          }
+        },
+        {
+          "tool_name": "kegg_search_pathway",
+          "required_context": ["pathway_query"],
+          "use_cache": true,
+          "arguments": {
+            "keyword": "$pathway_query"
+          }
+        }
+      ]
+    },
+    "target_context": {
+      "description": "Retrieve target/disease evidence context for the first source-derived gene and disease pair.",
+      "required_context": ["first_gene", "first_disease"],
+      "steps": [
+        {
+          "tool_name": "OpenTargets_search_category_counts_by_query_string",
+          "required_context": ["target_query"],
+          "use_cache": true,
+          "arguments": {
+            "queryString": "$target_query"
+          }
+        },
+        {
+          "tool_name": "OpenTargets_get_evidence_by_datasource",
+          "required_context": ["first_gene", "first_disease"],
+          "use_cache": true,
+          "arguments": {
+            "gene_symbol": "$first_gene",
             "disease_name": "$first_disease",
-            "use_api": true,
-            "attributes": ["otGeneticsPortal", "chembl"]
+            "size": 10
+          }
+        }
+      ]
+    },
+    "variant_context": {
+      "description": "Retrieve variant and gene-level clinical-variant context for source-derived genes and alterations.",
+      "required_context": ["first_gene"],
+      "steps": [
+        {
+          "tool_name": "ClinVar_search_variants",
+          "required_context": ["first_gene"],
+          "use_cache": true,
+          "arguments": {
+            "gene": "$first_gene",
+            "condition": "$first_disease",
+            "max_results": 10
+          }
+        },
+        {
+          "tool_name": "civic_search_genes",
+          "required_context": ["first_gene"],
+          "use_cache": true,
+          "arguments": {
+            "query": "$first_gene",
+            "limit": 10
+          }
+        },
+        {
+          "tool_name": "annotate_variant_multi_source",
+          "required_context": ["first_variant"],
+          "use_cache": true,
+          "omit_empty": true,
+          "arguments": {
+            "gene": "$first_gene",
+            "variant": "$first_variant"
+          }
+        }
+      ]
+    },
+    "trial_context_review": {
+      "description": "Retrieve clinical-trial context for the source-derived disease and molecular terms without generating treatment recommendations.",
+      "required_context": ["first_disease"],
+      "steps": [
+        {
+          "tool_name": "search_clinical_trials",
+          "required_context": ["first_disease"],
+          "use_cache": true,
+          "arguments": {
+            "condition": "$first_disease",
+            "query_term": "$clinical_trial_query",
+            "limit": 10,
+            "status": ["RECRUITING", "NOT_YET_RECRUITING", "ACTIVE_NOT_RECRUITING"]
           }
         }
       ]

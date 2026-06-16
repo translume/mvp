@@ -17,7 +17,13 @@ class Settings(BaseModel):
     tooluniverse_service_url: str = "http://tooluniverse-service:8092"
     medea_service_url: str = "http://medea-service:8093"
     mims_timeout_seconds: float = 240.0
-    tool_workflows: tuple[str, ...] = ("target_context",)
+    tool_workflows: tuple[str, ...] = (
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    )
     max_chunk_chars: int = 2400
     opensearch_url: str = "http://opensearch:9200"
     opensearch_timeout_seconds: float = 30.0
@@ -53,7 +59,10 @@ def get_settings() -> Settings:
         tooluniverse_service_url=os.getenv("TOOLUNIVERSE_SERVICE_URL", "http://tooluniverse-service:8092"),
         medea_service_url=os.getenv("MEDEA_SERVICE_URL", "http://medea-service:8093"),
         mims_timeout_seconds=float(os.getenv("MIMS_TIMEOUT_SECONDS", "240")),
-        tool_workflows=_parse_csv_tuple(os.getenv("TRANSLUME_TOOL_WORKFLOWS", "target_context")),
+        tool_workflows=_parse_csv_tuple(os.getenv(
+                "TRANSLUME_TOOL_WORKFLOWS",
+                "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
+            )),
         max_chunk_chars=int(os.getenv("TRANSLUME_MAX_CHUNK_CHARS", "2400")),
         opensearch_url=os.getenv("OPENSEARCH_URL", "http://opensearch:9200"),
         opensearch_timeout_seconds=float(os.getenv("OPENSEARCH_TIMEOUT_SECONDS", "30")),

@@ -1,30 +1,8 @@
-# Translume
+# Translume MVP Production Workflow
 
-<p align="center">
-  <img src="docs/translume-logo.png" alt="Translume logo" width="900"/>
-</p>
+Translume is a local-first clinical output compiler that turns one oncology molecular report into reviewable tumor-behavior intelligence: source-backed findings, evidence-classified claims, mechanism paths, validation tests, human review controls, and provenance-backed ledger export.
 
-<p align="center">
-  <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence.</strong>
-</p>
-
-<p align="center">
-  <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/>
-  <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/>
-  <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/>
-  <img alt="Paper on arXiv" src="https://img.shields.io/badge/Paper%20on-arXiv-4c8eda?style=for-the-badge"/>
-  <img alt="Project Website" src="https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge"/>
-  <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/>
-</p>
-
-
-Translume is a clinical output compiler for translational oncology. It ingests an oncology molecular report, extracts structured molecular findings, maps them into biological axes, ranks molecular fits for expert review, explains “why from omics,” builds a Finding → Mechanism → Molecular Fit → Validation Test chain, identifies confirmatory testing needs, and produces a source-backed tumor-behavior hypothesis without making treatment recommendations.
-
-Modern oncology teams do not lack molecular data. They lack a fast, defensible way to turn NGS, WGS, FISH, IHC, RNA, pathology, and research reports into reviewable clinical-translational reasoning. Molecular reports surface variants, copy-number changes, expression signals, limitations, and negative findings, but those facts usually remain disconnected from mechanism, evidence strength, validation needs, and disease behavior. Translume closes that gap by converting raw report content into a structured review surface where every major claim is tied to source text, evidence class, uncertainty, provenance, and human validation.
-
-The MVP focuses on one high-value workflow: one oncology report becomes one structured, explainable, clinician-reviewable tumor-behavior intelligence packet. The output shows what the report found, why each finding may matter biologically, what is unsupported, what must be validated next, which claims are facts versus hypotheses, and who accepted, rejected, or flagged each claim. This reduces tumor-board and translational review burden while creating reusable structured reasoning that can later support longitudinal disease modeling.
-
-The system is intentionally not a treatment recommendation engine, diagnostic device, outcome predictor, or adaptive precision oncology platform yet. It is the foundation those future systems require: accurate document extraction, source-backed chunks, local structured model outputs, biomedical graph context, governed scientific-tool evidence, bounded omics/literature reasoning, human validation controls, and a provenance-backed ledger.
+This repository is a modular MVP workflow, not a clinical device. It intentionally does not produce treatment recommendations, outcome predictions, transition probabilities, or autonomous clinical decisions.
 
 ## Stack
 
@@ -174,7 +152,7 @@ OPTIMUSKG_SERVICE_URL=http://optimuskg-service:8091
 TOOLUNIVERSE_SERVICE_URL=http://tooluniverse-service:8092
 MEDEA_SERVICE_URL=http://medea-service:8093
 MIMS_TIMEOUT_SECONDS=240
-TRANSLUME_TOOL_WORKFLOWS=target_context
+TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review
 ```
 
 The service containers load vendored Harvard repositories from:
@@ -199,10 +177,7 @@ make catalog-vendor-repos
 inspection only, but zip-extracted folders are not production-updateable and
 will fail `make vendor-status`.
 
-Strict behavior remains: if a required MIMS repository, workflow config, graph
-edge data, ToolUniverse registry, or Medea local-vLLM path is unavailable, the
-workflow fails explicitly. It does not fabricate graph evidence, tool evidence,
-or bounded reasoning.
+Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`.
 
 ## Human validation-card workflow
 

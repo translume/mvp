@@ -1,64 +1,51 @@
 # Translume MVP Quickstart
 
-This quickstart is only for bringing up the Translume MVP stack, configuring `.env`, running Docker, and using the Gradio app.
+This file gives only the setup order, `.env` configuration, Docker/Make commands, Harvard MIMS update commands, and a short Gradio usage tutorial.
 
-## 1. Prerequisites
+Translume is strict by design. In production/demo mode, missing Docker, GPU, vLLM, Docling, OpenSearch, Postgres, OptimusKG, ToolUniverse, Medea, or required configuration must fail loudly. Do not replace missing services with local fixtures or static JSON.
 
-Install these on the target VM:
+## 1. Install VM prerequisites
+
+On the target GPU VM, confirm:
 
 ```bash
 nvidia-smi
 docker --version
 docker compose version
+git --version
 ```
 
-You need:
-
-```text
-Docker Engine
-Docker Compose v2
-NVIDIA driver visible through nvidia-smi
-NVIDIA Container Toolkit configured for Docker GPU containers
-A real local/Hugging Face model ID for VLLM_MODEL
-A real oncology PDF report path for TRANSLUME_E2E_REPORT_PATH
-```
+You need Docker Engine, Docker Compose v2, NVIDIA drivers, NVIDIA Container Toolkit, GitHub access for the MIMS repos, a real local/Hugging Face model ID for `VLLM_MODEL`, and a real oncology PDF path for `TRANSLUME_E2E_REPORT_PATH`.
 
 ## 2. Create `.env`
-
-From the project root:
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Use this template and replace the two required values:
+Set at least these values:
 
 ```bash
 TRANSLUME_ENV=local
-TRANSLUME_STORAGE_ROOT=/data/uploads
-TRANSLUME_ARTIFACT_ROOT=/data/artifacts
+TRANSLUME_ENFORCE_PRIME_DIRECTIVES=false
 
 POSTGRES_DSN=postgresql://translume:translume@postgres:5432/translume
 POSTGRES_PUBLIC_DSN=postgresql://translume:translume@localhost:5432/translume
-POSTGRES_CONNECT_TIMEOUT_SECONDS=10
 TRANSLUME_REQUIRE_POSTGRES=true
 
 OPENSEARCH_URL=http://opensearch:9200
 OPENSEARCH_PUBLIC_URL=http://localhost:9200
-OPENSEARCH_TIMEOUT_SECONDS=30
 TRANSLUME_REQUIRE_OPENSEARCH=true
-TRANSLUME_VECTOR_DIMENSION=384
 
 VLLM_BASE_URL=http://vllm-clinical:8000/v1
 VLLM_PUBLIC_BASE_URL=http://localhost:8000/v1
 VLLM_MODEL=<SET_A_REAL_MODEL_ID_HERE>
+TRANSLUME_REQUIRE_LOCAL_VLLM=true
 
 DOCLING_SERVICE_URL=http://docling-service:8090
 DOCLING_PUBLIC_URL=http://localhost:8090
-DOCLING_TIMEOUT_SECONDS=240
 TRANSLUME_REQUIRE_DOCLING=true
-DOCLING_EXTRACTION_METHOD=docling
 
 OPTIMUSKG_SERVICE_URL=http://optimuskg-service:8091
 OPTIMUSKG_PUBLIC_URL=http://localhost:8091
@@ -79,12 +66,11 @@ MEDEA_PUBLIC_URL=http://localhost:8093
 MEDEA_VENDOR_DIR=/app/third_party/upstream/Medea
 MEDEA_MODULE_NAMES=medea
 
-MIMS_TIMEOUT_SECONDS=240
 TRANSLUME_REQUIRE_MIMS=true
-TRANSLUME_TOOL_WORKFLOWS=target_context
+TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review
+MIMS_TIMEOUT_SECONDS=240
 BLOCK_REMOTE_MODEL_PROVIDERS=true
 
-TRANSLUME_MAX_CHUNK_CHARS=2400
 TRANSLUME_API_URL=http://localhost:8080
 TRANSLUME_API_BASE_URL=http://translume-api:8080
 TRANSLUME_UI_HOST=0.0.0.0
@@ -95,124 +81,120 @@ TRANSLUME_E2E_REPORT_PATH=/absolute/path/to/real/oncology_report.pdf
 TRANSLUME_E2E_REPORT_TYPE=NGS
 ```
 
-`VLLM_MODEL` must not be blank, `mock`, `dummy`, `placeholder`, or `local-clinical-model`.
+`VLLM_MODEL` must be a real model ID your GPU can serve. It must not be blank, `mock`, `dummy`, `placeholder`, `test`, or `local-clinical-model`.
 
-Example:
+## 3. Pull the Harvard MIMS repos as real Git clones
 
-```bash
-VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-```
-
-Use a model your GPU can actually serve.
-
-## 3. Vendor the Harvard MIMS repos
-
-If the repos are already present under `third_party/upstream/`, run:
-
-```bash
-make catalog-vendor-repos
-make audit-vendor-model-calls
-```
-
-If the repos are not present and the VM has internet access:
+Assume the third-party repos are not present. From the project root:
 
 ```bash
 make vendor-repos
-make catalog-vendor-repos
+make vendor-status
 make audit-vendor-model-calls
+make catalog-vendor-repos
 ```
 
-The expected vendor directories are:
+Expected directories:
 
 ```text
+third_party/upstream/Medea
 third_party/upstream/OptimusKG
 third_party/upstream/ToolUniverse
-third_party/upstream/Medea
 ```
 
-## 4. Preflight check
+These must be real Git repositories with `.git` directories. Zip-extracted folders are only for offline inspection through `make vendor-bootstrap-from-zips`; they are not production-updateable and fail `make vendor-status`.
 
-Run:
+## 4. Update Harvard MIMS repos later
+
+To safely pull updates:
 
 ```bash
-make preflight-full-stack
+git -C third_party/upstream/Medea pull --ff-only
+git -C third_party/upstream/OptimusKG pull --ff-only
+git -C third_party/upstream/ToolUniverse pull --ff-only
+make vendor-status
+make audit-vendor-model-calls
+make test
 ```
 
-This checks:
+If an upstream change breaks Translume, update Translume adapters, not the MIMS repos.
+
+## 5. How Translume extends MIMS without modifying MIMS code
+
+The MIMS repos stay clean under `third_party/upstream/`. Translume does not scatter changes through Medea, OptimusKG, or ToolUniverse. Instead, Translume owns stable ports and adapters:
 
 ```text
-Docker
-Docker Compose
-GPU visibility
-required .env values
-real oncology PDF path
-vendored MIMS repos
-non-placeholder VLLM_MODEL
+packages/translume-ports       # stable Translume contracts
+packages/translume-adapters    # wrappers around MIMS and local vLLM behavior
+services/*-service             # isolated service containers for MIMS runtime
 ```
 
-## 5. Start the full stack
+The pattern is:
 
-Run:
+```text
+Translume port → Translume adapter → real MIMS repo/API/client → structured Translume artifact
+```
+
+This lets MIMS repos be updated with `git pull --ff-only`, while Translume keeps control over local vLLM routing, remote provider blocking, schema validation, evidence normalization, provenance, and human review. If a MIMS repo tries to use a remote model API, the Translume service must block it or fail loudly.
+
+## 6. Validate production/demo gate
+
+After `.env` and vendor repos are configured:
+
+```bash
+make validate-prime-directives
+```
+
+If this fails, fix the first reported issue. Do not disable required services to make it pass.
+
+## 7. Start the stack
 
 ```bash
 make integration-full-stack-up
 ```
 
-This starts:
+This starts Postgres, OpenSearch, vLLM, Docling, OptimusKG service, ToolUniverse service, Medea service, FastAPI, Gradio, and the worker.
 
-```text
-Postgres
-OpenSearch
-vLLM clinical model
-vLLM Docling model
-Docling service
-OptimusKG service
-ToolUniverse service
-Medea service
-Translume FastAPI
-Translume Gradio UI
-Translume worker
-```
-
-## 6. Initialize persistence
-
-After containers are healthy, run:
+Initialize persistence after the containers are healthy:
 
 ```bash
 make init-opensearch
 make init-postgres
 ```
 
-## 7. Run the full-stack integration test
-
-Run:
+## 8. Run full-stack validation
 
 ```bash
 make integration-full-stack
 ```
 
-This uploads the PDF configured in `TRANSLUME_E2E_REPORT_PATH`, processes it through the MVP workflow, validates generated artifacts, checks OpenSearch and Postgres persistence, tests claim validation, and fetches the final review-packet export.
-
-
-The Gradio container launches with `python -m translume_ui.app`. If you need to
-check only the UI after the stack is running, use:
+For production-style runtime validation and diagnostics:
 
 ```bash
-make check-ui-health
+make live-vm-validate
 ```
 
-This command performs a real HTTP request to the running Gradio app. It does not
-mock or fabricate UI readiness.
+If you need diagnostics to continue after the first failure:
 
-## 8. Open the Gradio app
+```bash
+make live-vm-validate-diagnostics
+```
 
-Open:
+Inspect logs:
+
+```bash
+make live-vm-logs
+```
+
+## 9. Open the Gradio app
+
+Local VM:
 
 ```text
 http://localhost:7860
 ```
 
-If running on a remote VM, use the VM IP or SSH port forwarding:
+Remote VM through SSH port forwarding:
 
 ```bash
 ssh -L 7860:localhost:7860 -L 8080:localhost:8080 -L 9200:localhost:9200 user@your-vm
@@ -224,152 +206,22 @@ Then open:
 http://localhost:7860
 ```
 
-## 9. Use the Gradio app
+## 10. Use the Gradio app
 
-### Step 1 — Upload report
+1. Select report type, for example `NGS`.
+2. Upload a real oncology molecular PDF.
+3. Click process.
+4. Review extracted findings first: disease, genes, variants, copy-number events, expression signals, negative findings, limitations, source page, and source text.
+5. Review normalized entities and MIMS evidence context.
+6. Review molecular phenotype, molecular-fit matrix, mechanism Sankey, confirmatory tests, tumor-behavior hypotheses, and evidence-classified claims.
+7. Validate, reject, or mark claims as `needs_review`.
+8. Export the review packet.
 
-In the Upload panel:
+The review packet is for clinician review and translational research support only. It must not produce treatment recommendations, outcome predictions, or unsupported clinical claims.
 
-```text
-Select report type: NGS
-Upload a real oncology molecular PDF
-Click Process Report
-```
+## 11. API commands
 
-### Step 2 — Review extracted findings
-
-After processing, review:
-
-```text
-Disease / report context
-Genes
-Variants
-Copy-number events
-Expression signals
-Negative findings
-Assay limitations
-Source page/source text
-```
-
-This is the first trust checkpoint: confirm Translume extracted what the report actually says.
-
-### Step 3 — Review molecular-fit matrix
-
-Review the matrix for:
-
-```text
-Molecular fit
-Why from omics
-Evidence basis
-Limitations
-Required validation
-```
-
-Rows are for expert review only. They are not treatment recommendations.
-
-### Step 4 — Review mechanism Sankey
-
-Use the Sankey to inspect:
-
-```text
-Finding → Mechanism → Molecular Fit → Validation Test
-```
-
-### Step 5 — Review tumor-behavior hypothesis
-
-Review the tumor-behavior section for:
-
-```text
-Proliferative state evidence
-Stress-adapted survival evidence
-Plastic / dedifferentiated evidence
-Dormant / quiescent uncertainty
-Transition hypotheses
-Validation needs
-```
-
-No probabilities, outcome predictions, or treatment directions should appear.
-
-### Step 6 — Validate claims
-
-In the validation-card panel:
-
-```text
-Choose a claim
-Select validated, rejected, or needs_review
-Add reviewer note
-Submit validation
-```
-
-The decision is persisted to Postgres, re-indexed to OpenSearch, and added to the ledger.
-
-### Step 7 — Export review packet
-
-Click export/fetch review packet.
-
-The export includes:
-
-```text
-raw file reference
-document chunks
-structured artifacts
-OptimusKG graph evidence
-ToolUniverse outputs
-Medea reasoning
-claim evidence cards
-validation decisions
-artifact provenance
-ledger events
-final narrative
-```
-
-## 10. Useful operational commands
-
-Check logs:
-
-```bash
-make integration-full-stack-logs
-```
-
-Stop the stack:
-
-```bash
-make integration-full-stack-down
-```
-
-Run unit tests:
-
-```bash
-make test
-```
-
-Check Docker Compose config:
-
-```bash
-make docker-config
-```
-
-Check Docling health:
-
-```bash
-make docling-health
-```
-
-Direct API health check:
-
-```bash
-curl -fsS http://localhost:8080/health
-```
-
-Direct UI URL:
-
-```text
-http://localhost:7860
-```
-
-## 11. Direct API processing command
-
-You can process a report without the UI:
+Process a report:
 
 ```bash
 curl -fsS -X POST http://localhost:8080/api/v1/reports/process \
@@ -392,115 +244,15 @@ curl -fsS -X POST http://localhost:8080/api/v1/review-packets/<SESSION_ID>/claim
   -d '{"status":"needs_review","reviewer_note":"Needs clinician source review."}'
 ```
 
-Export the review packet:
+Export the packet:
 
 ```bash
 curl -fsS http://localhost:8080/api/v1/review-packets/<SESSION_ID>/export \
   -o translume_review_packet_export.json
 ```
 
-## 11. Live VM validation and diagnostics
-
-After the stack is configured, run the production runtime validation:
+## 12. Stop the stack
 
 ```bash
-make live-vm-validate
+make integration-full-stack-down
 ```
-
-This command performs the real deployment validation path:
-
-```text
-preflight → docker compose config → docker compose up → full-stack integration
-```
-
-It writes JSON and Markdown diagnostic reports under:
-
-```text
-data/exports/runtime_diagnostics/
-```
-
-If validation fails and you want all diagnostic commands to continue after the
-first required failure, run:
-
-```bash
-make live-vm-validate-diagnostics
-```
-
-To inspect logs directly:
-
-```bash
-make live-vm-logs
-```
-
-The live validation does not fake service readiness. It fails if Docker, GPU,
-vLLM, OpenSearch, Postgres, Docling, OptimusKG, ToolUniverse, Medea, upload
-processing, validation-card roundtrip, or export persistence fail.
-
-## Updating Harvard MIMS Repositories
-
-Before running the production-style MVP stack, install or update the upstream Harvard MIMS repositories as real Git clones:
-
-```bash
-make vendor-repos
-make vendor-status
-```
-
-To update manually:
-
-```bash
-git -C third_party/upstream/Medea pull --ff-only
-git -C third_party/upstream/OptimusKG pull --ff-only
-git -C third_party/upstream/ToolUniverse pull --ff-only
-make vendor-status
-```
-
-`make vendor-status` must pass before live VM validation. Zip-extracted repositories are allowed only for offline inspection with `make vendor-bootstrap-from-zips`; they are not production-updateable and will fail vendor status.
-
-## Validate production/demo readiness gate
-
-Before starting the live VM validation, run the PRIME_DIRECTIVES gate:
-
-```bash
-cp .env.example .env
-# edit .env; VLLM_MODEL must be a real model id, not blank
-make vendor-repos
-make vendor-status
-make validate-prime-directives
-```
-
-If the command fails, fix the first reported error. Do not disable required services or replace missing MIMS repos with zip-extracted folders to make the gate pass. The required vendor update path is:
-
-```bash
-git -C third_party/upstream/Medea pull --ff-only
-git -C third_party/upstream/OptimusKG pull --ff-only
-git -C third_party/upstream/ToolUniverse pull --ff-only
-```
-
-Those commands only work after `make vendor-repos` has created real Git clones.
-
-
-## Failure audit trail behavior
-
-During report processing, Translume now records the raw upload, case session, source-file metadata, and upload ledger event before clinical processing begins. Major workflow stages write started, succeeded, and failed ledger events. If a live-stack run fails, inspect the Postgres ledger tables and `data/exports/runtime_diagnostics/` to see which real service or stage failed.
-
-
-## Tutorial 6 — Convert clinical artifacts to local vLLM structured outputs
-
-The production workflow now requires a configured local structured-output model provider for clinical artifact generation. Report extraction, molecular phenotype, molecular-fit matrix, mechanism Sankey, confirmatory testing, tumor-behavior model, claim evidence, and the final clinical narrative are generated through the local vLLM provider and validated against their Pydantic schemas. Deterministic code remains only for source alignment, validation, safety checks, provenance, ledger events, persistence, and service orchestration.
-
-This does not prove Docker/GPU/vLLM runtime in this sandbox. In demo or production mode, `VLLM_MODEL` and `VLLM_BASE_URL` must point to a real local vLLM service configured for structured outputs. Missing local model configuration must fail loudly; no placeholder model output is allowed in the product path.
-
-## Tutorial 8: narrative fact containment enforcement
-
-The production workflow now validates the generated clinical narrative before review-packet export. `ClinicalNarrativeCompilerOutput` must be contained by the structured artifacts in the bundle: report extraction, normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning, phenotype, matrix, Sankey, confirmatory tests, tumor-behavior model, claim cards, and provenance. Unsupported gene-like terms, therapy-like terms, alteration-like phrases, or unknown source artifact IDs fail loudly instead of being returned as a polished narrative. A passing narrative creates a `NarrativeContainmentReport` and containment provenance; a failing narrative records a workflow failure event and blocks export.
-
-# OptimusKG real parquet client settings
-OPTIMUSKG_USE_LCC=true
-OPTIMUSKG_MAX_EDGES=500
-OPTIMUSKG_FORCE_DOWNLOAD=false
-OPTIMUSKG_CACHE_DIR=data/optimuskg_cache
-
-
-## OptimusKG update and graph-data note
-
-OptimusKG context now comes from the real OptimusKG Python client and parquet graph tables. Run `make vendor-repos` to clone/pull `third_party/upstream/OptimusKG`, then configure `OPTIMUSKG_CACHE_DIR` so the OptimusKG client can find or download its parquet files. Translume does not use generic CSV/JSON edge files as a substitute for OptimusKG.

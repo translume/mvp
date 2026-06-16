@@ -90,6 +90,42 @@ def _write_fake_optimuskg_repo(tmp_path: Path):
     return repo, cache_dir
 
 
+def _write_fake_tooluniverse_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "ToolUniverse"
+    package = repo / "tooluniverse"
+    package.mkdir(parents=True)
+    package.joinpath("__init__.py").write_text(
+        "class ToolUniverse:\n"
+        "    def __init__(self):\n"
+        "        self.all_tool_dict = {}\n"
+        "    def load_tools(self, include_tools=None, quiet=True, **kwargs):\n"
+        "        self.all_tool_dict = {name: {} for name in (include_tools or [])}\n"
+        "    def run_one_function(self, function_call_json, use_cache=False, validate=True, stream_callback=None):\n"
+        "        return {\"summary\": \"ToolUniverse executed \" + function_call_json.get(\"name\", \"\"), \"call\": function_call_json}\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def _write_tooluniverse_workflow_config(tmp_path: Path, workflows: list[str]) -> Path:
+    payload = {
+        "required_workflows": workflows,
+        "workflows": {
+            workflow: {
+                "steps": [
+                    {
+                        "tool_name": "PubMed_search_articles",
+                        "required_context": ["literature_query"],
+                        "arguments": {"query": "$literature_query", "limit": 1},
+                    }
+                ]
+            }
+            for workflow in workflows
+        },
+    }
+    path = tmp_path / "tooluniverse_workflows.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
 
 
 class RecordingVectorStore:
@@ -433,24 +469,15 @@ def _pdf_bytes() -> bytes:
 async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, monkeypatch) -> None:
     monkeypatch.delitem(sys.modules, "optimuskg", raising=False)
     optimuskg_repo, optimuskg_cache = _write_fake_optimuskg_repo(tmp_path)
-    evidence_dir = tmp_path / "tool"
-    evidence_dir.mkdir()
-    for workflow in [
+    tool_workflows = [
         "literature_validation",
         "pathway_context",
         "target_context",
         "variant_context",
         "trial_context_review",
-    ]:
-        (evidence_dir / f"{workflow}.json").write_text(
-            json.dumps(
-                {
-                    "summary": f"{workflow} evidence requires review.",
-                    "evidence_items": [{"source": "local_tooluniverse"}],
-                }
-            ),
-            encoding="utf-8",
-        )
+    ]
+    tooluniverse_repo = _write_fake_tooluniverse_repo(tmp_path)
+    tooluniverse_config = _write_tooluniverse_workflow_config(tmp_path, tool_workflows)
     reasoning_json = tmp_path / "reasoning.json"
     reasoning_json.write_text(
         json.dumps(
@@ -469,14 +496,8 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
     providers = TranslumeWorkflowProviders(
         graph_provider=OptimusKGGraphProvider(optimuskg_repo, cache_dir=optimuskg_cache, max_edges=10),
         tool_provider=ToolUniverseProvider(
-            {
-                "literature_validation",
-                "pathway_context",
-                "target_context",
-                "variant_context",
-                "trial_context_review",
-            },
-            evidence_dir,
+            tooluniverse_repo,
+            tooluniverse_config,
         ),
         reasoning_provider_factory=lambda _context: MedeaReasoningProvider(reasoning_json),
         vector_store=vector_store,
