@@ -1,103 +1,4 @@
-# Translume
-
-<p align="center">
-  <img src="docs/translume-logo.png" alt="Translume logo" width="900"/>
-</p>
-
-<p align="center">
-  <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence.</strong>
-</p>
-
-<p align="center">
-  <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/>
-  <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/>
-  <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/>
-  <img alt="Paper on arXiv" src="https://img.shields.io/badge/Paper%20on-arXiv-4c8eda?style=for-the-badge"/>
-  <img alt="Project Website" src="https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge"/>
-  <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/>
-</p>
-
-
-Translume is a clinical output compiler for translational oncology. It ingests an oncology molecular report, extracts structured molecular findings, maps them into biological axes, ranks molecular fits for expert review, explains “why from omics,” builds a Finding → Mechanism → Molecular Fit → Validation Test chain, identifies confirmatory testing needs, and produces a source-backed tumor-behavior hypothesis without making treatment recommendations.
-
-Modern oncology teams do not lack molecular data. They lack a fast, defensible way to turn NGS, WGS, FISH, IHC, RNA, pathology, and research reports into reviewable clinical-translational reasoning. Molecular reports surface variants, copy-number changes, expression signals, limitations, and negative findings, but those facts usually remain disconnected from mechanism, evidence strength, validation needs, and disease behavior. Translume closes that gap by converting raw report content into a structured review surface where every major claim is tied to source text, evidence class, uncertainty, provenance, and human validation.
-
-The MVP focuses on one high-value workflow: one oncology report becomes one structured, explainable, clinician-reviewable tumor-behavior intelligence packet. The output shows what the report found, why each finding may matter biologically, what is unsupported, what must be validated next, which claims are facts versus hypotheses, and who accepted, rejected, or flagged each claim. This reduces tumor-board and translational review burden while creating reusable structured reasoning that can later support longitudinal disease modeling.
-
-The system is intentionally not a treatment recommendation engine, diagnostic device, outcome predictor, or adaptive precision oncology platform yet. It is the foundation those future systems require: accurate document extraction, source-backed chunks, local structured model outputs, biomedical graph context, governed scientific-tool evidence, bounded omics/literature reasoning, human validation controls, and a provenance-backed ledger.
-
-## Current MVP Scope
-
-```text
-PDF report
-→ Docling / Granite Docling document extraction
-→ section-aware chunks
-→ OpenSearch indexing
-→ local vLLM structured clinical extraction
-→ normalized molecular entities
-→ OptimusKG graph context
-→ ToolUniverse governed evidence workflows
-→ Medea bounded omics/literature reasoning
-→ molecular phenotype
-→ molecular-fit matrix
-→ mechanism Sankey
-→ confirmatory testing plan
-→ tumor-behavior model
-→ evidence-classified claim cards
-→ human validation
-→ ledger export
-```
-
-## What Translume Produces
-
-Translume produces a reviewable packet containing:
-
-```text
-source-backed molecular findings
-normalized biomedical entities
-graph/evidence-enriched biological context
-patient-specific omics readout
-molecular phenotype
-molecular-fit review matrix
-mechanism Sankey
-confirmatory testing plan
-tumor-behavior state hypotheses
-evidence-classified claim cards
-human validation decisions
-provenance-backed ledger export
-```
-
-## What Translume Does Not Claim
-
-Translume does not claim to diagnose cancer, recommend treatment, predict survival, select therapy, replace a tumor board, or prove adaptive precision oncology from a single report. Its outputs are hypothesis-generating, evidence-labeled, and clinician-reviewable. Every clinically meaningful statement must remain tied to source text, retrieved evidence, structured artifacts, or human validation.
-
-## Future Direction
-
-The near-term MVP is a single-report clinical output compiler. The next expansion is archived-sample and lesion-sample comparison, followed by clonal lineage reconstruction, niche-risk modeling, and a DDCS/cartilage-lesion registry. Only after sufficient longitudinal data exists should Translume add Markov-state learning, clone-survival simulation, early-warning surveillance, and adaptive precision oncology workflows.
-
-The future research path is:
-
-```text
-report or lesion sample
-→ structured reasoning packet
-→ expert validation
-→ cartilage-lesion / DDCS registry
-→ longitudinal imaging, ctDNA, proteomic, fibrotic-niche, and bioelectric signals
-→ Markov-state early-warning model
-→ prospective validation
-→ adaptive precision oncology infrastructure
-```
-
-For DDCS and suspicious cartilage/bone lesions, the long-term model is best framed as a hypothesis-generating surveillance architecture. Plasma proteomics may provide systemic or cell-type stress signals, fibrotic-niche biology may indicate a tumor-permissive microenvironment, bioelectricity may represent local tissue quality-control failure, and a Markov model can integrate those signals with imaging, symptoms, pathology, ctDNA, and molecular findings over time. This does not prove DDCS diagnosis or prevention today; it defines a safe research pathway for identifying dangerous transitions earlier and routing cases to sarcoma-board review, biopsy, molecular validation, or local intervention when warranted.
-
-## Core Thesis
-
-Translume’s durable value is not that it summarizes oncology reports faster. Its value is that it turns fragmented molecular findings, biological evidence, literature, pathway knowledge, expert interpretation, validation decisions, and tumor-behavior hypotheses into a structured translational reasoning process that can be reviewed, reused, audited, and improved over time.
-
-Translume turns one-off expert reasoning into a compounding institutional asset.
-
-
-### Translume MVP Production Workflow
+# Translume MVP Production Workflow
 
 Translume is a local-first clinical output compiler that turns one oncology molecular report into reviewable tumor-behavior intelligence: source-backed findings, evidence-classified claims, mechanism paths, validation tests, human review controls, and provenance-backed ledger export.
 
@@ -141,6 +42,22 @@ Medea artifacts fail explicitly rather than silently fabricating evidence. Set
 
 See `docs/architecture/production_workflow.md` and
 `docs/architecture/next_steps.md`.
+
+
+## Gradio UI production launch
+
+The Gradio Oncologist Cockpit now launches directly through:
+
+```bash
+python -m translume_ui.app
+```
+
+The UI container no longer attempts to run Gradio as an ASGI app through
+Uvicorn. Inside Docker, `TRANSLUME_API_BASE_URL` is set to
+`http://translume-api:8080` so the upload and validation actions call the real
+FastAPI service over the Compose network. The UI health check performs a real
+HTTP request to `http://localhost:7860` and the live VM validator now includes a
+required `ui_health` command.
 
 ## OpenSearch persistence
 
@@ -254,16 +171,11 @@ make audit-vendor-model-calls
 make catalog-vendor-repos
 ```
 
-If GitHub is unavailable, place repo zip files as:
-
-```text
-third_party/zips/OptimusKG.zip
-third_party/zips/ToolUniverse.zip
-third_party/zips/Medea.zip
-```
-
-then run `make vendor-repos`. The script copies zip contents into the matching
-`third_party/upstream/<Repo>` directory and writes manifest lock files.
+`make vendor-repos` is Git-only. It clones missing repositories or runs
+`git pull --ff-only` for existing Git checkouts. If GitHub is unavailable,
+`make vendor-bootstrap-from-zips` can unpack local zip archives for offline
+inspection only, but zip-extracted folders are not production-updateable and
+will fail `make vendor-status`.
 
 Strict behavior remains: if a required MIMS repository, workflow config, graph
 edge data, ToolUniverse registry, or Medea local-vLLM path is unavailable, the
@@ -345,3 +257,79 @@ data/exports/runtime_diagnostics/
 This is the production MVP deployability gate. It verifies the real Docker/GPU
 stack, local vLLM structured outputs, Docling, OpenSearch, Postgres, MIMS
 services, report upload processing, validation-card roundtrip, and export.
+
+## Harvard MIMS Vendor Update Workflow
+
+Production/demo validation requires `third_party/upstream/Medea`, `third_party/upstream/OptimusKG`, and `third_party/upstream/ToolUniverse` to be real Git clones, not zip-extracted folders. Clone or fast-forward pull them with:
+
+```bash
+make vendor-repos
+make vendor-status
+```
+
+Manual update commands are ordinary Git:
+
+```bash
+git -C third_party/upstream/Medea pull --ff-only
+git -C third_party/upstream/OptimusKG pull --ff-only
+git -C third_party/upstream/ToolUniverse pull --ff-only
+```
+
+Zip bootstrap is available only for offline inspection via `make vendor-bootstrap-from-zips`; it does not satisfy production status because it cannot support `git pull`. Translume-owned extension logic stays outside Harvard repos in `packages/translume-ports`, `packages/translume-adapters`, and `services/*-service`.
+
+## PRIME_DIRECTIVES production gate
+
+The project now includes a hard production/demo gate that enforces the non-negotiable runtime contract for Translume. The gate does not prove the full Docker/GPU stack works; it prevents the stack from starting or being validated in production/demo mode when required real dependencies are disabled, missing, zip-bootstrapped, or configured to bypass local-model execution.
+
+Run it before live validation:
+
+```bash
+cp .env.example .env
+# edit .env with real values, including VLLM_MODEL and service URLs
+make vendor-repos
+make vendor-status
+make validate-prime-directives
+```
+
+The gate fails if MIMS repos are not real Git checkouts, if remote model-provider credentials are active, if required services such as MIMS, Docling, OpenSearch, or Postgres are disabled, if `VLLM_MODEL` is blank or placeholder-like, or if the UI Dockerfile no longer runs the real Gradio entrypoint.
+
+This gate is intentionally strict. Passing unit tests does not imply MVP readiness; live Docker/GPU/vLLM/MIMS validation is still required.
+
+
+## Early upload/session metadata persistence
+
+Tutorial 4 added a strict auditability change: after a PDF is stored, Translume immediately persists the case session, source-file metadata, and upload ledger event to Postgres before document extraction or clinical artifact generation begins. The workflow also records started, succeeded, and failed ledger events for major stages. If a required stage fails, the error is not hidden; a failure event is recorded when Postgres is configured and the exception propagates to the caller.
+
+This change does not make the full MVP runtime-validated. It makes failed and partial runs inspectable, which is required before moving more logic into OpenSearch retrieval and local-vLLM structured artifact generation.
+
+
+## Early OpenSearch chunk indexing
+
+Source-backed document chunks are now indexed into OpenSearch before report extraction and downstream artifact generation. In required OpenSearch mode, report extraction retrieves those chunks back from OpenSearch and will not continue if retrieval returns zero chunks. This makes OpenSearch part of the retrieval/evidence path rather than only a final packet persistence target. The current retrieval path is metadata/lexical scoped by case, session, and source file; vector/HNSW retrieval is not claimed as active until a real embedding generation path is implemented.
+
+
+## Tutorial 6 — Convert clinical artifacts to local vLLM structured outputs
+
+The production workflow now requires a configured local structured-output model provider for clinical artifact generation. Report extraction, molecular phenotype, molecular-fit matrix, mechanism Sankey, confirmatory testing, tumor-behavior model, claim evidence, and the final clinical narrative are generated through the local vLLM provider and validated against their Pydantic schemas. Deterministic code remains only for source alignment, validation, safety checks, provenance, ledger events, persistence, and service orchestration.
+
+This does not prove Docker/GPU/vLLM runtime in this sandbox. In demo or production mode, `VLLM_MODEL` and `VLLM_BASE_URL` must point to a real local vLLM service configured for structured outputs. Missing local model configuration must fail loudly; no placeholder model output is allowed in the product path.
+
+## Tutorial 7 — Source-grounded model-driven report extraction
+
+Report extraction is now constrained to the local structured-output model path. The old deterministic extractor no longer returns clinical findings; it fails loudly with migration guidance. In the product path, report extraction consumes OpenSearch-retrieved document chunks, asks the local vLLM provider for a schema-valid `ReportExtractionOutput`, source-aligns every molecular finding back to retrieved chunks, forces human review flags, and downgrades unsupported findings to low confidence.
+
+This preserves the first trust checkpoint: Translume must show what the report says before adding graph, literature, tool, Medea, or tumor-behavior interpretation. Missing source chunks, invalid structured output, unsafe text, or unsupported confident findings fail explicitly rather than producing a polished but ungrounded packet.
+
+
+## Narrative containment enforcement
+
+The production workflow now runs deterministic narrative containment after `ClinicalNarrativeCompilerOutput` is generated and before `ReviewPacketExport` is built. The validator checks that gene-like symbols, therapy-like terms, alteration/signal phrases, and declared `source_artifact_ids` are present in the structured source artifacts. Unsupported content raises an explicit error, records a workflow failure event, and prevents a polished review packet from being exported with unsupported clinical claims. Passing containment creates a `NarrativeContainmentReport` on the bundle and adds artifact-specific provenance for the containment validation artifact.
+
+## Tutorial 8: narrative fact containment enforcement
+
+The production workflow now validates the generated clinical narrative before review-packet export. `ClinicalNarrativeCompilerOutput` must be contained by the structured artifacts in the bundle: report extraction, normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning, phenotype, matrix, Sankey, confirmatory tests, tumor-behavior model, claim cards, and provenance. Unsupported gene-like terms, therapy-like terms, alteration-like phrases, or unknown source artifact IDs fail loudly instead of being returned as a polished narrative. A passing narrative creates a `NarrativeContainmentReport` and containment provenance; a failing narrative records a workflow failure event and blocks export.
+
+
+### OptimusKG graph context
+
+Translume now requires OptimusKG graph context to come from the real OptimusKG Python client and its parquet graph tables. The production path does not read arbitrary CSV/JSON edge files as a substitute. Configure `OPTIMUSKG_CACHE_DIR`, `OPTIMUSKG_USE_LCC`, `OPTIMUSKG_MAX_EDGES`, and `OPTIMUSKG_FORCE_DOWNLOAD` as needed. Missing OptimusKG package/data fails loudly.

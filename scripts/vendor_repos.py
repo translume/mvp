@@ -1,128 +1,69 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
-import shutil
-import subprocess
-import zipfile
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+
+from translume_core.vendor.repositories import (
+    VendorRepositoryError,
+    clone_or_pull_vendor_repo,
+    inspect_vendor_repos,
+    load_vendor_repo_specs,
+    manifest_record,
+    render_vendor_status,
+    vendor_status_to_dict,
+    write_manifest,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "third_party" / "vendor_repos.json"
 MANIFEST_DIR = ROOT / "third_party" / "manifests"
 
 
-@dataclass(frozen=True)
-class VendorRepo:
-    name: str
-    url: str
-    target: Path
-
-
-def load_vendor_repos(path: Path) -> list[VendorRepo]:
-    """Load vendor repo specs from JSON.
+def update_vendor_repos(config_path: Path, root: Path, manifest_dir: Path) -> int:
+    """Clone or fast-forward pull all configured vendor repositories.
 
     Acceptance criteria:
-        1. Missing config raises FileNotFoundError.
-        2. Every repository has name, url, and target.
-        3. Target paths are resolved under the project root.
+        1. Uses Git clone or `git pull --ff-only` only.
+        2. Does not use zip archives or fallback source directories.
+        3. Fails if an existing target is not a Git repository.
+        4. Writes git update manifests only after successful updates.
+
+    Args:
+        config_path: Vendor repository configuration.
+        root: Project root.
+        manifest_dir: Output manifest directory.
+
+    Returns:
+        Process exit code.
     """
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    repos = payload.get("repositories")
-    if not isinstance(repos, list):
-        raise ValueError("vendor_repos.json missing repositories list")
-    return [
-        VendorRepo(
-            name=str(item["name"]),
-            url=str(item["url"]),
-            target=ROOT / str(item["target"]),
-        )
-        for item in repos
-    ]
-
-
-def ensure_repo(repo: VendorRepo) -> dict[str, Any]:
-    """Clone or pull a vendor repository.
-
-    Acceptance criteria:
-        1. Existing git repositories are updated with `git pull --ff-only`.
-        2. Missing repositories are cloned from configured URL.
-        3. Non-git non-empty targets raise RuntimeError.
-        4. Returns commit metadata after update.
-    """
-    repo.target.parent.mkdir(parents=True, exist_ok=True)
-    if repo.target.exists() and (repo.target / ".git").exists():
-        subprocess.run(["git", "-C", str(repo.target), "pull", "--ff-only"], check=True)
-    elif repo.target.exists() and any(repo.target.iterdir()):
-        raise RuntimeError(f"target exists but is not a git repository: {repo.target}")
-    else:
-        if repo.target.exists():
-            repo.target.rmdir()
-        subprocess.run(["git", "clone", repo.url, str(repo.target)], check=True)
-    commit = subprocess.check_output(
-        ["git", "-C", str(repo.target), "rev-parse", "HEAD"],
-        text=True,
-    ).strip()
-    return {"name": repo.name, "url": repo.url, "target": str(repo.target), "commit": commit}
-
-
-def install_repo_from_zip(repo: VendorRepo, zip_path: Path) -> dict[str, Any]:
-    """Install a vendor repository from a user-provided zip archive.
-
-    Acceptance criteria:
-        1. Existing target directory is replaced only for the selected repo.
-        2. Archive content is copied as-is except for stripping one root folder.
-        3. Result records source zip and file count.
-    """
-    if not zip_path.exists():
-        raise FileNotFoundError(str(zip_path))
-    if repo.target.exists():
-        shutil.rmtree(repo.target)
-    repo.target.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_path) as archive:
-        names = [name for name in archive.namelist() if not name.endswith("/")]
-        common_root = _common_archive_root(names)
-        for name in names:
-            output_name = name[len(common_root):].lstrip("/") if common_root else name
-            if not output_name:
-                continue
-            destination = repo.target / output_name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            with archive.open(name) as source, destination.open("wb") as target:
-                shutil.copyfileobj(source, target)
-    return {
-        "name": repo.name,
-        "target": str(repo.target),
-        "source_zip": str(zip_path),
-        "file_count": len(list(repo.target.rglob("*"))),
-    }
-
-
-def _common_archive_root(names: list[str]) -> str:
-    roots = {name.split("/", 1)[0] for name in names if "/" in name}
-    return next(iter(roots)) if len(roots) == 1 else ""
-
-
-def write_manifest(record: dict[str, Any]) -> None:
-    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
-    path = MANIFEST_DIR / f"{record['name'].casefold()}.lock.json"
-    path.write_text(json.dumps(record, indent=2), encoding="utf-8")
-    print(f"wrote {path}")
+    specs = load_vendor_repo_specs(config_path, root)
+    states = tuple(clone_or_pull_vendor_repo(spec) for spec in specs)
+    for state in states:
+        path = write_manifest(manifest_dir, manifest_record(state))
+        print(f"wrote {path}")
+    report = inspect_vendor_repos(specs)
+    print(render_vendor_status(report))
+    return 0 if report.ok else 1
 
 
 def main() -> int:
-    repos = load_vendor_repos(CONFIG)
-    zip_root = ROOT / "third_party" / "zips"
-    for repo in repos:
-        zip_path = zip_root / f"{repo.name}.zip"
-        if zip_path.exists():
-            record = install_repo_from_zip(repo, zip_path)
-        else:
-            record = ensure_repo(repo)
-        write_manifest(record)
-    return 0
+    parser = argparse.ArgumentParser(
+        description=(
+            "Clone or fast-forward pull Harvard MIMS vendor repositories. "
+            "This command never unpacks zip archives."
+        )
+    )
+    parser.add_argument("--config", type=Path, default=CONFIG)
+    parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--manifest-dir", type=Path, default=MANIFEST_DIR)
+    args = parser.parse_args()
+    try:
+        return update_vendor_repos(args.config, args.root, args.manifest_dir)
+    except VendorRepositoryError as error:
+        print(str(error))
+        return 1
 
 
 if __name__ == "__main__":

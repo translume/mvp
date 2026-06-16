@@ -11,52 +11,133 @@
   ],
   "commands": [
     {
+      "name": "prime_directives_gate",
+      "argv": [
+        "python",
+        "scripts/validate_prime_directives.py",
+        "--force"
+      ],
+      "required": true,
+      "timeout_seconds": 180
+    },
+    {
       "name": "preflight",
-      "argv": ["python", "scripts/full_stack_preflight.py", "--require-docker", "--require-gpu"],
+      "argv": [
+        "python",
+        "scripts/full_stack_preflight.py",
+        "--require-docker",
+        "--require-gpu"
+      ],
       "required": true,
       "timeout_seconds": 180
     },
     {
       "name": "docker_compose_config",
-      "argv": ["docker", "compose", "config"],
+      "argv": [
+        "docker",
+        "compose",
+        "config"
+      ],
       "required": true,
       "timeout_seconds": 120
     },
     {
       "name": "docker_compose_up",
-      "argv": ["docker", "compose", "--profile", "gpu", "--profile", "docling", "up", "--build", "-d"],
+      "argv": [
+        "docker",
+        "compose",
+        "--profile",
+        "gpu",
+        "--profile",
+        "docling",
+        "up",
+        "--build",
+        "-d"
+      ],
       "required": true,
       "timeout_seconds": 1800
     },
     {
+      "name": "ui_health",
+      "argv": [
+        "python",
+        "scripts/check_ui_health.py"
+      ],
+      "required": true,
+      "timeout_seconds": 120
+    },
+    {
       "name": "integration_full_stack",
-      "argv": ["python", "scripts/run_full_stack_integration.py"],
+      "argv": [
+        "python",
+        "scripts/run_full_stack_integration.py"
+      ],
       "required": true,
       "timeout_seconds": 1800
     },
     {
       "name": "docker_compose_ps",
-      "argv": ["docker", "compose", "--profile", "gpu", "--profile", "docling", "ps"],
+      "argv": [
+        "docker",
+        "compose",
+        "--profile",
+        "gpu",
+        "--profile",
+        "docling",
+        "ps"
+      ],
       "required": false,
       "timeout_seconds": 120
     },
     {
       "name": "docker_compose_logs",
-      "argv": ["docker", "compose", "--profile", "gpu", "--profile", "docling", "logs", "--tail=300"],
+      "argv": [
+        "docker",
+        "compose",
+        "--profile",
+        "gpu",
+        "--profile",
+        "docling",
+        "logs",
+        "--tail=300"
+      ],
       "required": false,
       "timeout_seconds": 240
     },
     {
       "name": "gpu_state",
-      "argv": ["nvidia-smi"],
+      "argv": [
+        "nvidia-smi"
+      ],
       "required": false,
       "timeout_seconds": 120
     }
   ],
   "failure_patterns": [
     {
+      "category": "prime_directives_gate_failure",
+      "patterns": [
+        "PRIME_DIRECTIVES gate: FAILED",
+        "required_true:",
+        "remote_provider_blocked:",
+        "mims_vendors:updateable_git_clones",
+        "ui_dockerfile:",
+        "vllm_model:not_placeholder"
+      ],
+      "explanation": "The PRIME_DIRECTIVES production/demo gate rejected the runtime because a required real dependency, configuration, local-model boundary, or vendor Git checkout is missing.",
+      "next_actions": [
+        "Run `make validate-prime-directives` and fix the first reported error.",
+        "Do not bypass the gate by disabling required services in production/demo mode.",
+        "Run `make vendor-repos && make vendor-status` before live validation."
+      ]
+    },
+    {
       "category": "docker_unavailable",
-      "patterns": ["docker executable is required", "cannot connect to the docker daemon", "docker compose is unavailable"],
+      "patterns": [
+        "docker executable is required",
+        "cannot connect to the docker daemon",
+        "docker compose is unavailable"
+      ],
       "explanation": "Docker or Docker Compose is unavailable on the VM.",
       "next_actions": [
         "Install Docker Engine and Docker Compose v2.",
@@ -66,7 +147,12 @@
     },
     {
       "category": "gpu_unavailable",
-      "patterns": ["nvidia-smi is required", "gpu probe failed", "could not select device driver", "no nvidia gpu"],
+      "patterns": [
+        "nvidia-smi is required",
+        "gpu probe failed",
+        "could not select device driver",
+        "no nvidia gpu"
+      ],
       "explanation": "The GPU is not visible to Docker or the host runtime.",
       "next_actions": [
         "Run `nvidia-smi` on the VM host.",
@@ -76,7 +162,13 @@
     },
     {
       "category": "vllm_model_failure",
-      "patterns": ["vllm structured output failed", "cuda out of memory", "outofmemoryerror", "failed to load model", "model does not exist"],
+      "patterns": [
+        "vllm structured output failed",
+        "cuda out of memory",
+        "outofmemoryerror",
+        "failed to load model",
+        "model does not exist"
+      ],
       "explanation": "The local vLLM clinical model did not load or did not produce schema-valid output.",
       "next_actions": [
         "Set VLLM_MODEL to a real model that fits the GPU memory.",
@@ -86,17 +178,32 @@
     },
     {
       "category": "mims_vendor_failure",
-      "patterns": ["vendored mims repos are required", "vendor_available", "OptimusKG", "ToolUniverse", "Medea"],
+      "patterns": [
+        "vendored mims repos are required",
+        "vendor_available",
+        "OptimusKG",
+        "ToolUniverse",
+        "Medea",
+        "not a Git repository",
+        "not updateable",
+        ".git"
+      ],
       "explanation": "One or more Harvard MIMS vendored repositories or services are unavailable.",
       "next_actions": [
-        "Run `make vendor-repos` or place the vendor zip files under `third_party/zips/` and rerun vendor setup.",
-        "Run `make catalog-vendor-repos` and `make audit-vendor-model-calls`.",
+        "Run `make vendor-repos` on a networked VM to clone or fast-forward pull real Git repositories.",
+        "Run `make vendor-status` and confirm every MIMS repo reports OK.",
+        "Do not use zip-extracted vendor folders for production/demo validation.",
         "Inspect service logs for optimuskg-service, tooluniverse-service, and medea-service."
       ]
     },
     {
       "category": "opensearch_failure",
-      "patterns": ["OpenSearch", "opensearch", "index missing", "cluster health"],
+      "patterns": [
+        "OpenSearch",
+        "opensearch",
+        "index missing",
+        "cluster health"
+      ],
       "explanation": "OpenSearch is unhealthy, unavailable, or missing required indexes.",
       "next_actions": [
         "Run `make init-opensearch` after OpenSearch is healthy.",
@@ -106,7 +213,13 @@
     },
     {
       "category": "postgres_failure",
-      "patterns": ["Postgres", "postgres", "table(s) missing", "connection refused", "psycopg"],
+      "patterns": [
+        "Postgres",
+        "postgres",
+        "table(s) missing",
+        "connection refused",
+        "psycopg"
+      ],
       "explanation": "Postgres is unavailable or the required metadata schema is missing.",
       "next_actions": [
         "Run `make init-postgres` after Postgres is healthy.",
@@ -116,7 +229,12 @@
     },
     {
       "category": "docling_failure",
-      "patterns": ["docling", "docling_available", "DocumentConverter", "extraction failed"],
+      "patterns": [
+        "docling",
+        "docling_available",
+        "DocumentConverter",
+        "extraction failed"
+      ],
       "explanation": "Docling document extraction is unavailable or failed on the integration report.",
       "next_actions": [
         "Inspect `docker compose logs docling-service`.",
@@ -126,12 +244,33 @@
     },
     {
       "category": "unsafe_or_incomplete_packet",
-      "patterns": ["unsafe clinical phrase", "empty response path", "missing response path", "no validation cards"],
+      "patterns": [
+        "unsafe clinical phrase",
+        "empty response path",
+        "missing response path",
+        "no validation cards"
+      ],
       "explanation": "The review packet did not meet the Translume MVP completeness or safety contract.",
       "next_actions": [
         "Inspect the generated review packet export.",
         "Fix the first missing artifact or unsafe phrase upstream.",
         "Rerun `make live-vm-validate` after the artifact path is corrected."
+      ]
+    },
+    {
+      "category": "gradio_ui_failure",
+      "patterns": [
+        "ui_health=failed",
+        "connection refused",
+        "translume_ui.app:app",
+        "uvicorn translume_ui",
+        "UI returned"
+      ],
+      "explanation": "The Gradio Oncologist Cockpit did not start or did not return a real HTTP response.",
+      "next_actions": [
+        "Inspect `docker compose logs translume-ui`.",
+        "Confirm docker/ui.Dockerfile runs `python -m translume_ui.app` rather than Uvicorn.",
+        "Confirm TRANSLUME_API_BASE_URL points to http://translume-api:8080 inside Docker."
       ]
     }
   ]

@@ -30,6 +30,11 @@ class Settings(BaseModel):
     docling_timeout_seconds: float = 240.0
     docling_required: bool = True
     docling_extraction_method: str = "docling"
+    vllm_base_url: str = "http://vllm:8000/v1"
+    vllm_model: str = ""
+    vllm_timeout_seconds: float = 240.0
+    prompts_root: Path = Path("configs/prompts")
+    require_local_vllm: bool = True
 
 
 def get_settings() -> Settings:
@@ -61,6 +66,11 @@ def get_settings() -> Settings:
         docling_timeout_seconds=float(os.getenv("DOCLING_TIMEOUT_SECONDS", "240")),
         docling_required=os.getenv("TRANSLUME_REQUIRE_DOCLING", "true").casefold() == "true",
         docling_extraction_method=os.getenv("DOCLING_EXTRACTION_METHOD", "docling"),
+        vllm_base_url=os.getenv("VLLM_BASE_URL", "http://vllm:8000/v1"),
+        vllm_model=os.getenv("VLLM_MODEL", ""),
+        vllm_timeout_seconds=float(os.getenv("VLLM_TIMEOUT_SECONDS", "240")),
+        prompts_root=Path(os.getenv("TRANSLUME_PROMPTS_ROOT", "configs/prompts")),
+        require_local_vllm=os.getenv("TRANSLUME_REQUIRE_LOCAL_VLLM", "true").casefold() == "true",
     )
 
 

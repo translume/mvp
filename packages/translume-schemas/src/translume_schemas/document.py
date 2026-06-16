@@ -78,3 +78,18 @@ class DocumentChunk(TranslumeBaseModel):
     source_block_ids: list[str]
     bbox: BoundingBox | None = None
     needs_human_review: bool
+
+
+class RetrievedDocumentChunk(TranslumeBaseModel):
+    """A document chunk retrieved from OpenSearch.
+
+    Acceptance criteria:
+        1. Preserves the original source-backed DocumentChunk.
+        2. Carries retrieval score when the store returns one.
+        3. Carries retrieval method so lexical-only retrieval is not mislabeled
+           as vector/HNSW retrieval.
+    """
+
+    chunk: DocumentChunk
+    score: float | None = None
+    retrieval_method: str

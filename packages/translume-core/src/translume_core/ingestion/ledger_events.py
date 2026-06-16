@@ -35,5 +35,10 @@ def record_upload_ledger_event(
         session_id=session.session_id,
         source_file_id=stored_file.source_file_id,
         created_at=created_at,
-        details={"filename": stored_file.filename, "sha256": stored_file.sha256},
+        details={
+            "filename": stored_file.filename,
+            "sha256": stored_file.sha256,
+            "size_bytes": str(stored_file.size_bytes),
+            "storage_path": str(stored_file.path),
+        },
     )

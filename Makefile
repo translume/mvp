@@ -2,7 +2,7 @@ PYTHONPATH := .:packages/translume-schemas/src:packages/translume-ports/src:pack
 export PYTHONPATH
 COMPOSE ?= docker compose
 
-.PHONY: test lint docker-config vendor-repos audit-vendor-model-calls catalog-vendor-repos init-opensearch init-postgres docling-health preflight-full-stack integration-full-stack-up integration-full-stack integration-full-stack-down integration-full-stack-logs live-vm-validate live-vm-validate-leave-up live-vm-validate-down-on-failure live-vm-validation-logs live-vm-validate live-vm-validate-diagnostics live-vm-logs
+.PHONY: test lint docker-config validate-prime-directives vendor-repos vendor-git-clone vendor-git-pull vendor-status vendor-bootstrap-from-zips audit-vendor-model-calls catalog-vendor-repos init-opensearch init-postgres docling-health preflight-full-stack integration-full-stack-up integration-full-stack integration-full-stack-down integration-full-stack-logs live-vm-validate live-vm-validate-leave-up live-vm-validate-down-on-failure live-vm-validation-logs live-vm-validate live-vm-validate-diagnostics live-vm-logs check-ui-health
 
 test:
 	pytest -q
@@ -13,8 +13,23 @@ lint:
 docker-config:
 	$(COMPOSE) config >/tmp/translume-compose.yaml
 
+validate-prime-directives:
+	python scripts/validate_prime_directives.py --force
+
 vendor-repos:
 	python scripts/vendor_repos.py
+
+# Explicit aliases: production vendor management is Git-only.
+vendor-git-clone: vendor-repos
+
+vendor-git-pull: vendor-repos
+
+vendor-status:
+	python scripts/vendor_status.py
+
+# Offline bootstrap is for inspection only; it does not satisfy production status.
+vendor-bootstrap-from-zips:
+	python scripts/vendor_from_zips.py --force
 
 audit-vendor-model-calls:
 	python scripts/audit_vendor_model_calls.py
@@ -55,3 +70,6 @@ live-vm-validate-diagnostics:
 
 live-vm-logs:
 	$(COMPOSE) --profile gpu --profile docling logs --tail=300
+
+check-ui-health:
+	python scripts/check_ui_health.py

@@ -387,6 +387,7 @@ def artifact_bundle_to_opensearch_docs(
         ("confirmatory_testing", bundle.confirmatory, [bundle.extraction.artifact_id], "confirmatory testing"),
         ("tumor_behavior", bundle.tumor_behavior, [bundle.extraction.artifact_id], "tumor behavior model"),
         ("clinical_narrative", bundle.narrative, [bundle.extraction.artifact_id], "clinical narrative"),
+        ("narrative_containment", bundle.narrative_containment, [bundle.extraction.artifact_id], "narrative containment report"),
     ]
     for artifact_type, artifact, source_artifact_ids, fallback_summary in optional_artifacts:
         if artifact is None:

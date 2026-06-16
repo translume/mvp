@@ -17,6 +17,7 @@ http = ["httpx>=0.27.0"]
 schemas = ["pydantic>=2.9.0"]
 postgres = ["psycopg[binary]>=3.3.0"]
 docling = ["docling>=2.102.2"]
+graph = ["polars>=1.0.0"]
 
 [tool.uv.workspace]
 members = [

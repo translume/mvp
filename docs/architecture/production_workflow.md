@@ -14,12 +14,14 @@ narrative, provenance, and a ledger-backed review packet export.
 ToolUniverse, or Medea evidence artifacts fail explicitly. This prevents hidden
 scorecard inflation or fake enrichment.
 
-Required local artifacts for strict mode:
+Required real service inputs for strict mode:
 
-- `OPTIMUSKG_EDGE_CSV_PATH`, a CSV with `subject,relation_type,object` columns.
-- `TOOLUNIVERSE_EVIDENCE_DIR`, containing one JSON file per allow-listed workflow.
-- `MEDEA_REASONING_JSON_PATH`, a bounded reasoning JSON artifact generated through
-  local-model-routed Medea.
+- `third_party/upstream/OptimusKG`, a real git clone of OptimusKG.
+- `OPTIMUSKG_CACHE_DIR`, containing or receiving OptimusKG parquet files through the real OptimusKG Python client.
+- `TOOLUNIVERSE_WORKFLOW_CONFIG`, mapping allow-listed workflows to real ToolUniverse tools.
+- `third_party/upstream/Medea`, a real git clone of Medea routed through local vLLM.
+
+OptimusKG graph context must come from the OptimusKG client/parquet path. Generic CSV/JSON edge files are not accepted as a production substitute.
 
 ## API endpoint
 
@@ -34,9 +36,11 @@ evidence context, claim cards, provenance, ledger events, and narrative.
 
 ## OpenSearch persistence
 
-OpenSearch is the retrieval/evidence substrate. After the review packet is
-compiled, Translume converts the packet into index-specific document batches and
-writes them to OpenSearch through the real HTTP client boundary.
+OpenSearch is the retrieval/evidence substrate. Source-backed document chunks
+are indexed immediately after chunk construction and retrieved back from
+OpenSearch before report extraction. After the review packet is compiled,
+Translume also converts the full packet into index-specific document batches and
+writes those artifacts to OpenSearch through the real HTTP client boundary.
 
 Persisted indexes:
 
@@ -173,3 +177,8 @@ an existing persisted review packet and an existing claim ID. This keeps human
 review aligned with the Translume MVP invariant: every clinical statement must
 remain traceable to source text, structured artifacts, evidence, or human
 validation.
+
+
+## Early OpenSearch chunk indexing
+
+Source-backed document chunks are now indexed into OpenSearch before report extraction and downstream artifact generation. In required OpenSearch mode, report extraction retrieves those chunks back from OpenSearch and will not continue if retrieval returns zero chunks. This makes OpenSearch part of the retrieval/evidence path rather than only a final packet persistence target. The current retrieval path is metadata/lexical scoped by case, session, and source file; vector/HNSW retrieval is not claimed as active until a real embedding generation path is implemented.

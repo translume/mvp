@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,78 @@ from translume_schemas.evidence import EvidenceContextBundle
 from translume_schemas.extraction import MolecularFinding, ReportExtractionOutput
 from translume_schemas.graph import GraphEvidenceArtifact
 from translume_schemas.medea import MedeaReasoningArtifact
+
+
+def _write_fake_optimuskg_repo(tmp_path: Path):
+    """Create a tiny real OptimusKG-shaped package with parquet graph data."""
+    import json
+    import polars as pl
+
+    repo = tmp_path / "OptimusKG"
+    package_dir = repo / "packages" / "optimuskg" / "src" / "optimuskg"
+    package_dir.mkdir(parents=True)
+    cache_dir = tmp_path / "optimuskg_cache"
+    cache_dir.mkdir()
+    nodes_path = cache_dir / "largest_connected_component_nodes.parquet"
+    edges_path = cache_dir / "largest_connected_component_edges.parquet"
+    pl.DataFrame(
+        [
+            {
+                "id": "GENE:CHEK2",
+                "label": "gene",
+                "properties": json.dumps({"name": "CHEK2", "synonyms": ["CHEK2"]}),
+            },
+            {
+                "id": "GENE:MTAP",
+                "label": "gene",
+                "properties": json.dumps({"name": "MTAP", "synonyms": ["MTAP"]}),
+            },
+            {
+                "id": "PATHWAY:DNA_DAMAGE_RESPONSE",
+                "label": "pathway",
+                "properties": json.dumps({"name": "DNA damage response"}),
+            },
+            {
+                "id": "PATHWAY:METHYLATION_CONTEXT",
+                "label": "pathway",
+                "properties": json.dumps({"name": "Methylation context"}),
+            },
+        ]
+    ).write_parquet(nodes_path)
+    pl.DataFrame(
+        [
+            {
+                "from": "GENE:CHEK2",
+                "to": "PATHWAY:DNA_DAMAGE_RESPONSE",
+                "label": "participates_in",
+                "relation": "biolink:participates_in",
+                "undirected": False,
+                "properties": json.dumps({"source": "fixture_optimuskg_parquet"}),
+            },
+            {
+                "from": "GENE:MTAP",
+                "to": "PATHWAY:METHYLATION_CONTEXT",
+                "label": "associated_with",
+                "relation": "biolink:associated_with",
+                "undirected": False,
+                "properties": json.dumps({"source": "fixture_optimuskg_parquet"}),
+            },
+        ]
+    ).write_parquet(edges_path)
+    (package_dir / "__init__.py").write_text(
+        "from pathlib import Path\n"
+        f"_CACHE_DIR = Path({str(cache_dir)!r})\n"
+        "def set_cache_dir(path):\n"
+        "    global _CACHE_DIR\n"
+        "    _CACHE_DIR = Path(path)\n"
+        "def get_file(relative_path, force=False):\n"
+        "    path = _CACHE_DIR / relative_path\n"
+        "    if not path.exists():\n"
+        "        raise FileNotFoundError(path)\n"
+        "    return path\n",
+        encoding="utf-8",
+    )
+    return repo, cache_dir
 
 
 def _entities() -> NormalizedEntitySet:
@@ -55,24 +128,43 @@ def _write_package(root: Path, package: str, files: dict[str, str]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_optimuskg_service_requires_vendor_and_returns_real_edges(
+async def test_optimuskg_service_uses_real_client_and_parquet(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repo = tmp_path / "OptimusKG"
-    _write_package(repo, "optimuskg", {"__init__.py": "VERSION='test'\n"})
-    edge_path = tmp_path / "edges.csv"
-    edge_path.write_text(
-        "subject,relation_type,object,source\nMTAP,participates_in,methionine salvage,fixture\n",
-        encoding="utf-8",
-    )
+    monkeypatch.delitem(sys.modules, "optimuskg", raising=False)
+    repo, cache_dir = _write_fake_optimuskg_repo(tmp_path)
     monkeypatch.setenv("OPTIMUSKG_VENDOR_DIR", str(repo))
-    monkeypatch.setenv("OPTIMUSKG_EDGE_TABLE_PATH", str(edge_path))
+    monkeypatch.setenv("OPTIMUSKG_CACHE_DIR", str(cache_dir))
+    monkeypatch.setenv("OPTIMUSKG_MAX_EDGES", "10")
     artifact = await optimuskg_context(
         ContextRequest(entities=_entities().model_dump(mode="json"))
     )
-    assert artifact["edges"][0]["relation_type"] == "participates_in"
-    assert artifact["missing_entities"] == ["entity_disease"]
+    assert artifact["edges"][0]["source"] == "optimuskg_parquet"
+    assert artifact["edges"][0]["relation_type"] == "associated_with"
+    assert "entity_disease" in artifact["missing_entities"]
+
+
+@pytest.mark.asyncio
+async def test_optimuskg_service_rejects_missing_real_parquet_data(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "optimuskg", raising=False)
+    repo = tmp_path / "OptimusKG"
+    _write_package(
+        repo,
+        "optimuskg",
+        {
+            "__init__.py": (
+                "def get_file(relative_path, force=False):\n"
+                "    raise FileNotFoundError(relative_path)\n"
+            )
+        },
+    )
+    monkeypatch.setenv("OPTIMUSKG_VENDOR_DIR", str(repo))
+    with pytest.raises(Exception, match="OptimusKG parquet files are unavailable"):
+        await optimuskg_context(ContextRequest(entities=_entities().model_dump(mode="json")))
 
 
 @pytest.mark.asyncio

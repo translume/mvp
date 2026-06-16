@@ -4,6 +4,7 @@ from typing import Protocol
 
 from translume_schemas.export import ReviewPacketExport
 from translume_schemas.ledger import LedgerEvent
+from translume_schemas.session import CaseSession, StoredFile
 
 
 class LedgerStore(Protocol):
@@ -11,6 +12,14 @@ class LedgerStore(Protocol):
 
     async def ensure_schema(self) -> None:
         """Ensure required ledger/artifact tables exist."""
+
+    async def persist_ingestion_metadata(
+        self,
+        session: CaseSession,
+        stored_file: StoredFile,
+        upload_event: LedgerEvent,
+    ) -> dict[str, int]:
+        """Persist session, source-file, and upload ledger metadata."""
 
     async def persist_review_packet(self, packet: ReviewPacketExport) -> dict[str, int]:
         """Persist packet metadata and return record counts by table."""

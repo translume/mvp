@@ -148,7 +148,9 @@
     "bundle.claims",
     "bundle.provenance",
     "bundle.ledger_events",
-    "bundle.narrative.markdown"
+    "bundle.narrative.markdown",
+    "bundle.narrative_containment.source_artifact_ids",
+    "bundle.narrative_containment.passed"
   ],
   "review_packet_required_absent_phrases": [
     "recommended treatment",

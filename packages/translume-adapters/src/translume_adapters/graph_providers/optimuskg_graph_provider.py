@@ -1,106 +1,57 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
-from uuid import NAMESPACE_URL, uuid5
 
 from translume_adapters.errors import ProviderUnavailableError
+from translume_adapters.graph_providers.optimuskg_runtime import (
+    OptimusKGGraphConfig,
+    OptimusKGRuntimeError,
+    retrieve_optimuskg_graph_context,
+)
 from translume_schemas.entities import NormalizedEntitySet
-from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode
+from translume_schemas.graph import GraphEvidenceArtifact
 
 
 class OptimusKGGraphProvider:
-    """Graph adapter that uses local OptimusKG-derived edge files.
+    """Graph provider backed by the real OptimusKG Python client and parquet data.
 
-    The production path requires real local graph data exported from the
-    vendored OptimusKG repo or cache. It does not fabricate graph edges.
+    The provider does not read generic CSV/JSON edge files and does not
+    synthesize graph-like evidence. It imports the vendored OptimusKG package,
+    retrieves the documented OptimusKG parquet tables, filters them with Polars,
+    and fails loudly when the upstream package or graph data is unavailable.
     """
 
-    def __init__(self, edge_csv_path: Path) -> None:
-        self._edge_csv_path = edge_csv_path
+    def __init__(
+        self,
+        repo_path: Path,
+        *,
+        cache_dir: Path | None = None,
+        use_lcc: bool = True,
+        force_download: bool = False,
+        max_edges: int = 500,
+    ) -> None:
+        self._config = OptimusKGGraphConfig(
+            repo_path=repo_path,
+            cache_dir=cache_dir,
+            use_lcc=use_lcc,
+            force_download=force_download,
+            max_edges=max_edges,
+        )
 
     async def retrieve_context(
         self,
         entities: NormalizedEntitySet,
     ) -> GraphEvidenceArtifact:
-        """Retrieve graph context for normalized entities.
+        """Retrieve graph context through the real OptimusKG data path.
 
         Acceptance criteria:
-            1. Missing graph data raises `ProviderUnavailableError`.
-            2. Every returned node has provenance.
-            3. Every returned edge has relation type and source.
-            4. Every missing entity is recorded.
-            5. No graph relationship is converted into a clinical claim here.
-
-        Args:
-            entities: Normalized report entities.
-
-        Returns:
-            Graph evidence artifact.
+            1. Missing OptimusKG package/data raises `ProviderUnavailableError`.
+            2. Returned nodes and edges derive from OptimusKG parquet tables.
+            3. No generic edge CSV/JSON/JSONL files are used.
+            4. Missing entity matches are recorded in the artifact.
+            5. Graph relationships remain evidence inputs, not clinical claims.
         """
-        if not self._edge_csv_path.exists():
-            raise ProviderUnavailableError(
-                f"OptimusKG edge CSV is missing: {self._edge_csv_path}. "
-                "Run vendor/index workflow before enabling MIMS-required mode."
-            )
-        rows = _read_edges(self._edge_csv_path)
-        labels = {entity.normalized_label.upper(): entity.entity_id for entity in entities.entities}
-        nodes: dict[str, GraphNode] = {}
-        edges: list[GraphEdge] = []
-        matched_entities: set[str] = set()
-        for row in rows:
-            subject = row["subject"].upper()
-            obj = row["object"].upper()
-            if subject not in labels and obj not in labels:
-                continue
-            for label, kind in [(subject, row.get("subject_kind", "entity")), (obj, row.get("object_kind", "entity"))]:
-                node_id = f"node_{uuid5(NAMESPACE_URL, label).hex[:16]}"
-                nodes.setdefault(
-                    node_id,
-                    GraphNode(
-                        node_id=node_id,
-                        label=label,
-                        kind=kind or "entity",
-                        source="optimuskg_local_csv",
-                        provenance={"edge_csv": str(self._edge_csv_path)},
-                    ),
-                )
-            if subject in labels:
-                matched_entities.add(labels[subject])
-            if obj in labels:
-                matched_entities.add(labels[obj])
-            source_node_id = f"node_{uuid5(NAMESPACE_URL, subject).hex[:16]}"
-            target_node_id = f"node_{uuid5(NAMESPACE_URL, obj).hex[:16]}"
-            edge_seed = f"{subject}:{row['relation_type']}:{obj}:{row.get('source', '')}"
-            edges.append(
-                GraphEdge(
-                    edge_id=f"edge_{uuid5(NAMESPACE_URL, edge_seed).hex[:16]}",
-                    source_node_id=source_node_id,
-                    target_node_id=target_node_id,
-                    relation_type=row["relation_type"],
-                    source=row.get("source", "optimuskg"),
-                    provenance={"edge_csv": str(self._edge_csv_path)},
-                )
-            )
-        missing = [entity.entity_id for entity in entities.entities if entity.entity_id not in matched_entities]
-        artifact_id = f"artifact_{uuid5(NAMESPACE_URL, entities.artifact_id + ':graph').hex[:16]}"
-        return GraphEvidenceArtifact(
-            artifact_id=artifact_id,
-            source_entity_ids=[entity.entity_id for entity in entities.entities],
-            nodes=list(nodes.values()),
-            edges=edges,
-            missing_entities=missing,
-            warnings=[] if edges else ["no_optimuskg_edges_matched_normalized_entities"],
-        )
-
-
-def _read_edges(path: Path) -> list[dict[str, str]]:
-    with path.open(encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        required = {"subject", "relation_type", "object"}
-        missing = required - set(reader.fieldnames or [])
-        if missing:
-            raise ProviderUnavailableError(
-                f"OptimusKG edge CSV missing columns: {', '.join(sorted(missing))}"
-            )
-        return [{key: value or "" for key, value in row.items()} for row in reader]
+        try:
+            return retrieve_optimuskg_graph_context(entities, self._config)
+        except OptimusKGRuntimeError as error:
+            raise ProviderUnavailableError(str(error)) from error

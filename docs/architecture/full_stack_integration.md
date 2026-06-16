@@ -132,3 +132,7 @@ JSON and Markdown output paths
 Failure repair is intentionally explicit rather than automatic. The script does
 not silently patch the system or downgrade requirements. It tells the operator
 which real service failed and which real command to run next.
+
+## Vendor Git Requirement
+
+The live full-stack integration requires real Git clones under `third_party/upstream`. The integration preflight fails if MIMS repositories are missing `.git`, have a mismatched remote, or have a dirty working tree. This prevents zip-extracted or manually copied vendor folders from being mistaken for updateable production dependencies.

@@ -43,6 +43,9 @@ def add_vendor_repo_to_path(repo_path: Path) -> None:
     if not any(repo_path.iterdir()):
         raise VendorRuntimeError(f"vendored repository is empty: {repo_path}")
     candidates = [repo_path, repo_path / "src"]
+    packages_dir = repo_path / "packages"
+    if packages_dir.exists():
+        candidates.extend(path / "src" for path in sorted(packages_dir.iterdir()) if (path / "src").exists())
     for candidate in candidates:
         if candidate.exists():
             value = str(candidate)

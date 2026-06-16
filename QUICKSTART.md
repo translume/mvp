@@ -64,8 +64,9 @@ OPTIMUSKG_SERVICE_URL=http://optimuskg-service:8091
 OPTIMUSKG_PUBLIC_URL=http://localhost:8091
 OPTIMUSKG_VENDOR_DIR=/app/third_party/upstream/OptimusKG
 OPTIMUSKG_CACHE_DIR=/data/optimuskg_cache
-OPTIMUSKG_EDGE_TABLE_PATH=
-OPTIMUSKG_MODULE_NAMES=optimuskg,OptimusKG
+OPTIMUSKG_USE_LCC=true
+OPTIMUSKG_MAX_EDGES=500
+OPTIMUSKG_FORCE_DOWNLOAD=false
 
 TOOLUNIVERSE_SERVICE_URL=http://tooluniverse-service:8092
 TOOLUNIVERSE_PUBLIC_URL=http://localhost:8092
@@ -85,6 +86,9 @@ BLOCK_REMOTE_MODEL_PROVIDERS=true
 
 TRANSLUME_MAX_CHUNK_CHARS=2400
 TRANSLUME_API_URL=http://localhost:8080
+TRANSLUME_API_BASE_URL=http://translume-api:8080
+TRANSLUME_UI_HOST=0.0.0.0
+TRANSLUME_UI_PORT=7860
 TRANSLUME_UI_URL=http://localhost:7860
 
 TRANSLUME_E2E_REPORT_PATH=/absolute/path/to/real/oncology_report.pdf
@@ -188,6 +192,17 @@ make integration-full-stack
 ```
 
 This uploads the PDF configured in `TRANSLUME_E2E_REPORT_PATH`, processes it through the MVP workflow, validates generated artifacts, checks OpenSearch and Postgres persistence, tests claim validation, and fetches the final review-packet export.
+
+
+The Gradio container launches with `python -m translume_ui.app`. If you need to
+check only the UI after the stack is running, use:
+
+```bash
+make check-ui-health
+```
+
+This command performs a real HTTP request to the running Gradio app. It does not
+mock or fabricate UI readiness.
 
 ## 8. Open the Gradio app
 
@@ -420,3 +435,72 @@ make live-vm-logs
 The live validation does not fake service readiness. It fails if Docker, GPU,
 vLLM, OpenSearch, Postgres, Docling, OptimusKG, ToolUniverse, Medea, upload
 processing, validation-card roundtrip, or export persistence fail.
+
+## Updating Harvard MIMS Repositories
+
+Before running the production-style MVP stack, install or update the upstream Harvard MIMS repositories as real Git clones:
+
+```bash
+make vendor-repos
+make vendor-status
+```
+
+To update manually:
+
+```bash
+git -C third_party/upstream/Medea pull --ff-only
+git -C third_party/upstream/OptimusKG pull --ff-only
+git -C third_party/upstream/ToolUniverse pull --ff-only
+make vendor-status
+```
+
+`make vendor-status` must pass before live VM validation. Zip-extracted repositories are allowed only for offline inspection with `make vendor-bootstrap-from-zips`; they are not production-updateable and will fail vendor status.
+
+## Validate production/demo readiness gate
+
+Before starting the live VM validation, run the PRIME_DIRECTIVES gate:
+
+```bash
+cp .env.example .env
+# edit .env; VLLM_MODEL must be a real model id, not blank
+make vendor-repos
+make vendor-status
+make validate-prime-directives
+```
+
+If the command fails, fix the first reported error. Do not disable required services or replace missing MIMS repos with zip-extracted folders to make the gate pass. The required vendor update path is:
+
+```bash
+git -C third_party/upstream/Medea pull --ff-only
+git -C third_party/upstream/OptimusKG pull --ff-only
+git -C third_party/upstream/ToolUniverse pull --ff-only
+```
+
+Those commands only work after `make vendor-repos` has created real Git clones.
+
+
+## Failure audit trail behavior
+
+During report processing, Translume now records the raw upload, case session, source-file metadata, and upload ledger event before clinical processing begins. Major workflow stages write started, succeeded, and failed ledger events. If a live-stack run fails, inspect the Postgres ledger tables and `data/exports/runtime_diagnostics/` to see which real service or stage failed.
+
+
+## Tutorial 6 — Convert clinical artifacts to local vLLM structured outputs
+
+The production workflow now requires a configured local structured-output model provider for clinical artifact generation. Report extraction, molecular phenotype, molecular-fit matrix, mechanism Sankey, confirmatory testing, tumor-behavior model, claim evidence, and the final clinical narrative are generated through the local vLLM provider and validated against their Pydantic schemas. Deterministic code remains only for source alignment, validation, safety checks, provenance, ledger events, persistence, and service orchestration.
+
+This does not prove Docker/GPU/vLLM runtime in this sandbox. In demo or production mode, `VLLM_MODEL` and `VLLM_BASE_URL` must point to a real local vLLM service configured for structured outputs. Missing local model configuration must fail loudly; no placeholder model output is allowed in the product path.
+
+## Tutorial 8: narrative fact containment enforcement
+
+The production workflow now validates the generated clinical narrative before review-packet export. `ClinicalNarrativeCompilerOutput` must be contained by the structured artifacts in the bundle: report extraction, normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning, phenotype, matrix, Sankey, confirmatory tests, tumor-behavior model, claim cards, and provenance. Unsupported gene-like terms, therapy-like terms, alteration-like phrases, or unknown source artifact IDs fail loudly instead of being returned as a polished narrative. A passing narrative creates a `NarrativeContainmentReport` and containment provenance; a failing narrative records a workflow failure event and blocks export.
+
+# OptimusKG real parquet client settings
+OPTIMUSKG_USE_LCC=true
+OPTIMUSKG_MAX_EDGES=500
+OPTIMUSKG_FORCE_DOWNLOAD=false
+OPTIMUSKG_CACHE_DIR=data/optimuskg_cache
+
+
+## OptimusKG update and graph-data note
+
+OptimusKG context now comes from the real OptimusKG Python client and parquet graph tables. Run `make vendor-repos` to clone/pull `third_party/upstream/OptimusKG`, then configure `OPTIMUSKG_CACHE_DIR` so the OptimusKG client can find or download its parquet files. Translume does not use generic CSV/JSON edge files as a substitute for OptimusKG.
