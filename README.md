@@ -24,7 +24,7 @@ The MVP focuses on one high-value workflow: one oncology report becomes one stru
 → tumor-behavior model
 → evidence-classified claim cards
 → human validation
-→ ledger export
+→ clinical ledger export
 ```
 ---
 
