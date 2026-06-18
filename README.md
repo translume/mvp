@@ -14,9 +14,9 @@ The MVP focuses on one high-value workflow: one oncology report becomes one stru
 → OpenSearch indexing
 → local vLLM structured clinical extraction
 → normalized molecular entities
-→ OptimusKG graph context
-→ ToolUniverse governed evidence workflows
-→ Medea bounded omics/literature reasoning
+→ KG graph context
+→ Governed evidence workflows
+→ Bounded omics/literature reasoning
 → molecular phenotype
 → molecular-fit matrix
 → mechanism Sankey
