@@ -1,4 +1,33 @@
-# Translume MVP Production Workflow
+# Translume 
+
+<p align="center"> <img src="docs/translume-logo.png" alt="Translume logo" width="900"/> </p> <p align="center"> <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence.</strong> </p> <p align="center"> <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/> <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/> <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/> <img alt="Paper on arXiv" src="https://img.shields.io/badge/Paper%20on-arXiv-4c8eda?style=for-the-badge"/> <img alt="Project Website" src="https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge"/> <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/> </p> 
+
+Translume is a clinical output compiler for translational oncology. It ingests an oncology molecular report, extracts structured molecular findings, maps them into biological axes, ranks molecular fits for expert review, explains “why from omics,” builds a Finding → Mechanism → Molecular Fit → Validation Test chain, identifies confirmatory testing needs, and produces a source-backed tumor-behavior hypothesis without making treatment recommendations. Modern oncology teams do not lack molecular data. They lack a fast, defensible way to turn NGS, WGS, FISH, IHC, RNA, pathology, and research reports into reviewable clinical-translational reasoning. Molecular reports surface variants, copy-number changes, expression signals, limitations, and negative findings, but those facts usually remain disconnected from mechanism, evidence strength, validation needs, and disease behavior. Translume closes that gap by converting raw report content into a structured review surface where every major claim is tied to source text, evidence class, uncertainty, provenance, and human validation. 
+
+The MVP focuses on one high-value workflow: one oncology report becomes one structured, explainable, clinician-reviewable tumor-behavior intelligence packet. The output shows what the report found, why each finding may matter biologically, what is unsupported, what must be validated next, which claims are facts versus hypotheses, and who accepted, rejected, or flagged each claim. This reduces tumor-board and translational review burden while creating reusable structured reasoning that can later support longitudinal disease modeling. The system is intentionally not a treatment recommendation engine, diagnostic device, outcome predictor, or adaptive precision oncology platform yet. It is the foundation those future systems require: accurate document extraction, source-backed chunks, local structured model outputs, biomedical graph context, governed scientific-tool evidence, bounded omics/literature reasoning, human validation controls, and a provenance-backed ledger. 
+
+## Current MVP Scope
+```
+→ PDF report of NGS, WGS, FISH, IHC, etc...
+→ Docling / Granite Docling document extraction
+→ section-aware chunks
+→ OpenSearch indexing
+→ local vLLM structured clinical extraction
+→ normalized molecular entities
+→ OptimusKG graph context
+→ ToolUniverse governed evidence workflows
+→ Medea bounded omics/literature reasoning
+→ molecular phenotype
+→ molecular-fit matrix
+→ mechanism Sankey
+→ confirmatory testing plan
+→ tumor-behavior model
+→ evidence-classified claim cards
+→ human validation
+→ ledger export
+```
+---
+
 
 Translume is a local-first clinical output compiler that turns one oncology molecular report into reviewable tumor-behavior intelligence: source-backed findings, evidence-classified claims, mechanism paths, validation tests, human review controls, and provenance-backed ledger export.
 
@@ -359,3 +388,88 @@ The Gradio cockpit now renders the exact persisted `ReviewPacketExport` returned
 The clinical surface includes source-backed findings, normalized entities, molecular phenotype, molecular-fit review matrix, the mechanism Sankey, confirmatory tests, case-derived tumor-state evidence, transition hypotheses, OptimusKG graph context, ToolUniverse evidence, Medea bounded reasoning, claim validation, provenance, and the discovery ledger. The technical JSON remains available in a separate tab for audit inspection, but it is not the primary clinical surface.
 
 Claim-validation actions call the real validation API, then reload the persisted packet from Postgres so the UI does not update optimistically. Review-packet downloads also come from the persisted export endpoint; the UI does not reconstruct or fabricate export content locally.
+
+---
+
+# Important Notice: Intended Use, Human Oversight, and Ethical Use Statement
+
+Translume is an information-processing, evidence-compilation, and clinical review support platform. It is designed to assist qualified professionals in organizing, reviewing, and tracing information derived from oncology and related biomedical documents. It is not intended to function as a diagnostic system, treatment recommendation engine, medical device, autonomous clinical decision-maker, or substitute for professional medical judgment.
+
+All outputs generated by Translume—including findings, hypotheses, tumor-behavior models, evidence summaries, biological interpretations, validation suggestions, reasoning artifacts, and visualizations—are intended solely to support human review and discussion. These outputs may contain inaccuracies, omissions, incomplete evidence, or interpretations that require further verification.
+
+Clinical decisions, diagnoses, prognoses, treatment selections, patient management decisions, research conclusions, regulatory submissions, and other consequential actions must never be based solely on system-generated output. All information produced by the platform must be independently reviewed, interpreted, and validated by appropriately qualified and credentialed healthcare professionals, researchers, laboratory personnel, or other authorized subject-matter experts.
+
+Translume does not establish clinical truth, determine standards of care, predict outcomes, guarantee completeness of evidence, or replace multidisciplinary review processes. The presence of supporting evidence, literature references, graph relationships, computational reasoning, or generated hypotheses should not be interpreted as proof of clinical validity, efficacy, safety, causality, or medical appropriateness.
+
+Users are responsible for ensuring compliance with all applicable laws, regulations, institutional policies, ethical standards, privacy requirements, data-governance frameworks, and professional practice obligations governing the use of clinical, biomedical, research, or patient-related information.
+
+The platform is intended to augment human expertise by improving transparency, traceability, reviewability, and evidence organization. Human judgment remains the final authority for all interpretations, conclusions, recommendations, and actions derived from information presented by the system.
+
+By using Translume, users acknowledge that the platform serves as a decision-support and evidence-review aid only, and that appropriately qualified human oversight is required for all clinical, research, operational, and regulatory use cases.
+
+# Intended Use, Limitations, and Ethical Use Statement
+
+Translume is designed to support clinical and translational oncology teams by organizing complex oncology reports into structured, source-backed, reviewable information. It helps extract findings, surface evidence, identify uncertainty, show possible biological mechanisms, and support expert review.
+
+## What Translume Does
+
+Translume helps convert oncology reports into structured review packets that may include:
+
+Source-backed molecular findings from uploaded reports.
+
+Normalized clinical and biological entities.
+
+Evidence summaries from approved knowledge sources and tools.
+
+Mechanism-oriented views that help explain why a finding may matter biologically.
+
+Tumor-behavior hypotheses derived from the specific case evidence.
+
+Evidence-classified claim cards for expert review.
+
+Human validation workflows that allow qualified reviewers to accept, reject, or flag claims.
+
+Provenance records showing where outputs came from and what supported them.
+
+Ledger records that preserve review history, decisions, and traceability.
+
+Exportable review packets for clinical, translational, research, or operational review.
+
+The purpose is to improve clarity, transparency, traceability, and review efficiency.
+
+## What Translume Does Not Do
+
+Translume does not diagnose disease.
+
+Translume does not recommend treatment.
+
+Translume does not determine a standard of care.
+
+Translume does not predict patient outcomes.
+
+Translume does not replace oncologists, pathologists, molecular tumor boards, genetic counselors, laboratory directors, or other qualified professionals.
+
+Translume does not make autonomous clinical decisions.
+
+Translume does not establish clinical truth.
+
+Translume does not guarantee that evidence is complete, current, or clinically sufficient.
+
+Translume does not determine whether a therapy is safe, effective, appropriate, available, reimbursable, or indicated for a specific patient.
+
+Any output from Translume should be treated as informational, preliminary, and subject to expert review.
+
+## Human Review Requirement
+
+All Translume outputs must be reviewed by appropriately qualified and credentialed clinical, scientific, or laboratory personnel before they are used in any clinical, research, operational, regulatory, or patient-related context.
+
+A human-in-the-loop review process is required. Final responsibility for interpretation, validation, communication, and action remains with qualified professionals.
+
+## Foundation for Adaptive Precision Oncology
+
+Translume is not itself an adaptive precision oncology platform today. It is a foundation for moving toward that future.
+
+By creating structured, traceable, source-backed, and human-validated records from oncology reports, Translume helps build the data and reasoning layer needed for future systems that may support longitudinal tumor modeling, evidence learning, cohort analysis, adaptive research workflows, and more personalized oncology review.
+
+The near-term goal is not autonomous medicine. The goal is to make complex oncology information more usable, reviewable, auditable, and scalable so that expert teams can work faster and with greater confidence.
+
