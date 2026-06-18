@@ -23,6 +23,21 @@ class ClinicalNarrativeCompilerOutput(TranslumeBaseModel):
     safety_note: str
 
 
+class NarrativeContainmentFinding(TranslumeBaseModel):
+    term: str
+    term_type: str
+    evidence_gap: str
+    sentence: str
+
+
+class NarrativeContainmentReport(TranslumeBaseModel):
+    artifact_id: str
+    narrative_artifact_id: str
+    source_artifact_ids: list[str]
+    unsupported_findings: list[NarrativeContainmentFinding] = []
+    passed: bool
+
+
 class ClinicalArtifactBundle(TranslumeBaseModel):
     case_id: str
     session_id: str
@@ -36,6 +51,7 @@ class ClinicalArtifactBundle(TranslumeBaseModel):
     tumor_behavior: TumorBehaviorModelOutput | None = None
     claims: list[ClaimEvidenceOutput] = []
     narrative: ClinicalNarrativeCompilerOutput | None = None
+    narrative_containment: NarrativeContainmentReport | None = None
     validation_decisions: list[ValidationDecision] = []
     provenance: list[ArtifactProvenance] = []
     ledger_events: list[LedgerEvent] = []

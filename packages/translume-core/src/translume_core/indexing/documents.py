@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Any
 
+from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
+
 from pydantic import BaseModel
 
 from translume_schemas.claims import ClaimEvidenceOutput
@@ -72,6 +74,7 @@ def document_chunk_to_opensearch_doc(
     embedding: Sequence[float] | None = None,
     *,
     expected_vector_dimension: int | None = None,
+    retrieval_mode: str = "lexical",
 ) -> dict[str, object]:
     """Convert a document chunk into an OpenSearch document.
 
@@ -79,24 +82,37 @@ def document_chunk_to_opensearch_doc(
         1. Output includes all required filter fields.
         2. Output includes source text and source block IDs.
         3. Output includes bbox if available.
-        4. Embedding dimension is validated when configured.
-        5. Missing embedding is allowed.
+        4. Lexical MVP mode rejects embeddings instead of pretending vector
+           retrieval is active.
+        5. Vector/HNSW mode fails until a real embedding provider exists.
         6. Function is pure.
 
     Args:
         chunk: Source document chunk.
-        embedding: Optional dense vector.
-        expected_vector_dimension: Optional expected vector length.
+        embedding: Reserved for a future real embedding provider. Must be None
+            in lexical MVP mode.
+        expected_vector_dimension: Reserved for a future real embedding provider.
+        retrieval_mode: Active retrieval mode. The MVP supports only lexical.
 
     Returns:
         JSON-compatible OpenSearch document.
 
     Raises:
-        ValueError: If embedding dimension mismatches expectation.
+        ValueError: If embedding inputs are provided in lexical mode or if
+            retrieval_mode requests unsupported vector behavior.
     """
-    if embedding is not None and expected_vector_dimension is not None:
-        if len(embedding) != expected_vector_dimension:
-            raise ValueError("embedding dimension mismatch")
+    require_lexical_retrieval_scope(retrieval_mode)
+    if embedding is not None:
+        raise ValueError(
+            "embedding was provided, but TRANSLUME_RETRIEVAL_MODE=lexical is "
+            "the only MVP-supported retrieval mode. Do not index embeddings "
+            "until a real embedding provider is configured and validated."
+        )
+    if expected_vector_dimension is not None:
+        raise ValueError(
+            "expected_vector_dimension was provided, but lexical MVP retrieval "
+            "does not use vector dimensions."
+        )
     doc: dict[str, object] = {
         "document_id": chunk.chunk_id,
         "chunk_id": chunk.chunk_id,
@@ -111,11 +127,11 @@ def document_chunk_to_opensearch_doc(
         "source_text": chunk.source_text,
         "source_block_ids": chunk.source_block_ids,
         "needs_human_review": chunk.needs_human_review,
+        "retrieval_mode": "lexical",
+        "retrieval_method": "opensearch_metadata_lexical",
     }
     if chunk.bbox is not None:
         doc["bbox"] = chunk.bbox.model_dump(mode="json")
-    if embedding is not None:
-        doc["embedding"] = list(embedding)
     return doc
 
 
@@ -387,6 +403,7 @@ def artifact_bundle_to_opensearch_docs(
         ("confirmatory_testing", bundle.confirmatory, [bundle.extraction.artifact_id], "confirmatory testing"),
         ("tumor_behavior", bundle.tumor_behavior, [bundle.extraction.artifact_id], "tumor behavior model"),
         ("clinical_narrative", bundle.narrative, [bundle.extraction.artifact_id], "clinical narrative"),
+        ("narrative_containment", bundle.narrative_containment, [bundle.extraction.artifact_id], "narrative containment report"),
     ]
     for artifact_type, artifact, source_artifact_ids, fallback_summary in optional_artifacts:
         if artifact is None:

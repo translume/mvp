@@ -38,6 +38,7 @@ from scripts.full_stack_preflight import (
 from translume_clients.opensearch import OpenSearchClientConfig, OpenSearchVectorStore
 from translume_clients.postgres import PostgresClientConfig, PostgresLedgerStore
 from translume_core.indexing.persistence import ensure_mvp_indexes
+from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
 
 
 
@@ -259,6 +260,22 @@ async def wait_for_all_services(
         )
 
 
+def validate_retrieval_scope(
+    requirements: Mapping[str, object],
+    environment: Mapping[str, str],
+) -> None:
+    """Validate live-stack retrieval scope is honest about vector support."""
+    config = requirements.get("retrieval_scope", {})
+    if not isinstance(config, dict):
+        raise ValueError("retrieval_scope requirements must be an object")
+    mode_env = str(config.get("mode_env", "TRANSLUME_RETRIEVAL_MODE"))
+    mode = env_value(mode_env, environment) or str(config.get("required_mode", "lexical"))
+    try:
+        require_lexical_retrieval_scope(mode)
+    except Exception as error:
+        raise FullStackIntegrationError(str(error)) from error
+
+
 async def validate_opensearch(
     requirements: Mapping[str, object],
     environment: Mapping[str, str],
@@ -276,14 +293,20 @@ async def validate_opensearch(
         required_fields={},
     )
     await wait_for_json_endpoint(endpoint, timeout_seconds=120, interval_seconds=2)
-    vector_dimension = int(env_value("TRANSLUME_VECTOR_DIMENSION", environment) or "384")
+    retrieval_mode = env_value("TRANSLUME_RETRIEVAL_MODE", environment) or "lexical"
+    vector_dimension_raw = env_value("TRANSLUME_VECTOR_DIMENSION", environment)
+    vector_dimension = int(vector_dimension_raw) if vector_dimension_raw else None
     store = OpenSearchVectorStore(
         OpenSearchClientConfig(
             base_url=base_url,
             timeout_seconds=float(env_value("OPENSEARCH_TIMEOUT_SECONDS", environment) or "30"),
         )
     )
-    await ensure_mvp_indexes(store, vector_dimension=vector_dimension)
+    await ensure_mvp_indexes(
+        store,
+        retrieval_mode=retrieval_mode,
+        vector_dimension=vector_dimension,
+    )
     required_indices = config.get("required_indices", [])
     if not isinstance(required_indices, list):
         raise ValueError("opensearch.required_indices must be a list")
@@ -536,6 +559,7 @@ async def run_full_stack_integration(
         timeout_seconds=wait_timeout_seconds,
         interval_seconds=wait_interval_seconds,
     )
+    validate_retrieval_scope(requirements, environment)
     await validate_opensearch(requirements, environment)
     await validate_postgres(requirements, environment)
     await validate_vllm_structured_output(requirements, environment)

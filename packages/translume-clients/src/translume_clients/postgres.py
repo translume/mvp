@@ -6,6 +6,8 @@ from typing import Any
 
 from translume_core.persistence.postgres_records import (
     PostgresRecord,
+    PostgresRecordBatch,
+    ingestion_metadata_to_postgres_records,
     ledger_event_to_postgres_record,
     review_packet_to_postgres_records,
 )
@@ -18,6 +20,7 @@ from translume_core.persistence.postgres_schema import (
 )
 from translume_schemas.export import ReviewPacketExport
 from translume_schemas.ledger import LedgerEvent
+from translume_schemas.session import CaseSession, StoredFile
 
 
 class PostgresClientError(RuntimeError):
@@ -69,6 +72,24 @@ class PostgresLedgerStore:
         except Exception as error:  # pragma: no cover - exercised in integration.
             raise PostgresClientError(f"Postgres schema initialization failed: {error}") from error
 
+    async def persist_ingestion_metadata(
+        self,
+        session: CaseSession,
+        stored_file: StoredFile,
+        upload_event: LedgerEvent,
+    ) -> dict[str, int]:
+        """Persist upload/session metadata before clinical processing.
+
+        Acceptance criteria:
+            1. Converts session, source file, and upload event through pure
+               domain logic.
+            2. Upserts every record in one transaction.
+            3. Returns persisted row counts by table.
+            4. Does not mutate session, stored_file, or upload_event.
+        """
+        batch = ingestion_metadata_to_postgres_records(session, stored_file, upload_event)
+        return await self.persist_records(batch)
+
     async def persist_review_packet(self, packet: ReviewPacketExport) -> dict[str, int]:
         """Persist one review packet and all metadata rows.
 
@@ -79,7 +100,18 @@ class PostgresLedgerStore:
             4. Returns persisted row counts by table.
             5. Does not mutate the packet.
         """
-        batch = review_packet_to_postgres_records(packet)
+        return await self.persist_records(review_packet_to_postgres_records(packet))
+
+    async def persist_records(self, batch: PostgresRecordBatch) -> dict[str, int]:
+        """Persist a batch of Postgres records in one transaction.
+
+        Acceptance criteria:
+            1. Upserts every record exactly once.
+            2. Uses one transaction for the batch.
+            3. Rolls back automatically on connection context failure.
+            4. Returns record counts by table.
+            5. Performs no fallback or in-memory persistence.
+        """
         try:
             psycopg, jsonb = _load_psycopg()
             async with await psycopg.AsyncConnection.connect(
@@ -94,7 +126,7 @@ class PostgresLedgerStore:
                             await cursor.execute(sql, _adapt_record(record, table, jsonb))
                 await connection.commit()
         except Exception as error:  # pragma: no cover - exercised in integration.
-            raise PostgresClientError(f"Postgres review packet persistence failed: {error}") from error
+            raise PostgresClientError(f"Postgres record persistence failed: {error}") from error
         return batch.counts()
 
 

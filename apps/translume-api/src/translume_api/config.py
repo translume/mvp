@@ -17,12 +17,19 @@ class Settings(BaseModel):
     tooluniverse_service_url: str = "http://tooluniverse-service:8092"
     medea_service_url: str = "http://medea-service:8093"
     mims_timeout_seconds: float = 240.0
-    tool_workflows: tuple[str, ...] = ("target_context",)
+    tool_workflows: tuple[str, ...] = (
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    )
     max_chunk_chars: int = 2400
     opensearch_url: str = "http://opensearch:9200"
     opensearch_timeout_seconds: float = 30.0
     opensearch_required: bool = True
-    vector_dimension: int = 384
+    retrieval_mode: str = "lexical"
+    vector_dimension: int | None = None
     postgres_dsn: str = "postgresql://translume:translume@postgres:5432/translume"
     postgres_connect_timeout_seconds: float = 10.0
     postgres_required: bool = True
@@ -30,6 +37,11 @@ class Settings(BaseModel):
     docling_timeout_seconds: float = 240.0
     docling_required: bool = True
     docling_extraction_method: str = "docling"
+    vllm_base_url: str = "http://vllm:8000/v1"
+    vllm_model: str = ""
+    vllm_timeout_seconds: float = 240.0
+    prompts_root: Path = Path("configs/prompts")
+    require_local_vllm: bool = True
 
 
 def get_settings() -> Settings:
@@ -48,12 +60,16 @@ def get_settings() -> Settings:
         tooluniverse_service_url=os.getenv("TOOLUNIVERSE_SERVICE_URL", "http://tooluniverse-service:8092"),
         medea_service_url=os.getenv("MEDEA_SERVICE_URL", "http://medea-service:8093"),
         mims_timeout_seconds=float(os.getenv("MIMS_TIMEOUT_SECONDS", "240")),
-        tool_workflows=_parse_csv_tuple(os.getenv("TRANSLUME_TOOL_WORKFLOWS", "target_context")),
+        tool_workflows=_parse_csv_tuple(os.getenv(
+                "TRANSLUME_TOOL_WORKFLOWS",
+                "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
+            )),
         max_chunk_chars=int(os.getenv("TRANSLUME_MAX_CHUNK_CHARS", "2400")),
         opensearch_url=os.getenv("OPENSEARCH_URL", "http://opensearch:9200"),
         opensearch_timeout_seconds=float(os.getenv("OPENSEARCH_TIMEOUT_SECONDS", "30")),
         opensearch_required=os.getenv("TRANSLUME_REQUIRE_OPENSEARCH", "true").casefold() == "true",
-        vector_dimension=int(os.getenv("TRANSLUME_VECTOR_DIMENSION", "384")),
+        retrieval_mode=os.getenv("TRANSLUME_RETRIEVAL_MODE", "lexical"),
+        vector_dimension=_optional_int(os.getenv("TRANSLUME_VECTOR_DIMENSION", "")),
         postgres_dsn=os.getenv("POSTGRES_DSN", "postgresql://translume:translume@postgres:5432/translume"),
         postgres_connect_timeout_seconds=float(os.getenv("POSTGRES_CONNECT_TIMEOUT_SECONDS", "10")),
         postgres_required=os.getenv("TRANSLUME_REQUIRE_POSTGRES", "true").casefold() == "true",
@@ -61,8 +77,18 @@ def get_settings() -> Settings:
         docling_timeout_seconds=float(os.getenv("DOCLING_TIMEOUT_SECONDS", "240")),
         docling_required=os.getenv("TRANSLUME_REQUIRE_DOCLING", "true").casefold() == "true",
         docling_extraction_method=os.getenv("DOCLING_EXTRACTION_METHOD", "docling"),
+        vllm_base_url=os.getenv("VLLM_BASE_URL", "http://vllm:8000/v1"),
+        vllm_model=os.getenv("VLLM_MODEL", ""),
+        vllm_timeout_seconds=float(os.getenv("VLLM_TIMEOUT_SECONDS", "240")),
+        prompts_root=Path(os.getenv("TRANSLUME_PROMPTS_ROOT", "configs/prompts")),
+        require_local_vllm=os.getenv("TRANSLUME_REQUIRE_LOCAL_VLLM", "true").casefold() == "true",
     )
 
 
 def _parse_csv_tuple(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _optional_int(value: str) -> int | None:
+    stripped = value.strip()
+    return int(stripped) if stripped else None

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
+import os
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from translume_api.config import Settings, get_settings
 from translume_clients.docling import DoclingClientConfig, DoclingServiceClient
+from translume_adapters.model_providers.local_vllm_provider import LocalVLLMProvider
+from translume_clients.local_vllm import LocalVLLMClient
 from translume_clients.mims import (
     MedeaServiceClient,
     MimsServiceClientConfig,
@@ -22,13 +27,39 @@ from translume_core.validation.review import (
     build_validation_decision,
     validation_cards_from_packet,
 )
+from translume_core.prime_directives import (
+    PrimeDirectiveViolation,
+    assert_prime_directives,
+    find_project_root,
+)
 from translume_core.workflow import (
     TranslumeWorkflowConfig,
     TranslumeWorkflowProviders,
     process_report_pdf,
 )
 
-app = FastAPI(title="Translume API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Run production/demo PRIME_DIRECTIVES gate at API startup.
+
+    Acceptance criteria:
+        1. Local development mode can start without production dependencies.
+        2. Production/demo/enforced mode fails before accepting requests if
+           required real services, vendor Git clones, or local-model routing are
+           missing.
+        3. The gate does not fabricate readiness or silently downgrade missing
+           dependencies.
+    """
+    root = find_project_root(Path(__file__))
+    try:
+        assert_prime_directives(environment=os.environ, root=root, force=False)
+    except PrimeDirectiveViolation as error:
+        raise RuntimeError(str(error)) from error
+    yield
+
+
+app = FastAPI(title="Translume API", lifespan=lifespan)
 
 
 class ValidationDecisionRequest(BaseModel):
@@ -152,6 +183,7 @@ async def validate_claim(
         await persist_review_packet_to_opensearch(
             updated_packet,
             vector_store,
+            retrieval_mode=settings.retrieval_mode,
             vector_dimension=settings.vector_dimension,
         )
     except Exception as error:
@@ -173,9 +205,13 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         max_chunk_chars=settings.max_chunk_chars,
         require_mims=settings.require_mims,
         require_opensearch=settings.opensearch_required,
+        retrieval_mode=settings.retrieval_mode,
         vector_dimension=settings.vector_dimension,
         require_postgres=settings.postgres_required,
         require_docling=settings.docling_required,
+        require_local_vllm=settings.require_local_vllm,
+        vllm_model=settings.vllm_model,
+        prompts_root=settings.prompts_root,
         tool_workflows=settings.tool_workflows,
     )
 
@@ -207,6 +243,12 @@ def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:
                 base_url=settings.docling_service_url,
                 timeout_seconds=settings.docling_timeout_seconds,
                 extraction_method=settings.docling_extraction_method,
+            )
+        ),
+        model_provider=LocalVLLMProvider(
+            LocalVLLMClient(
+                base_url=settings.vllm_base_url,
+                timeout_seconds=settings.vllm_timeout_seconds,
             )
         ),
     )

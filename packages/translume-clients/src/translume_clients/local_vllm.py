@@ -35,6 +35,18 @@ class LocalVLLMClient:
             return content
         import json
         try:
-            return json.loads(content)
+            parsed = json.loads(_strip_json_fence(content))
         except json.JSONDecodeError as error:
             raise LocalVLLMClientError("vLLM content is not JSON") from error
+        if not isinstance(parsed, dict):
+            raise LocalVLLMClientError("vLLM structured output is not a JSON object")
+        return parsed
+
+
+def _strip_json_fence(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("```json"):
+        return stripped.removeprefix("```json").removesuffix("```").strip()
+    if stripped.startswith("```"):
+        return stripped.removeprefix("```").removesuffix("```").strip()
+    return stripped

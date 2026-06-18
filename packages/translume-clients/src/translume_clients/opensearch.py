@@ -25,7 +25,7 @@ class OpenSearchClientConfig:
 
 
 class OpenSearchVectorStore:
-    """HTTP OpenSearch vector/document store client.
+    """HTTP OpenSearch retrieval/document store client.
 
     Acceptance criteria:
         1. Network I/O is isolated to this boundary class.
@@ -33,6 +33,8 @@ class OpenSearchVectorStore:
         3. Bulk indexing uses the `_bulk` endpoint.
         4. Search uses the `_search` endpoint.
         5. Non-success responses raise `OpenSearchClientError`.
+        6. The current MVP uses lexical/metadata queries only; this client
+           does not imply vector/HNSW retrieval is active.
     """
 
     def __init__(self, config: OpenSearchClientConfig) -> None:

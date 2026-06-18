@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
+
 
 IndexSpec = dict[str, object]
 
@@ -33,14 +35,14 @@ def _object(enabled: bool = True) -> dict[str, object]:
 def _index_spec(index_name: str, properties: Mapping[str, object]) -> IndexSpec:
     return {
         "index_name": index_name,
-        "body": {
-            "settings": {"index": {"knn": True}},
-            "mappings": {"properties": dict(properties)},
-        },
+        "body": {"mappings": {"properties": dict(properties)}},
     }
 
 
-def build_document_chunk_index_spec(vector_dimension: int) -> IndexSpec:
+def build_document_chunk_index_spec(
+    retrieval_mode: str = "lexical",
+    vector_dimension: int | None = None,
+) -> IndexSpec:
     """Build OpenSearch mapping for document chunks.
 
     Acceptance criteria:
@@ -48,17 +50,20 @@ def build_document_chunk_index_spec(vector_dimension: int) -> IndexSpec:
         2. Mapping includes page fields as integers.
         3. Mapping includes section/report/chunk type filters.
         4. Mapping includes source_text as text.
-        5. Mapping includes embedding vector field.
-        6. Function is deterministic.
+        5. Mapping does not include knn/vector fields in lexical MVP mode.
+        6. Vector/HNSW mode fails loudly until a real embedding provider exists.
+        7. Function is deterministic.
 
     Args:
-        vector_dimension: Dense vector dimension.
+        retrieval_mode: Active retrieval mode. The MVP supports only lexical.
+        vector_dimension: Reserved for a future real embedding provider. Ignored
+            in lexical mode.
 
     Returns:
         OpenSearch index specification.
     """
-    if vector_dimension <= 0:
-        raise ValueError("vector_dimension must be positive")
+    require_lexical_retrieval_scope(retrieval_mode)
+    _ = vector_dimension
     return _index_spec(
         "translume_document_chunks",
         {
@@ -75,8 +80,9 @@ def build_document_chunk_index_spec(vector_dimension: int) -> IndexSpec:
             "source_text": _text(),
             "source_block_ids": _keyword(),
             "needs_human_review": _boolean(),
+            "retrieval_mode": _keyword(),
+            "retrieval_method": _keyword(),
             "bbox": _object(),
-            "embedding": {"type": "knn_vector", "dimension": vector_dimension},
         },
     )
 
@@ -238,8 +244,10 @@ def build_artifact_provenance_index_spec() -> IndexSpec:
             "schema_hash": _keyword(),
             "source_file_id": _keyword(),
             "source_artifact_ids": _keyword(),
+            "source_chunk_ids": _keyword(),
             "created_at": _date(),
             "validation_status": _keyword(),
+            "generation_status": _keyword(),
         },
     )
 
@@ -278,16 +286,23 @@ def build_ledger_event_index_spec() -> IndexSpec:
     )
 
 
-def build_all_mvp_index_specs(vector_dimension: int) -> list[IndexSpec]:
+def build_all_mvp_index_specs(
+    retrieval_mode: str = "lexical",
+    vector_dimension: int | None = None,
+) -> list[IndexSpec]:
     """Build every OpenSearch index spec required by the MVP.
 
     Acceptance criteria:
         1. Returns all required MVP persistence indexes.
-        2. The document chunk index uses the configured vector dimension.
-        3. Function is deterministic.
+        2. The document chunk index is lexical-only for the MVP.
+        3. Vector/HNSW settings are not emitted without real embeddings.
+        4. Function is deterministic.
     """
     return [
-        build_document_chunk_index_spec(vector_dimension),
+        build_document_chunk_index_spec(
+            retrieval_mode=retrieval_mode,
+            vector_dimension=vector_dimension,
+        ),
         build_report_finding_index_spec(),
         build_artifact_index_spec(),
         build_normalized_entity_index_spec(),

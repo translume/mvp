@@ -132,3 +132,12 @@ JSON and Markdown output paths
 Failure repair is intentionally explicit rather than automatic. The script does
 not silently patch the system or downgrade requirements. It tells the operator
 which real service failed and which real command to run next.
+
+## Vendor Git Requirement
+
+The live full-stack integration requires real Git clones under `third_party/upstream`. The integration preflight fails if MIMS repositories are missing `.git`, have a mismatched remote, or have a dirty working tree. This prevents zip-extracted or manually copied vendor folders from being mistaken for updateable production dependencies.
+
+
+## Medea local-vLLM runtime enforcement
+
+Medea is now routed through Translume-owned service code that validates local model configuration, blocks remote model-provider credentials, and patches Medea LLM call sites from outside the vendored repository. The Harvard Medea source under `third_party/upstream/Medea` remains clean and updateable; Translume applies local-vLLM behavior through `services/medea-service` and adapter/service boundaries rather than editing Medea files. Runtime validation now checks `/runtime-contract` on the Medea service and requires local routing fields before the full-stack report workflow can proceed. This code path is unit-validated, but Docker/GPU/vLLM/Medea runtime still requires live VM execution.

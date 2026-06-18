@@ -11,6 +11,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
+from translume_core.prime_directives import (
+    PrimeDirectiveViolation,
+    assert_prime_directives,
+)
+from translume_core.vendor.repositories import (
+    VendorRepositoryError,
+    load_vendor_repo_specs,
+    render_vendor_status,
+    require_updateable_vendor_repos,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REQUIREMENTS = ROOT / "configs" / "integration" / "full_stack_requirements.json"
@@ -167,12 +179,14 @@ def validate_model_identifier(
 
 
 def validate_vendor_repositories(root: Path) -> tuple[str, ...]:
-    """Validate that vendored Harvard MIMS repositories are present.
+    """Validate that MIMS vendors are real updateable Git clones.
 
     Acceptance criteria:
-        1. OptimusKG, ToolUniverse, and Medea directories must exist.
-        2. Each directory must contain at least one file.
-        3. Function does not import or mutate vendor repositories.
+        1. OptimusKG, ToolUniverse, and Medea must be configured.
+        2. Each target must contain a `.git` worktree.
+        3. Each target must match the configured origin remote.
+        4. Zip-extracted vendor directories fail preflight.
+        5. Function does not import or mutate vendor repositories.
 
     Args:
         root: Repository root.
@@ -181,21 +195,19 @@ def validate_vendor_repositories(root: Path) -> tuple[str, ...]:
         Tuple of validated vendor repository names.
 
     Raises:
-        PreflightError: If any vendor repository is missing or empty.
+        PreflightError: If any vendor repository is not updateable.
     """
-    vendor_names = ("OptimusKG", "ToolUniverse", "Medea")
-    missing: list[str] = []
-    for name in vendor_names:
-        path = root / "third_party" / "upstream" / name
-        if not path.exists() or not path.is_dir() or not any(path.rglob("*")):
-            missing.append(name)
-    if missing:
+    config = root / "third_party" / "vendor_repos.json"
+    try:
+        specs = load_vendor_repo_specs(config, root)
+        report = require_updateable_vendor_repos(specs)
+    except (FileNotFoundError, VendorRepositoryError) as error:
         raise PreflightError(
-            "vendored MIMS repos are required for the production workflow: "
-            + ", ".join(missing)
-            + "; run `make vendor-repos` before integration testing"
-        )
-    return vendor_names
+            "Harvard MIMS vendors must be real Git clones for production. "
+            "Run `make vendor-repos` on a networked VM and rerun preflight. "
+            f"Details: {error}"
+        ) from error
+    return tuple(state.name for state in report.states)
 
 
 def validate_docker_available() -> tuple[str, ...]:
@@ -259,6 +271,27 @@ def validate_gpu_visible(require_gpu: bool) -> tuple[str, ...]:
     return ("nvidia-smi",)
 
 
+def validate_retrieval_scope(requirements: Mapping[str, Any], environment: Mapping[str, str]) -> str:
+    """Validate full-stack retrieval scope is lexical-only for this MVP.
+
+    Acceptance criteria:
+        1. Reads retrieval scope from the requirements config.
+        2. Accepts lexical mode.
+        3. Rejects vector/HNSW/hybrid modes until embeddings are real.
+        4. Returns the checked mode for diagnostics.
+    """
+    config = requirements.get("retrieval_scope", {})
+    if not isinstance(config, dict):
+        raise PreflightError("retrieval_scope requirements must be an object")
+    env_name = str(config.get("mode_env", "TRANSLUME_RETRIEVAL_MODE"))
+    mode = env_value(env_name, environment) or str(config.get("required_mode", "lexical"))
+    try:
+        scope = require_lexical_retrieval_scope(mode)
+    except Exception as error:
+        raise PreflightError(str(error)) from error
+    return f"retrieval_mode:{scope.mode}"
+
+
 def run_preflight(
     *,
     requirements_path: Path,
@@ -275,7 +308,8 @@ def run_preflight(
         3. Validates non-placeholder vLLM model id.
         4. Validates vendor repositories.
         5. Optionally validates Docker and GPU availability.
-        6. Does not start services or fabricate readiness.
+        6. Validates retrieval scope does not overclaim vector/HNSW.
+        7. Does not start services or fabricate readiness.
 
     Args:
         requirements_path: Full-stack requirements JSON.
@@ -289,6 +323,11 @@ def run_preflight(
     """
     requirements = load_requirements(requirements_path)
     checked: list[str] = []
+    try:
+        assert_prime_directives(environment=environment, root=root, force=True)
+    except PrimeDirectiveViolation as error:
+        raise PreflightError(str(error)) from error
+    checked.append("prime_directives_gate")
     checked.extend(
         validate_required_environment(
             tuple(requirements.get("required_environment", [])),
@@ -306,6 +345,7 @@ def run_preflight(
         )
     )
     checked.extend(validate_vendor_repositories(root))
+    checked.append(validate_retrieval_scope(requirements, environment))
     if require_docker:
         checked.extend(validate_docker_available())
     checked.extend(validate_gpu_visible(require_gpu))

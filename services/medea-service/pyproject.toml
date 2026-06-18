@@ -2,7 +2,7 @@
 name = "medea-service"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ['fastapi', 'uvicorn', 'pydantic']
+dependencies = ['fastapi', 'uvicorn', 'pydantic', 'httpx']
 
 [build-system]
 requires = ["hatchling"]

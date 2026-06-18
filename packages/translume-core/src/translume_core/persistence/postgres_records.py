@@ -27,6 +27,7 @@ from translume_core.persistence.postgres_schema import (
 from translume_schemas.export import ReviewPacketExport
 from translume_schemas.graph import GraphEvidenceArtifact
 from translume_schemas.ledger import LedgerEvent
+from translume_schemas.session import CaseSession, StoredFile
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,74 @@ class PostgresRecordBatch:
     def counts(self) -> dict[str, int]:
         """Return record counts by table."""
         return {table: len(records) for table, records in self.records_by_table.items()}
+
+
+
+def ingestion_metadata_to_postgres_records(
+    session: CaseSession,
+    stored_file: StoredFile,
+    upload_event: LedgerEvent,
+) -> PostgresRecordBatch:
+    """Convert upload/session metadata into Postgres records.
+
+    Acceptance criteria:
+        1. Produces exactly one session row, one source-file row, and one
+           upload ledger-event row.
+        2. Preserves source-file path, size, hash, and original filename.
+        3. Performs no database or filesystem I/O.
+        4. Does not mutate session, stored_file, or upload_event.
+    """
+    records: dict[str, list[PostgresRecord]] = {table: [] for table in _table_order()}
+    records[TABLE_CASE_SESSIONS].append(case_session_to_postgres_record(session))
+    records[TABLE_SOURCE_FILES].append(stored_file_to_postgres_record(stored_file))
+    records[TABLE_LEDGER_EVENTS].append(ledger_event_to_postgres_record(upload_event))
+    return PostgresRecordBatch(
+        records_by_table={table: tuple(items) for table, items in records.items()}
+    )
+
+
+def case_session_to_postgres_record(session: CaseSession) -> PostgresRecord:
+    """Convert a case session into a Postgres record.
+
+    Acceptance criteria:
+        1. Preserves case_id, session_id, report_type, safety_mode, and
+           created_at.
+        2. Serializes the complete session payload as JSON.
+        3. Performs no I/O.
+        4. Does not mutate the session.
+    """
+    return _record(
+        TABLE_CASE_SESSIONS,
+        session_id=session.session_id,
+        case_id=session.case_id,
+        report_type=session.report_type,
+        safety_mode=session.safety_mode,
+        created_at=session.created_at,
+        payload=_json(session),
+    )
+
+
+def stored_file_to_postgres_record(stored_file: StoredFile) -> PostgresRecord:
+    """Convert source-file metadata into a Postgres record.
+
+    Acceptance criteria:
+        1. Preserves source_file_id, case_id, session_id, filename, path,
+           size_bytes, and sha256.
+        2. Serializes the complete stored-file payload as JSON.
+        3. Performs no I/O.
+        4. Does not mutate the stored file metadata.
+    """
+    return _record(
+        TABLE_SOURCE_FILES,
+        source_file_id=stored_file.source_file_id,
+        case_id=stored_file.case_id,
+        session_id=stored_file.session_id,
+        filename=stored_file.filename,
+        path=str(stored_file.path),
+        size_bytes=stored_file.size_bytes,
+        sha256=stored_file.sha256,
+        payload=_json(stored_file),
+    )
 
 
 def review_packet_to_postgres_records(
@@ -101,10 +170,16 @@ def review_packet_to_postgres_records(
             case_id=packet.case_id,
             session_id=packet.session_id,
             filename=_upload_filename(bundle.ledger_events),
-            path=None,
-            size_bytes=0,
+            path=_upload_path(bundle.ledger_events),
+            size_bytes=_upload_size_bytes(bundle.ledger_events),
             sha256=_upload_sha256(bundle.ledger_events),
-            payload={"source_file_id": packet.source_file_id},
+            payload={
+                "source_file_id": packet.source_file_id,
+                "filename": _upload_filename(bundle.ledger_events),
+                "path": _upload_path(bundle.ledger_events),
+                "size_bytes": _upload_size_bytes(bundle.ledger_events),
+                "sha256": _upload_sha256(bundle.ledger_events),
+            },
         )
     )
     for chunk in packet.chunks:
@@ -219,10 +294,17 @@ def review_packet_to_postgres_records(
                 artifact_id=provenance.artifact_id,
                 artifact_type=provenance.artifact_type,
                 schema_name=provenance.schema_name,
+                model_name=provenance.model_name,
+                prompt_hash=provenance.prompt_hash,
+                schema_hash=provenance.schema_hash,
+                source_file_id=provenance.source_file_id,
+                source_artifact_ids=_json(provenance.source_artifact_ids),
+                source_chunk_ids=_json(provenance.source_chunk_ids),
                 case_id=packet.case_id,
                 session_id=packet.session_id,
                 created_at=provenance.created_at,
                 validation_status=provenance.validation_status,
+                generation_status=provenance.generation_status,
                 payload=_json(provenance),
             )
         )
@@ -352,6 +434,25 @@ def _upload_filename(events: Sequence[LedgerEvent]) -> str | None:
             return filename
     return None
 
+
+
+def _upload_path(events: Sequence[LedgerEvent]) -> str | None:
+    for event in events:
+        path = event.details.get("storage_path")
+        if path:
+            return path
+    return None
+
+
+def _upload_size_bytes(events: Sequence[LedgerEvent]) -> int:
+    for event in events:
+        size_bytes = event.details.get("size_bytes")
+        if size_bytes:
+            try:
+                return int(size_bytes)
+            except ValueError:
+                return 0
+    return 0
 
 def _upload_sha256(events: Sequence[LedgerEvent]) -> str | None:
     for event in events:
