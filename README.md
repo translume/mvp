@@ -1,12 +1,30 @@
 # Translume 
 
-<p align="center"> <img src="docs/translume-logo.png" alt="Translume logo" width="900"/> </p> <p align="center"> <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence</strong> </p> <p style="font-weight:lighter;" align="center">The future foundation for Adaptive Precision Oncology</p><p align="center"> <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/> <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/> <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/> <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/> </p> 
+<p align="center"> <img src="docs/translume-logo.png" alt="Translume logo" width="900"/> </p> <p align="center"> <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence</strong> &nbsp;&nbsp;&nbsp;</p> <p style="font-weight:lighter;" align="center">The future foundation for Adaptive Precision Oncology &nbsp;&nbsp;&nbsp;</p><p align="center"> <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/> &nbsp;&nbsp;&nbsp; <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/> &nbsp;&nbsp;&nbsp; <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/> &nbsp;&nbsp;&nbsp; <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/> </p> 
+
+
+  
 <p align="center">
-[![Project Website](https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge)](https://translume.github.io/web/index.html)
-[![Research](https://img.shields.io/badge/Research-Papers-7b61ff?style=for-the-badge)](https://translume.github.io/web/papers.html)
-[![Platform](https://img.shields.io/badge/Platform-Overview-00bcd4?style=for-the-badge)](https://translume.github.io/web/platform.html)
-[![Tutorials](https://img.shields.io/badge/Tutorials-Demos-14b8a6?style=for-the-badge)](https://translume.github.io/web/tutorials.html)
+  <a href="https://translume.github.io/web/index.html">
+    <img src="https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge" alt="Project Website" />
+  </a>
+  &nbsp;&nbsp;&nbsp;
+
+  <a href="https://translume.github.io/web/papers.html">
+    <img src="https://img.shields.io/badge/Research-Papers-7b61ff?style=for-the-badge" alt="Research Papers" />
+  </a>
+  &nbsp;&nbsp;&nbsp;
+
+  <a href="https://translume.github.io/web/platform.html">
+    <img src="https://img.shields.io/badge/Platform-Overview-00bcd4?style=for-the-badge" alt="Platform Overview" />
+  </a>
+  &nbsp;&nbsp;&nbsp;
+
+  <a href="https://translume.github.io/web/tutorials.html">
+    <img src="https://img.shields.io/badge/Tutorials-Demos-14b8a6?style=for-the-badge" alt="Tutorials & Demos" />
+  </a>
 </p>
+
 
 Translume is a clinical output compiler for translational oncology. It ingests an oncology molecular report, extracts structured molecular findings, maps them into biological axes, ranks molecular fits for expert review, explains “why from omics,” builds a Finding → Mechanism → Molecular Fit → Validation Test chain, identifies confirmatory testing needs, and produces a source-backed tumor-behavior hypothesis without making treatment recommendations. Modern oncology teams do not lack molecular data. They lack a fast, defensible way to turn NGS, WGS, FISH, IHC, RNA, pathology, and research reports into reviewable clinical-translational reasoning. Molecular reports surface variants, copy-number changes, expression signals, limitations, and negative findings, but those facts usually remain disconnected from mechanism, evidence strength, validation needs, and disease behavior. Translume closes that gap by converting raw report content into a structured review surface where every major claim is tied to source text, evidence class, uncertainty, provenance, and human validation. 
 
