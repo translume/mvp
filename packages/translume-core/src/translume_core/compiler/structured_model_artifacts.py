@@ -23,7 +23,7 @@ from translume_schemas.matrix import TherapyEvidenceMatrixOutput
 from translume_schemas.phenotype import MolecularPhenotypeOutput
 from translume_schemas.provenance import ArtifactProvenance
 from translume_schemas.sankey import MechanismSankeyOutput
-from translume_schemas.tumor_behavior import TumorBehaviorModelOutput
+from translume_schemas.tumor_behavior import STATE_LABELS, TumorBehaviorModelOutput
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -108,6 +108,7 @@ async def generate_report_extraction_with_model(
         planned_artifact_id=planned_artifact_id,
         payload=payload,
         source_artifact_ids=[item.chunk.chunk_id for item in source_chunks],
+        source_chunk_ids=[item.chunk.chunk_id for item in source_chunks],
         source_file_id=source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -144,6 +145,7 @@ async def generate_molecular_phenotype_with_model(
         planned_artifact_id=artifact_id,
         payload={"evidence_context": context.model_dump(mode="json")},
         source_artifact_ids=_context_source_ids(context),
+        source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -172,6 +174,7 @@ async def generate_molecular_fit_matrix_with_model(
             "molecular_phenotype": phenotype.model_dump(mode="json"),
         },
         source_artifact_ids=[*_context_source_ids(context), phenotype.artifact_id],
+        source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -212,6 +215,7 @@ async def generate_mechanism_sankey_with_model(
             "molecular_fit_matrix": matrix.model_dump(mode="json"),
         },
         source_artifact_ids=[*_context_source_ids(context), phenotype.artifact_id, matrix.artifact_id],
+        source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -256,6 +260,7 @@ async def generate_confirmatory_testing_with_model(
             matrix.artifact_id,
             sankey.artifact_id,
         ],
+        source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -296,18 +301,285 @@ async def generate_tumor_behavior_model_with_model(
             sankey.artifact_id,
             confirmatory.artifact_id,
         ],
+        source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
         prompts_root=prompts_root,
         created_at=created_at,
     )
-    for transition in result.artifact.transition_hypotheses:
+    _validate_tumor_behavior_is_case_derived(
+        result.artifact,
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        sankey=sankey,
+        confirmatory=confirmatory,
+    )
+    return result
+
+
+def _validate_tumor_behavior_is_case_derived(
+    tumor_behavior: TumorBehaviorModelOutput,
+    *,
+    context: EvidenceContextBundle,
+    phenotype: MolecularPhenotypeOutput,
+    matrix: TherapyEvidenceMatrixOutput,
+    sankey: MechanismSankeyOutput,
+    confirmatory: ConfirmatoryTestingOutput,
+) -> None:
+    """Validate that tumor behavior output is evidence-derived, not templated.
+
+    Acceptance criteria:
+        1. Uses the fixed tumor-state vocabulary without adding ad-hoc states.
+        2. Requires state support to resolve to report findings, graph evidence,
+           ToolUniverse artifacts, Medea reasoning, or explicit missing evidence.
+        3. Requires transition support to reference real source artifacts or
+           evidence IDs from the current case.
+        4. Rejects generic hardcoded transition rationales that do not contain
+           case-derived evidence terms.
+        5. Rejects transition probabilities, outcome predictions, and
+           treatment-directing behavior language.
+        6. Does not synthesize replacement transitions or substitute fallback
+           state evidence.
+    """
+    if not tumor_behavior.state_evidence:
+        raise StructuredArtifactGenerationError(
+            "TumorBehaviorModelOutput requires at least one state_evidence record"
+        )
+    allowed_states = set(STATE_LABELS)
+    finding_ids = {finding.finding_id for finding in context.extraction.molecular_findings}
+    graph_ids = {context.graph_evidence.artifact_id}
+    graph_ids.update(node.node_id for node in context.graph_evidence.nodes)
+    graph_ids.update(edge.edge_id for edge in context.graph_evidence.edges)
+    tool_ids = {tool.artifact_id for tool in context.tool_outputs}
+    medea_ids = {context.medea_reasoning.artifact_id}
+    medea_ids.update(context.medea_reasoning.supported_hypotheses)
+    medea_ids.update(context.medea_reasoning.weakened_hypotheses)
+    artifact_ids = {
+        context.extraction.artifact_id,
+        context.graph_evidence.artifact_id,
+        context.medea_reasoning.artifact_id,
+        phenotype.artifact_id,
+        matrix.artifact_id,
+        sankey.artifact_id,
+        confirmatory.artifact_id,
+        *tool_ids,
+    }
+    evidence_ids = artifact_ids | finding_ids | graph_ids | medea_ids
+    case_terms = _tumor_behavior_case_terms(
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        sankey=sankey,
+        confirmatory=confirmatory,
+    )
+    used_mims_support = False
+    for state in tumor_behavior.state_evidence:
+        if state.state_label not in allowed_states:
+            raise StructuredArtifactGenerationError(
+                f"TumorBehaviorModelOutput uses unsupported state_label: {state.state_label}"
+            )
+        _validate_id_subset(
+            state.supporting_findings,
+            finding_ids,
+            f"state_evidence[{state.state_label}].supporting_findings",
+        )
+        _validate_id_subset(
+            state.graph_support,
+            graph_ids,
+            f"state_evidence[{state.state_label}].graph_support",
+        )
+        _validate_id_subset(
+            state.tool_support,
+            tool_ids,
+            f"state_evidence[{state.state_label}].tool_support",
+        )
+        _validate_id_subset(
+            state.medea_support,
+            medea_ids,
+            f"state_evidence[{state.state_label}].medea_support",
+        )
+        used_mims_support = used_mims_support or bool(
+            state.graph_support or state.tool_support or state.medea_support
+        )
+        if not (
+            state.supporting_findings
+            or state.graph_support
+            or state.tool_support
+            or state.medea_support
+            or _is_missing_or_speculative_class(state.evidence_class)
+        ):
+            raise StructuredArtifactGenerationError(
+                f"TumorBehaviorModelOutput state {state.state_label} has no support "
+                "and is not marked as missing/speculative evidence"
+            )
+        if not state.validation_needed:
+            raise StructuredArtifactGenerationError(
+                f"TumorBehaviorModelOutput state {state.state_label} is not marked validation_needed"
+            )
+    for transition in tumor_behavior.transition_hypotheses:
         if not transition.hypothesis_generating:
             raise StructuredArtifactGenerationError(
                 "TumorBehaviorModelOutput transition is not marked hypothesis_generating"
             )
-    return result
+        if transition.from_state not in allowed_states or transition.to_state not in allowed_states:
+            raise StructuredArtifactGenerationError(
+                "TumorBehaviorModelOutput transition uses an unsupported state label"
+            )
+        if transition.from_state == transition.to_state:
+            raise StructuredArtifactGenerationError(
+                "TumorBehaviorModelOutput transition cannot have identical from_state and to_state"
+            )
+        if not transition.supporting_artifacts:
+            raise StructuredArtifactGenerationError(
+                "TumorBehaviorModelOutput transition is missing supporting_artifacts"
+            )
+        _validate_id_subset(
+            transition.supporting_artifacts,
+            evidence_ids,
+            "transition_hypotheses.supporting_artifacts",
+        )
+        used_mims_support = used_mims_support or any(
+            item in graph_ids or item in tool_ids or item in medea_ids
+            for item in transition.supporting_artifacts
+        )
+        _validate_transition_rationale_is_case_derived(transition.rationale, case_terms)
+        _reject_probability_or_outcome_language(transition.rationale)
+        _reject_probability_or_outcome_language(transition.confidence_label)
+        if transition.validation_status != "needs_review":
+            raise StructuredArtifactGenerationError(
+                "TumorBehaviorModelOutput transition validation_status must be needs_review"
+            )
+    if _mims_evidence_available(context) and not used_mims_support:
+        raise StructuredArtifactGenerationError(
+            "TumorBehaviorModelOutput ignored available MIMS evidence support"
+        )
+
+
+def _validate_id_subset(values: Sequence[str], allowed: set[str], field_name: str) -> None:
+    unknown = [value for value in values if value not in allowed]
+    if unknown:
+        raise StructuredArtifactGenerationError(
+            f"TumorBehaviorModelOutput {field_name} references unsupported IDs: "
+            + ", ".join(sorted(unknown))
+        )
+
+
+def _is_missing_or_speculative_class(value: str) -> bool:
+    lowered = value.casefold()
+    return "missing" in lowered or "speculative" in lowered or "requires_validation" in lowered
+
+
+def _mims_evidence_available(context: EvidenceContextBundle) -> bool:
+    return bool(
+        context.graph_evidence.edges
+        or context.graph_evidence.nodes
+        or context.tool_outputs
+        or context.medea_reasoning.summary.strip()
+        or context.medea_reasoning.supported_hypotheses
+        or context.medea_reasoning.weakened_hypotheses
+    )
+
+
+def _tumor_behavior_case_terms(
+    *,
+    context: EvidenceContextBundle,
+    phenotype: MolecularPhenotypeOutput,
+    matrix: TherapyEvidenceMatrixOutput,
+    sankey: MechanismSankeyOutput,
+    confirmatory: ConfirmatoryTestingOutput,
+) -> set[str]:
+    terms: set[str] = set()
+    for finding in context.extraction.molecular_findings:
+        _add_case_terms(terms, finding.gene or "")
+        _add_case_terms(terms, finding.alteration)
+        _add_case_terms(terms, finding.alteration_type.replace("_", " "))
+    for node in context.graph_evidence.nodes:
+        _add_case_terms(terms, node.label)
+        _add_case_terms(terms, node.kind)
+    for edge in context.graph_evidence.edges:
+        _add_case_terms(terms, edge.relation_type.replace("_", " "))
+        _add_case_terms(terms, edge.source)
+    for tool in context.tool_outputs:
+        _add_case_terms(terms, tool.workflow.replace("_", " "))
+        _add_case_terms(terms, tool.summary)
+        for item in tool.evidence_items:
+            for value in item.values():
+                _add_case_terms(terms, value)
+    _add_case_terms(terms, context.medea_reasoning.summary)
+    for hypothesis in [
+        *context.medea_reasoning.supported_hypotheses,
+        *context.medea_reasoning.weakened_hypotheses,
+    ]:
+        _add_case_terms(terms, hypothesis)
+    for axis in phenotype.axes:
+        _add_case_terms(terms, axis.label)
+        _add_case_terms(terms, axis.evidence_class.replace("_", " "))
+        _add_case_terms(terms, axis.uncertainty)
+    for row in matrix.rows:
+        _add_case_terms(terms, row.molecular_fit)
+        _add_case_terms(terms, row.fit_label.replace("_", " "))
+        _add_case_terms(terms, row.why_from_omics)
+        _add_case_terms(terms, row.evidence_basis.replace("_", " "))
+        _add_case_terms(terms, row.required_validation)
+    for node in sankey.nodes:
+        _add_case_terms(terms, node.label)
+        _add_case_terms(terms, node.kind.replace("_", " "))
+    for link in sankey.links:
+        _add_case_terms(terms, link.claim_class.replace("_", " "))
+        for source_id in link.source_artifact_ids:
+            _add_case_terms(terms, source_id)
+    for test in confirmatory.tests:
+        _add_case_terms(terms, test.question)
+        _add_case_terms(terms, test.why_it_matters)
+        _add_case_terms(terms, test.evidence_gap)
+    return terms
+
+
+def _add_case_terms(terms: set[str], value: str) -> None:
+    for term in _tumor_behavior_terms(value):
+        if len(term) >= 3:
+            terms.add(term.casefold())
+
+
+def _validate_transition_rationale_is_case_derived(
+    rationale: str,
+    case_terms: set[str],
+) -> None:
+    rationale_terms = {term.casefold() for term in _tumor_behavior_terms(rationale)}
+    if not rationale_terms.intersection(case_terms):
+        raise StructuredArtifactGenerationError(
+            "TumorBehaviorModelOutput transition rationale does not reference "
+            "case-derived evidence terms"
+        )
+
+
+def _tumor_behavior_terms(value: str) -> list[str]:
+    return [
+        term
+        for term in _informative_terms(value)
+        if term.casefold() not in _GENERIC_TUMOR_BEHAVIOR_TERMS
+    ]
+
+
+def _reject_probability_or_outcome_language(value: str) -> None:
+    lowered = value.casefold()
+    blocked_patterns = (
+        r"\b\d+(?:\.\d+)?\s*%",
+        r"\bprobab(?:ility|le)\b",
+        r"\bpredict(?:s|ed|ion)?\b",
+        r"\bwill\s+(?:respond|relapse|progress|recur|survive)\b",
+        r"\bguarantee(?:d|s)?\b",
+        r"\bshould\s+receive\b",
+        r"\brecommended\s+treatment\b",
+    )
+    for pattern in blocked_patterns:
+        if re.search(pattern, lowered):
+            raise StructuredArtifactGenerationError(
+                "TumorBehaviorModelOutput contains probability, outcome prediction, "
+                "or treatment-directing language"
+            )
 
 
 async def generate_claim_evidence_with_model(
@@ -345,6 +617,7 @@ async def generate_claim_evidence_with_model(
             confirmatory.artifact_id,
             tumor_behavior.artifact_id,
         ],
+        source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -376,6 +649,7 @@ async def generate_clinical_narrative_with_model(
         planned_artifact_id=artifact_id,
         payload={"clinical_artifact_bundle": bundle.model_dump(mode="json")},
         source_artifact_ids=source_ids,
+        source_chunk_ids=_bundle_source_chunk_ids(bundle),
         source_file_id=bundle.extraction.source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -398,7 +672,8 @@ async def _generate_artifact(
     planned_artifact_id: str,
     payload: Mapping[str, Any],
     source_artifact_ids: Sequence[str],
-    source_file_id: str | None,
+    source_chunk_ids: Sequence[str] = (),
+    source_file_id: str | None = None,
     model_provider: object,
     model_name: str,
     prompts_root: Path,
@@ -432,6 +707,7 @@ async def _generate_artifact(
         prompt_text=f"{prompts.system}\n\n{user_prompt}",
         schema_json=schema,
         source_artifact_ids=list(source_artifact_ids),
+        source_chunk_ids=list(source_chunk_ids),
         created_at=created_at,
         source_file_id=source_file_id,
         artifact_id=planned_artifact_id,
@@ -476,6 +752,27 @@ def _context_source_ids(context: EvidenceContextBundle) -> list[str]:
         *[tool.artifact_id for tool in context.tool_outputs],
         context.medea_reasoning.artifact_id,
     ]
+
+
+def _context_source_chunk_ids(context: EvidenceContextBundle) -> list[str]:
+    return _source_chunk_ids_from_extraction(context.extraction)
+
+
+def _bundle_source_chunk_ids(bundle: ClinicalArtifactBundle) -> list[str]:
+    return _source_chunk_ids_from_extraction(bundle.extraction)
+
+
+def _source_chunk_ids_from_extraction(extraction: ReportExtractionOutput) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for finding in extraction.molecular_findings:
+        chunk_id = (finding.source_chunk_id or "").strip()
+        if chunk_id and chunk_id not in seen:
+            seen.add(chunk_id)
+            ordered.append(chunk_id)
+    return ordered
+
+
 
 
 def _bundle_source_ids(bundle: ClinicalArtifactBundle) -> list[str]:
@@ -713,6 +1010,39 @@ def _informative_terms(value: str) -> list[str]:
         terms.append(term)
     return list(dict.fromkeys(terms))
 
+
+
+_GENERIC_TUMOR_BEHAVIOR_TERMS = {
+    "adaptive",
+    "artifact",
+    "behavior",
+    "bounded",
+    "clinical",
+    "context",
+    "derived",
+    "enrichment",
+    "evidence",
+    "findings",
+    "generating",
+    "graph",
+    "hypothesis",
+    "interpretation",
+    "literature",
+    "medea",
+    "model",
+    "molecular",
+    "review",
+    "reviewable",
+    "source",
+    "structured",
+    "suggest",
+    "suggests",
+    "support",
+    "supports",
+    "tooluniverse",
+    "transition",
+    "validation",
+}
 
 _GENERIC_REPORT_EXTRACTION_TERMS = {
     "and",

@@ -74,7 +74,7 @@ Runtime defaults:
 ```text
 OPENSEARCH_URL=http://opensearch:9200
 TRANSLUME_REQUIRE_OPENSEARCH=true
-TRANSLUME_VECTOR_DIMENSION=384
+TRANSLUME_RETRIEVAL_MODE=lexical
 ```
 
 The API constructs a real OpenSearch client and passes it into the workflow via
@@ -392,3 +392,30 @@ Translume now requires OptimusKG graph context to come from the real OptimusKG P
 ## ToolUniverse workflow coverage
 
 The default ToolUniverse workflow config includes `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. Each workflow maps to explicit ToolUniverse tool names and dynamic arguments derived from normalized entities and graph evidence. If your vendored ToolUniverse version changes tool names or parameters, update `configs/local/tooluniverse_workflows.json` and rerun `make validate-prime-directives`, `make vendor-status`, and `make test`; do not edit Translume core compiler code or the upstream ToolUniverse repo.
+
+
+## Medea local-vLLM runtime enforcement
+
+Medea is now routed through Translume-owned service code that validates local model configuration, blocks remote model-provider credentials, and patches Medea LLM call sites from outside the vendored repository. The Harvard Medea source under `third_party/upstream/Medea` remains clean and updateable; Translume applies local-vLLM behavior through `services/medea-service` and adapter/service boundaries rather than editing Medea files. Runtime validation now checks `/runtime-contract` on the Medea service and requires local routing fields before the full-stack report workflow can proceed. This code path is unit-validated, but Docker/GPU/vLLM/Medea runtime still requires live VM execution.
+
+
+## Evidence-derived tumor behavior validation
+
+TumorBehaviorModelOutput is generated through the local vLLM structured-output path and then validated for case-derived evidence support. The fixed state vocabulary is allowed, but selected states, transition hypotheses, rationale, and supporting artifacts must come from the current report extraction, normalized entities, OptimusKG graph evidence, ToolUniverse artifacts, Medea reasoning, molecular phenotype, molecular-fit matrix, mechanism Sankey, and confirmatory testing gaps. Generic hardcoded transitions, unsupported support IDs, transition probabilities, outcome predictions, and treatment-directing language fail the production workflow instead of being returned as a polished review packet.
+
+## Provenance requirements
+
+Do not add a new production artifact without adding provenance coverage. Use `build_artifact_provenance` for model-generated and deterministic validation artifacts, and add the artifact ID to the bundle provenance coverage check. Production code must call `require_bundle_provenance_complete` before exporting a review packet. Tests should prove missing, generic, or extra provenance records fail.
+
+
+## Tutorial 14 completed: lexical retrieval scope enforcement
+
+The MVP retrieval scope is now explicit and enforced. Translume uses OpenSearch lexical and metadata-scoped retrieval for source document chunks, filtered by case ID, session ID, and source file ID. The document chunk index no longer emits `knn_vector` mappings or accepts embeddings in the production path. If `TRANSLUME_RETRIEVAL_MODE` is set to `vector`, `hybrid`, `hnsw`, or `knn`, the production gate and retrieval functions fail loudly because there is not yet a real local embedding generation and indexing path. This prevents the project from claiming vector or HNSW retrieval before embeddings are actually produced, indexed, retrieved, and live-validated.
+
+Future vector retrieval should be added only by implementing a real local embedding provider, generating embeddings for every indexed chunk, storing the vectors in OpenSearch, and proving vector queries in live VM validation. Until then, docs, runtime reports, and UI language must describe retrieval as lexical/metadata-grounded.
+
+## UI clinical panel architecture
+
+`translume_ui.api_client` is the only HTTP boundary used by the Gradio product path. It validates every report-processing and export response as `ReviewPacketExport`. `translume_ui.panels` contains pure transformations from that validated packet into tables, Markdown, and a Plotly Sankey. `translume_ui.app` wires those functions into Gradio events and does not contain embedded clinical examples.
+
+After processing, the UI fetches the persisted packet from `/api/v1/review-packets/{session_id}/export` before rendering. Validation actions persist through FastAPI and then reload the packet. This prevents local optimistic state from being mistaken for durable human review.

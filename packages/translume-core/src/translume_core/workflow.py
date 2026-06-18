@@ -36,6 +36,15 @@ from translume_core.indexing.persistence import persist_review_packet_to_opensea
 from translume_core.persistence.ledger_events import persistence_ledger_event
 from translume_core.persistence.postgres_persistence import append_ledger_event_to_postgres, persist_ingestion_metadata_to_postgres, persist_review_packet_to_postgres
 from translume_core.persistence.postgres_records import review_packet_to_postgres_records
+from translume_core.provenance.coverage import (
+    provenance_for_claim,
+    provenance_for_evidence_context,
+    provenance_for_graph_evidence,
+    provenance_for_medea_reasoning,
+    provenance_for_normalized_entities,
+    provenance_for_tool_output,
+    require_bundle_provenance_complete,
+)
 from translume_core.provenance.provenance import build_artifact_provenance
 from translume_core.safety.containment import require_narrative_fact_containment
 from translume_schemas.document import DocumentChunk
@@ -83,7 +92,8 @@ class TranslumeWorkflowConfig:
         tool_workflows: Allow-listed ToolUniverse workflow names to run.
         require_opensearch: Whether OpenSearch persistence is mandatory.
         require_postgres: Whether Postgres metadata persistence is mandatory.
-        vector_dimension: Dense-vector dimension for OpenSearch index specs.
+        retrieval_mode: OpenSearch retrieval scope. The MVP supports lexical only.
+        vector_dimension: Reserved for a future real embedding provider.
         require_docling: Whether Docling layout extraction must run.
         require_local_vllm: Whether local vLLM structured outputs are required.
         vllm_model: Model identifier served by local vLLM.
@@ -95,7 +105,8 @@ class TranslumeWorkflowConfig:
     require_mims: bool = True
     require_opensearch: bool = True
     require_postgres: bool = True
-    vector_dimension: int = 384
+    retrieval_mode: str = "lexical"
+    vector_dimension: int | None = None
     require_docling: bool = True
     require_local_vllm: bool = True
     vllm_model: str = ""
@@ -255,6 +266,9 @@ async def process_report_pdf(
                 session_id=session.session_id,
             ),
         )
+        model_provenance.append(
+            provenance_for_normalized_entities(entities, report, created_at=now)
+        )
         graph = await _run_async_workflow_stage(
             "optimuskg_graph_context",
             ledger_events,
@@ -264,6 +278,9 @@ async def process_report_pdf(
             providers,
             config,
             lambda: _get_graph_evidence(entities, providers, config),
+        )
+        model_provenance.append(
+            provenance_for_graph_evidence(graph, entities, report, created_at=now)
         )
         preliminary_context = await _run_sync_workflow_stage(
             "preliminary_evidence_context",
@@ -290,6 +307,10 @@ async def process_report_pdf(
             config,
             lambda: _get_tool_outputs(entities, graph, providers, config),
         )
+        model_provenance.extend(
+            provenance_for_tool_output(tool, entities, graph, report, created_at=now)
+            for tool in tools
+        )
         context_without_medea = await _run_sync_workflow_stage(
             "tool_evidence_context",
             ledger_events,
@@ -315,6 +336,9 @@ async def process_report_pdf(
             config,
             lambda: _get_medea_reasoning(context_without_medea, providers, config),
         )
+        model_provenance.append(
+            provenance_for_medea_reasoning(medea, context_without_medea, created_at=now)
+        )
         context = await _run_sync_workflow_stage(
             "evidence_context",
             ledger_events,
@@ -325,6 +349,7 @@ async def process_report_pdf(
             config,
             lambda: combine_evidence_sources(report, graph, tools, medea),
         )
+        model_provenance.append(provenance_for_evidence_context(context, created_at=now))
         phenotype_result = await _run_async_workflow_stage(
             "molecular_phenotype",
             ledger_events,
@@ -447,7 +472,9 @@ async def process_report_pdf(
             ),
         )
         claims = claims_result.artifact.claims
-        model_provenance.append(claims_result.provenance)
+        model_provenance.extend(
+            provenance_for_claim(claim, report, created_at=now) for claim in claims
+        )
         provenance = await _run_sync_workflow_stage(
             "artifact_provenance",
             ledger_events,
@@ -503,6 +530,7 @@ async def process_report_pdf(
         containment_provenance = _narrative_containment_provenance(
             containment_report,
             narrative,
+            report,
             stored_file.source_file_id,
             now,
         )
@@ -515,6 +543,7 @@ async def process_report_pdf(
                 "ledger_events": list(ledger_events),
             }
         )
+        require_bundle_provenance_complete(bundle)
         packet = build_review_packet_export(bundle, chunks, stored_file.source_file_id)
         if providers.vector_store is None:
             if config.require_opensearch:
@@ -771,6 +800,7 @@ async def _persist_packet_to_opensearch_stage(
         await persist_review_packet_to_opensearch(
             packet_with_current_ledger,
             providers.vector_store,
+            retrieval_mode=config.retrieval_mode,
             vector_dimension=config.vector_dimension,
         )
     except Exception as error:
@@ -888,6 +918,7 @@ def _safe_error_message(error: Exception, max_chars: int = 500) -> str:
 def _narrative_containment_provenance(
     containment_report: NarrativeContainmentReport,
     narrative,
+    extraction,
     source_file_id: str,
     created_at: datetime,
 ) -> ArtifactProvenance:
@@ -902,10 +933,15 @@ def _narrative_containment_provenance(
     return build_artifact_provenance(
         artifact_type="NarrativeContainmentReport",
         schema_name="NarrativeContainmentReport",
-        model_name="deterministic_narrative_containment_validator",
-        prompt_text=None,
+        model_name="translume_narrative_containment_validator_v1",
+        prompt_text="Validate generated narrative against source-backed clinical artifact bundle before export.",
         schema_json=NarrativeContainmentReport.model_json_schema(),
         source_artifact_ids=[narrative.artifact_id, *containment_report.source_artifact_ids],
+        source_chunk_ids=[
+            finding.source_chunk_id
+            for finding in extraction.molecular_findings
+            if finding.source_chunk_id
+        ],
         created_at=created_at,
         source_file_id=source_file_id,
         artifact_id=containment_report.artifact_id,
@@ -1001,6 +1037,8 @@ async def _index_document_chunks_before_artifact_generation(
         2. Submits real source-backed chunk documents to OpenSearch.
         3. Does not proceed by pretending in-memory chunks were retrieval-backed.
         4. Does not create embeddings or claim vector search in this step.
+        5. Fails loudly if vector/HNSW mode is requested before a real
+           embedding provider exists.
     """
     if providers.vector_store is None:
         if config.require_opensearch:
@@ -1011,6 +1049,7 @@ async def _index_document_chunks_before_artifact_generation(
     return await index_document_chunks_for_retrieval(
         vector_store=providers.vector_store,
         chunks=list(chunks),
+        retrieval_mode=config.retrieval_mode,
         vector_dimension=config.vector_dimension,
     )
 
@@ -1053,6 +1092,7 @@ async def _retrieve_chunks_for_report_extraction(
         session_id=first.session_id,
         source_file_id=first.source_file_id,
         top_k=len(chunks),
+        retrieval_mode=config.retrieval_mode,
     )
 
 async def _get_graph_evidence(

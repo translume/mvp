@@ -37,6 +37,7 @@ REQUIRED_ENV = {
     "OPENSEARCH_URL": "http://opensearch:9200",
     "POSTGRES_DSN": "postgresql://translume:translume@postgres:5432/translume",
     "TRANSLUME_TOOL_WORKFLOWS": "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
+    "TRANSLUME_RETRIEVAL_MODE": "lexical",
 }
 
 
@@ -251,3 +252,26 @@ def test_merge_environment_file_prefers_process_environment(tmp_path: Path) -> N
     merged = merge_environment_file(env_file=env_file, process_environment={"B": "process"})
     assert merged["A"] == "file"
     assert merged["B"] == "process"
+
+
+@pytest.mark.skipif(not _git_available(), reason="git is required for this test")
+def test_gate_rejects_remote_vllm_base_url(tmp_path: Path) -> None:
+    root = _prepare_root(tmp_path)
+    _prepare_git_vendors(root)
+    environment = {**REQUIRED_ENV, "VLLM_BASE_URL": "https://api.openai.com/v1"}
+    report = validate_prime_directives(environment=environment, root=root, force=True)
+    assert report.ok is False
+    assert any(f.rule_id == "vllm_base_url:local_only" for f in report.findings)
+
+
+@pytest.mark.skipif(not _git_available(), reason="git is required for this test")
+def test_gate_rejects_vector_retrieval_without_embeddings(tmp_path: Path) -> None:
+    root = _prepare_root(tmp_path)
+    _prepare_git_vendors(root)
+    environment = {**REQUIRED_ENV, "TRANSLUME_RETRIEVAL_MODE": "hnsw"}
+    report = validate_prime_directives(environment=environment, root=root, force=True)
+    assert report.ok is False
+    assert any(
+        f.rule_id == "retrieval_scope:lexical_only_until_embeddings"
+        for f in report.findings
+    )

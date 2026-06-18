@@ -183,6 +183,7 @@ async def validate_claim(
         await persist_review_packet_to_opensearch(
             updated_packet,
             vector_store,
+            retrieval_mode=settings.retrieval_mode,
             vector_dimension=settings.vector_dimension,
         )
     except Exception as error:
@@ -204,6 +205,7 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         max_chunk_chars=settings.max_chunk_chars,
         require_mims=settings.require_mims,
         require_opensearch=settings.opensearch_required,
+        retrieval_mode=settings.retrieval_mode,
         vector_dimension=settings.vector_dimension,
         require_postgres=settings.postgres_required,
         require_docling=settings.docling_required,

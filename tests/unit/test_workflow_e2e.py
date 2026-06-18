@@ -11,6 +11,7 @@ import pytest
 from translume_adapters.graph_providers.optimuskg_graph_provider import OptimusKGGraphProvider
 from translume_adapters.reasoning_providers.medea_reasoning_provider import MedeaReasoningProvider
 from translume_adapters.tool_providers.tooluniverse_provider import ToolUniverseProvider
+from translume_core.provenance.coverage import expected_bundle_artifact_ids
 from translume_core.workflow import (
     TranslumeWorkflowConfig,
     TranslumeWorkflowProviders,
@@ -21,7 +22,7 @@ from translume_core.workflow import (
 def _write_fake_optimuskg_repo(tmp_path: Path):
     """Create a tiny real OptimusKG-shaped package with parquet graph data."""
     import json
-    import polars as pl
+    pl = pytest.importorskip("polars")
 
     repo = tmp_path / "OptimusKG"
     package_dir = repo / "packages" / "optimuskg" / "src" / "optimuskg"
@@ -330,17 +331,31 @@ class FakeStructuredModelProvider:
                 "must_not_assume": ["Do not assume treatment actionability from molecular fit rows."],
             }
         if schema_name == "TumorBehaviorModelOutput":
+            payload = _payload_json_from_prompt(user_prompt)
+            context = payload["evidence_context"]
+            extraction = context["extraction"]
+            findings = extraction["molecular_findings"]
+            finding_ids = [finding["finding_id"] for finding in findings]
+            cdkn2a_or_first = next((item for item in finding_ids if "cdkn2a" in item.casefold()), finding_ids[0])
+            graph = context["graph_evidence"]
+            graph_edges = graph.get("edges", [])
+            graph_support = [graph_edges[0]["edge_id"]] if graph_edges else [graph["artifact_id"]]
+            tools = context.get("tool_outputs", [])
+            tool_support = [tools[0]["artifact_id"]] if tools else []
+            medea = context["medea_reasoning"]
+            medea_support = [medea["artifact_id"]]
+            support_artifacts = [graph["artifact_id"], medea["artifact_id"], *tool_support]
             return {
                 "artifact_id": artifact_id,
                 "state_evidence": [
                     {
                         "state_label": "proliferative",
-                        "supporting_findings": ["finding_cdkn2a"],
-                        "graph_support": ["artifact_graph"],
-                        "tool_support": ["artifact_tool"],
-                        "medea_support": ["artifact_medea"],
+                        "supporting_findings": [cdkn2a_or_first],
+                        "graph_support": graph_support,
+                        "tool_support": tool_support,
+                        "medea_support": medea_support,
                         "evidence_class": "model_derived_hypothesis",
-                        "uncertainty": "Requires validation before clinical interpretation.",
+                        "uncertainty": "CDKN2A and MTAP source findings require human validation before clinical interpretation.",
                         "validation_needed": True,
                     }
                 ],
@@ -348,8 +363,8 @@ class FakeStructuredModelProvider:
                     {
                         "from_state": "proliferative",
                         "to_state": "stress_adapted_survival",
-                        "rationale": "Evidence context suggests a hypothesis requiring review; no probability is claimed.",
-                        "supporting_artifacts": ["artifact_graph", "artifact_tool", "artifact_medea"],
+                        "rationale": "CDKN2A and MTAP evidence with ToolUniverse and Medea review supports only a hypothesis-generating stress-survival transition requiring validation.",
+                        "supporting_artifacts": support_artifacts,
                         "confidence_label": "needs_review",
                         "validation_status": "needs_review",
                         "hypothesis_generating": True,
@@ -529,6 +544,22 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
     assert packet.bundle.narrative is not None
     assert packet.bundle.narrative_containment is not None
     assert packet.bundle.narrative_containment.passed is True
+    expected_provenance = expected_bundle_artifact_ids(packet.bundle)
+    provenance_by_id = {record.artifact_id: record for record in packet.bundle.provenance}
+    assert set(expected_provenance) == set(provenance_by_id)
+    for artifact_id, expected_schema in expected_provenance.items():
+        record = provenance_by_id[artifact_id]
+        assert record.schema_name == expected_schema
+        assert record.schema_hash
+        assert record.generation_status
+        assert (record.source_artifact_ids or record.source_chunk_ids)
+        assert record.model_name not in {
+            "translume_mvp",
+            "deterministic_compiler_or_external_provider",
+            "external_provider",
+        }
+    assert provenance_by_id[packet.bundle.extraction.artifact_id].source_chunk_ids
+    assert all(claim.claim_id in provenance_by_id for claim in packet.bundle.claims)
     assert "not a treatment recommendation" in packet.bundle.narrative.markdown.lower()
     assert model_provider.schema_calls == [
         "ReportExtractionOutput",

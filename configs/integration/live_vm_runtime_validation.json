@@ -186,14 +186,20 @@
         "Medea",
         "not a Git repository",
         "not updateable",
-        ".git"
+        ".git",
+        "remote model-provider configuration is not allowed for Medea",
+        "local_chat_completion_patched",
+        "Medea bounded reasoning failed",
+        "local vLLM chat completion failed",
+        "VLLM_BASE_URL host is not in"
       ],
       "explanation": "One or more Harvard MIMS vendored repositories or services are unavailable.",
       "next_actions": [
         "Run `make vendor-repos` on a networked VM to clone or fast-forward pull real Git repositories.",
         "Run `make vendor-status` and confirm every MIMS repo reports OK.",
         "Do not use zip-extracted vendor folders for production/demo validation.",
-        "Inspect service logs for optimuskg-service, tooluniverse-service, and medea-service."
+        "Inspect service logs for optimuskg-service, tooluniverse-service, and medea-service.",
+        "Run `curl -fsS http://localhost:8093/runtime-contract` to validate Medea local-vLLM routing and patching."
       ]
     },
     {

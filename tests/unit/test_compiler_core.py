@@ -3,7 +3,12 @@ from __future__ import annotations
 from translume_core.compiler.claim_evidence import classify_evidence_strength
 from translume_core.compiler.entity_normalization import normalize_report_entities
 from translume_core.compiler.evidence_context import combine_evidence_sources
-from translume_core.compiler.tumor_behavior import generate_tumor_behavior_model_from_context
+import pytest
+
+from translume_core.compiler.tumor_behavior import (
+    LegacyTumorBehaviorDisabledError,
+    generate_tumor_behavior_model_from_context,
+)
 from translume_schemas.extraction import MolecularFinding, ReportExtractionOutput
 from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode
 from translume_schemas.medea import MedeaReasoningArtifact
@@ -45,7 +50,6 @@ def test_evidence_context_claims_and_tumor_behavior() -> None:
     medea = MedeaReasoningArtifact(artifact_id="artifact_medea", reasoning_mode="bounded", summary="Medea reasoning requires review.", supported_hypotheses=[], weakened_hypotheses=[])
     context = combine_evidence_sources(extraction, graph, [tool], medea)
     claims = classify_evidence_strength(context)
-    behavior = generate_tumor_behavior_model_from_context(context)
     assert any(claim.claim_class == "patient_specific_finding" for claim in claims)
-    assert behavior.transition_hypotheses[0].hypothesis_generating is True
-    assert "No transition probabilities" in behavior.limitations[1]
+    with pytest.raises(LegacyTumorBehaviorDisabledError):
+        generate_tumor_behavior_model_from_context(context)

@@ -68,7 +68,7 @@ async def test_chunks_are_indexed_and_retrieved_before_artifacts() -> None:
     result = await index_document_chunks_for_retrieval(
         vector_store=store,
         chunks=[_chunk()],
-        vector_dimension=384,
+        retrieval_mode="lexical",
     )
     assert result.indexed_count == 1
     assert INDEX_DOCUMENT_CHUNKS in store.ensured
@@ -90,7 +90,7 @@ async def test_zero_retrieved_chunks_blocks_artifact_generation() -> None:
     await index_document_chunks_for_retrieval(
         vector_store=store,
         chunks=[_chunk()],
-        vector_dimension=384,
+        retrieval_mode="lexical",
     )
     with pytest.raises(RuntimeError, match="zero source chunks"):
         await retrieve_indexed_document_chunks(
@@ -99,4 +99,16 @@ async def test_zero_retrieved_chunks_blocks_artifact_generation() -> None:
             session_id="session1",
             source_file_id="file1",
             top_k=10,
+        )
+
+
+@pytest.mark.asyncio
+async def test_vector_retrieval_mode_is_rejected_until_embeddings_exist() -> None:
+    store = RecordingVectorStore()
+    with pytest.raises(ValueError, match="Vector/HNSW retrieval is not enabled"):
+        await index_document_chunks_for_retrieval(
+            vector_store=store,
+            chunks=[_chunk()],
+            retrieval_mode="vector",
+            vector_dimension=384,
         )

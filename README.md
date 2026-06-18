@@ -330,3 +330,32 @@ The production workflow now validates the generated clinical narrative before re
 ### OptimusKG graph context
 
 Translume now requires OptimusKG graph context to come from the real OptimusKG Python client and its parquet graph tables. The production path does not read arbitrary CSV/JSON edge files as a substitute. Configure `OPTIMUSKG_CACHE_DIR`, `OPTIMUSKG_USE_LCC`, `OPTIMUSKG_MAX_EDGES`, and `OPTIMUSKG_FORCE_DOWNLOAD` as needed. Missing OptimusKG package/data fails loudly.
+
+
+## Medea local-vLLM runtime enforcement
+
+Medea is now routed through Translume-owned service code that validates local model configuration, blocks remote model-provider credentials, and patches Medea LLM call sites from outside the vendored repository. The Harvard Medea source under `third_party/upstream/Medea` remains clean and updateable; Translume applies local-vLLM behavior through `services/medea-service` and adapter/service boundaries rather than editing Medea files. Runtime validation now checks `/runtime-contract` on the Medea service and requires local routing fields before the full-stack report workflow can proceed. This code path is unit-validated, but Docker/GPU/vLLM/Medea runtime still requires live VM execution.
+
+
+## Evidence-derived tumor behavior validation
+
+TumorBehaviorModelOutput is generated through the local vLLM structured-output path and then validated for case-derived evidence support. The fixed state vocabulary is allowed, but selected states, transition hypotheses, rationale, and supporting artifacts must come from the current report extraction, normalized entities, OptimusKG graph evidence, ToolUniverse artifacts, Medea reasoning, molecular phenotype, molecular-fit matrix, mechanism Sankey, and confirmatory testing gaps. Generic hardcoded transitions, unsupported support IDs, transition probabilities, outcome predictions, and treatment-directing language fail the production workflow instead of being returned as a polished review packet.
+
+## Artifact provenance enforcement
+
+Every review-packet artifact must carry artifact-specific provenance before export. Translume records which schema validated the artifact, which model or provider produced it, which prompt/schema hash was used when applicable, which source chunks and upstream artifacts informed it, and whether generation completed successfully. If provenance is missing or generic, production packet export fails loudly rather than returning an unverifiable clinical review packet.
+
+
+## Tutorial 14 completed: lexical retrieval scope enforcement
+
+The MVP retrieval scope is now explicit and enforced. Translume uses OpenSearch lexical and metadata-scoped retrieval for source document chunks, filtered by case ID, session ID, and source file ID. The document chunk index no longer emits `knn_vector` mappings or accepts embeddings in the production path. If `TRANSLUME_RETRIEVAL_MODE` is set to `vector`, `hybrid`, `hnsw`, or `knn`, the production gate and retrieval functions fail loudly because there is not yet a real local embedding generation and indexing path. This prevents the project from claiming vector or HNSW retrieval before embeddings are actually produced, indexed, retrieved, and live-validated.
+
+Future vector retrieval should be added only by implementing a real local embedding provider, generating embeddings for every indexed chunk, storing the vectors in OpenSearch, and proving vector queries in live VM validation. Until then, docs, runtime reports, and UI language must describe retrieval as lexical/metadata-grounded.
+
+## Clinician-facing artifact panels
+
+The Gradio cockpit now renders the exact persisted `ReviewPacketExport` returned by FastAPI as clinician-facing panels rather than using raw JSON as the primary experience. The UI performs the real report-processing API call, then reloads the packet through the persisted export endpoint before rendering it. If the persisted packet is incomplete, lacks provenance, or has failed narrative containment, the cockpit blocks rendering and shows the actual error.
+
+The clinical surface includes source-backed findings, normalized entities, molecular phenotype, molecular-fit review matrix, the mechanism Sankey, confirmatory tests, case-derived tumor-state evidence, transition hypotheses, OptimusKG graph context, ToolUniverse evidence, Medea bounded reasoning, claim validation, provenance, and the discovery ledger. The technical JSON remains available in a separate tab for audit inspection, but it is not the primary clinical surface.
+
+Claim-validation actions call the real validation API, then reload the persisted packet from Postgres so the UI does not update optimistically. Review-packet downloads also come from the persisted export endpoint; the UI does not reconstruct or fabricate export content locally.

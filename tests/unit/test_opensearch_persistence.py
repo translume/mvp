@@ -147,7 +147,7 @@ def _packet() -> ReviewPacketExport:
 
 
 def test_all_index_specs_include_required_indexes() -> None:
-    names = {spec["index_name"] for spec in build_all_mvp_index_specs(384)}
+    names = {spec["index_name"] for spec in build_all_mvp_index_specs(retrieval_mode="lexical")}
     assert "translume_document_chunks" in names
     assert "translume_graph_evidence" in names
     assert "translume_tool_outputs" in names
@@ -171,7 +171,7 @@ async def test_persist_review_packet_to_opensearch_indexes_batches() -> None:
     result = await persist_review_packet_to_opensearch(
         _packet(),
         store,
-        vector_dimension=384,
+        retrieval_mode="lexical",
     )
     assert "translume_document_chunks" in store.ensured
     assert "translume_document_chunks" in store.indexed

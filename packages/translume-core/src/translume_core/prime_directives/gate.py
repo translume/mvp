@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from translume_core.indexing.retrieval_scope import RetrievalScopeError, require_lexical_retrieval_scope
 from translume_core.vendor.repositories import (
     VendorRepositoryError,
     load_vendor_repo_specs,
@@ -68,6 +69,7 @@ REQUIRED_NONEMPTY_ENV: tuple[str, ...] = (
     "MEDEA_SERVICE_URL",
     "OPENSEARCH_URL",
     "POSTGRES_DSN",
+    "TRANSLUME_RETRIEVAL_MODE",
 )
 
 REQUIRED_TOOLUNIVERSE_WORKFLOWS: tuple[str, ...] = (
@@ -108,6 +110,7 @@ REMOTE_PROVIDER_INACTIVE_VALUES: tuple[str, ...] = (
     "local-not-used",
     "local_only",
     "local-only",
+    "local-vllm",
 )
 
 PRODUCTION_MODES: tuple[str, ...] = ("production", "prod", "demo", "live")
@@ -152,10 +155,12 @@ def validate_prime_directives(
     findings.extend(validate_required_true_flags(environment))
     findings.extend(validate_required_nonempty_environment(environment))
     findings.extend(validate_vllm_model(environment))
+    findings.extend(validate_vllm_local_endpoint(environment))
     findings.extend(validate_remote_provider_environment(environment))
     findings.extend(validate_vendor_repositories(root))
     findings.extend(validate_ui_docker_entrypoint(root))
     findings.extend(validate_required_tool_workflows(environment, root))
+    findings.extend(validate_retrieval_scope(environment))
     ok = all(finding.severity != "error" for finding in findings)
     return PrimeDirectiveGateReport(
         ok=ok,
@@ -244,6 +249,35 @@ def validate_vllm_model(environment: Mapping[str, str]) -> tuple[PrimeDirectiveF
         )
     return ()
 
+
+
+
+def validate_vllm_local_endpoint(environment: Mapping[str, str]) -> tuple[PrimeDirectiveFinding, ...]:
+    """Validate VLLM_BASE_URL is not a hosted model-provider endpoint."""
+    base_url = env_value("VLLM_BASE_URL", environment).casefold()
+    remote_tokens = (
+        "api.openai.com",
+        "openrouter.ai",
+        "api.anthropic.com",
+        "generativelanguage.googleapis.com",
+        "integrate.api.nvidia.com",
+    )
+    if any(token in base_url for token in remote_tokens):
+        return (
+            PrimeDirectiveFinding(
+                rule_id="vllm_base_url:local_only",
+                severity="error",
+                message=(
+                    "VLLM_BASE_URL points at a hosted model provider. Production/demo "
+                    "runtime must route model calls to local vLLM."
+                ),
+                next_actions=(
+                    "Set VLLM_BASE_URL to the local vLLM OpenAI-compatible endpoint, such as http://vllm-clinical:8000/v1.",
+                    "Rerun `make validate-prime-directives`.",
+                ),
+            ),
+        )
+    return ()
 
 def validate_remote_provider_environment(
     environment: Mapping[str, str],
@@ -460,6 +494,35 @@ def validate_required_tool_workflows(
                     )
                 )
     return tuple(findings)
+
+
+def validate_retrieval_scope(
+    environment: Mapping[str, str],
+) -> tuple[PrimeDirectiveFinding, ...]:
+    """Validate that retrieval scope does not overclaim vector/HNSW support.
+
+    Acceptance criteria:
+        1. Lexical retrieval is accepted for the MVP.
+        2. Vector/HNSW/hybrid retrieval is rejected until real embeddings exist.
+        3. Error message explains that docs/UI must not claim vector retrieval.
+        4. Function is pure.
+    """
+    mode = env_value("TRANSLUME_RETRIEVAL_MODE", environment) or "lexical"
+    try:
+        require_lexical_retrieval_scope(mode)
+    except RetrievalScopeError as error:
+        return (
+            PrimeDirectiveFinding(
+                rule_id="retrieval_scope:lexical_only_until_embeddings",
+                severity="error",
+                message=str(error),
+                next_actions=(
+                    "Set TRANSLUME_RETRIEVAL_MODE=lexical for the MVP.",
+                    "Do not claim vector/HNSW retrieval until local embeddings are generated, indexed, and validated.",
+                ),
+            ),
+        )
+    return ()
 
 
 def env_value(name: str, environment: Mapping[str, str]) -> str:

@@ -21,7 +21,7 @@ from translume_schemas.medea import MedeaReasoningArtifact
 def _write_fake_optimuskg_repo(tmp_path: Path):
     """Create a tiny real OptimusKG-shaped package with parquet graph data."""
     import json
-    import polars as pl
+    pl = pytest.importorskip("polars")
 
     repo = tmp_path / "OptimusKG"
     package_dir = repo / "packages" / "optimuskg" / "src" / "optimuskg"

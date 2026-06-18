@@ -57,10 +57,13 @@
       "name": "medea",
       "url_env": "MEDEA_PUBLIC_URL",
       "default_url": "http://localhost:8093",
-      "path": "/health",
+      "path": "/runtime-contract",
       "required_fields": {
         "status": "ok",
-        "vendor_available": true
+        "vendor_available": true,
+        "local_model_configured": true,
+        "remote_provider_blocked": true,
+        "local_chat_completion_patched": true
       }
     }
   ],
@@ -155,12 +158,18 @@
     "bundle.sankey.links",
     "bundle.confirmatory.tests",
     "bundle.tumor_behavior.state_evidence",
+    "bundle.tumor_behavior.transition_hypotheses",
     "bundle.claims",
     "bundle.provenance",
     "bundle.ledger_events",
     "bundle.narrative.markdown",
     "bundle.narrative_containment.source_artifact_ids",
-    "bundle.narrative_containment.passed"
+    "bundle.narrative_containment.passed",
+    "bundle.provenance.0.artifact_type",
+    "bundle.provenance.0.schema_name",
+    "bundle.provenance.0.schema_hash",
+    "bundle.provenance.0.generation_status",
+    "bundle.provenance.0.source_chunk_ids"
   ],
   "review_packet_required_absent_phrases": [
     "recommended treatment",
@@ -168,6 +177,19 @@
     "best treatment",
     "will respond",
     "will benefit",
-    "will relapse"
-  ]
+    "will relapse",
+    "transition probability",
+    "probability of relapse",
+    "outcome prediction"
+  ],
+  "retrieval_scope": {
+    "mode_env": "TRANSLUME_RETRIEVAL_MODE",
+    "required_mode": "lexical",
+    "forbidden_modes": [
+      "vector",
+      "hybrid",
+      "hnsw",
+      "knn"
+    ]
+  }
 }

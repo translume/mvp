@@ -294,10 +294,17 @@ def review_packet_to_postgres_records(
                 artifact_id=provenance.artifact_id,
                 artifact_type=provenance.artifact_type,
                 schema_name=provenance.schema_name,
+                model_name=provenance.model_name,
+                prompt_hash=provenance.prompt_hash,
+                schema_hash=provenance.schema_hash,
+                source_file_id=provenance.source_file_id,
+                source_artifact_ids=_json(provenance.source_artifact_ids),
+                source_chunk_ids=_json(provenance.source_chunk_ids),
                 case_id=packet.case_id,
                 session_id=packet.session_id,
                 created_at=provenance.created_at,
                 validation_status=provenance.validation_status,
+                generation_status=provenance.generation_status,
                 payload=_json(provenance),
             )
         )

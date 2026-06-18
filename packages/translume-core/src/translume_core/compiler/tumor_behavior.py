@@ -1,71 +1,40 @@
 from __future__ import annotations
 
-from uuid import uuid5, NAMESPACE_URL
-
 from translume_schemas.evidence import EvidenceContextBundle
-from translume_schemas.tumor_behavior import (
-    STATE_LABELS,
-    TransitionHypothesis,
-    TumorBehaviorModelOutput,
-    TumorStateEvidence,
-)
+from translume_schemas.tumor_behavior import TumorBehaviorModelOutput
+
+
+class LegacyTumorBehaviorDisabledError(RuntimeError):
+    """Raised when legacy deterministic tumor-behavior generation is called.
+
+    Acceptance criteria:
+        1. Prevents production code from using hardcoded tumor-state templates.
+        2. Directs callers to the local vLLM structured-output compiler.
+        3. Does not synthesize fallback tumor-state hypotheses.
+    """
 
 
 def generate_tumor_behavior_model_from_context(
     context: EvidenceContextBundle,
 ) -> TumorBehaviorModelOutput:
-    """Build a hypothesis-generating tumor behavior model.
+    """Fail because tumor behavior must be generated from evidence by local vLLM.
 
-    Acceptance criteria:
-        1. Every state has supporting evidence or explicit missing evidence.
-        2. Every transition has from_state and to_state.
-        3. Every transition references supporting artifacts.
-        4. Every transition is marked hypothesis-generating.
-        5. No transition probability or outcome prediction is generated.
-        6. Function is deterministic and pure.
+    The previous implementation always produced a fixed proliferative to
+    stress-adapted-survival transition. That violated the PRIME_DIRECTIVES
+    requirement that tumor-behavior states and transitions be case-derived from
+    report text, normalized entities, OptimusKG evidence, ToolUniverse outputs,
+    Medea reasoning, and structured local vLLM artifacts.
 
     Args:
-        context: Combined evidence context.
+        context: Combined evidence context. Retained only for API compatibility
+            while callers are migrated to `generate_tumor_behavior_model_with_model`.
 
-    Returns:
-        Tumor behavior model output.
+    Raises:
+        LegacyTumorBehaviorDisabledError: Always, because this deterministic
+            path is not allowed in production or demo execution.
     """
-    finding_ids = [finding.finding_id for finding in context.extraction.molecular_findings]
-    state_evidence = [
-        TumorStateEvidence(
-            state_label="proliferative",
-            supporting_findings=finding_ids,
-            graph_support=[edge.edge_id for edge in context.graph_evidence.edges],
-            tool_support=[tool.artifact_id for tool in context.tool_outputs],
-            medea_support=[context.medea_reasoning.artifact_id],
-            evidence_class="hypothesis_generating",
-            uncertainty="state is inferred from structured evidence context and requires review",
-            validation_needed=True,
-        )
-    ]
-    transitions = [
-        TransitionHypothesis(
-            from_state="proliferative",
-            to_state="stress_adapted_survival",
-            rationale="Structured findings and enrichment context suggest a reviewable adaptive-stress hypothesis; no probability is assigned.",
-            supporting_artifacts=[
-                context.extraction.artifact_id,
-                context.graph_evidence.artifact_id,
-                context.medea_reasoning.artifact_id,
-            ],
-            confidence_label="requires_validation",
-            validation_status="needs_review",
-        )
-    ]
-    missing_states = [state for state in STATE_LABELS if state not in {"proliferative"}]
-    artifact_id = f"artifact_{uuid5(NAMESPACE_URL, f'{context.artifact_id}:tumor_behavior').hex[:16]}"
-    return TumorBehaviorModelOutput(
-        artifact_id=artifact_id,
-        state_evidence=state_evidence,
-        transition_hypotheses=transitions,
-        limitations=[
-            "Hypothesis-generating only; not an outcome prediction.",
-            "No transition probabilities are produced in the MVP.",
-            f"No direct evidence generated for states: {', '.join(missing_states)}.",
-        ],
+    raise LegacyTumorBehaviorDisabledError(
+        "Legacy deterministic tumor-behavior generation is disabled. Use "
+        "generate_tumor_behavior_model_with_model with local vLLM structured "
+        "outputs and evidence-derived validation."
     )

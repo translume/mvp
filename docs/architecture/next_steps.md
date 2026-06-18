@@ -64,11 +64,11 @@ ToolUniverse, or Medea.
 8. Repair 8 — Enforce narrative containment in the production path — done.
 9. Repair 9 — Replace generic OptimusKG edge-file loading with true OptimusKG usage — done.
 10. Repair 10 — Configure all required ToolUniverse workflows — done.
-11. Repair 11 — Prove Medea local runtime and remote-provider blocking — pending.
-12. Repair 12 — Generate tumor behavior dynamically from evidence — pending.
-13. Repair 13 — Add artifact-specific provenance everywhere — pending.
-14. Repair 14 — Decide and enforce vector retrieval scope — pending.
-15. Repair 15 — Render real clinical artifact panels in the UI — pending.
+11. Repair 11 — Prove Medea local runtime and remote-provider blocking — code added/unit-validated; live VM runtime still required.
+12. Repair 12 — Generate tumor behavior dynamically from evidence — done.
+13. Repair 13 — Add artifact-specific provenance everywhere — code added/unit-validated; live runtime still required.
+14. Repair 14 — Decide and enforce vector retrieval scope — done.
+15. Repair 15 — Render real clinical artifact panels in the UI — next.
 16. Repair 16 — Run live VM validation and repair runtime failures — pending.
 
 The current repair removed the broken Uvicorn UI launch path and added a real
@@ -123,7 +123,7 @@ Tutorial 9 is complete: OptimusKG context now comes from the real OptimusKG Pyth
 
 Tutorial 10 is complete: ToolUniverse workflow coverage now includes literature_validation, pathway_context, target_context, variant_context, and trial_context_review, with every workflow mapped to explicit real ToolUniverse tool names. Missing workflow config, missing tool names, or missing required context now fails loudly instead of yielding placeholder evidence.
 
-Next repair is Tutorial 11: prove Medea local runtime and remote-provider blocking.
+Next repair is Tutorial 13: add artifact-specific provenance everywhere.
 
 
 ## Tutorial 8 — Replace generic OptimusKG edge-file loading with true OptimusKG usage
@@ -135,4 +135,37 @@ Code now routes OptimusKG context through the real OptimusKG Python client and p
 
 The production ToolUniverse path now requires all MVP evidence workflows: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. `configs/local/tooluniverse_workflows.json` maps each workflow to explicit ToolUniverse tools such as PubMed, Europe PMC, KEGG, OpenTargets, ClinVar, CIViC, and ClinicalTrials.gov tools. The ToolUniverse service now loads the real vendored ToolUniverse engine, calls `load_tools` for the configured tools, executes only configured workflows, normalizes outputs to `ToolRunArtifact`, and fails loudly if a workflow, tool, config, or required context value is missing. No precomputed ToolUniverse evidence files are accepted in the production path.
 
-Next repair is Tutorial 11: prove Medea local runtime and remote-provider blocking.
+Next repair is Tutorial 13: add artifact-specific provenance everywhere.
+
+
+## Medea local-vLLM runtime enforcement
+
+Medea is now routed through Translume-owned service code that validates local model configuration, blocks remote model-provider credentials, and patches Medea LLM call sites from outside the vendored repository. The Harvard Medea source under `third_party/upstream/Medea` remains clean and updateable; Translume applies local-vLLM behavior through `services/medea-service` and adapter/service boundaries rather than editing Medea files. Runtime validation now checks `/runtime-contract` on the Medea service and requires local routing fields before the full-stack report workflow can proceed. This code path is unit-validated, but Docker/GPU/vLLM/Medea runtime still requires live VM execution.
+
+
+## Tutorial 11 completed: evidence-derived tumor behavior
+
+Tumor-behavior generation now remains on the local vLLM structured-output path, but the output is no longer accepted merely because it matches the schema. The production validator now rejects unsupported state labels, unsupported finding IDs, unsupported graph/tool/Medea support IDs, unsupported transition artifacts, identical from/to state transitions, non-reviewable validation statuses, probability or outcome-prediction language, and generic rationales that do not reference case-derived evidence terms. The legacy deterministic tumor-behavior function now fails loudly instead of returning a hardcoded proliferative-to-stress-adapted-survival transition. This keeps tumor behavior case-derived from report findings, OptimusKG graph context, ToolUniverse outputs, Medea reasoning, local structured model output, and confirmatory evidence gaps.
+
+Runtime note: this code path is unit validated. Docker/GPU/local-vLLM/MIMS runtime still requires live VM execution before the full MVP can be called demo-ready.
+
+Next repair is Tutorial 13: add artifact-specific provenance everywhere.
+
+## Tutorial 12 completed: artifact-specific provenance everywhere
+
+The production path now requires every present review-packet artifact to have artifact-specific provenance before export. Provenance includes concrete artifact type, schema name, schema hash, generation status, source file ID, source artifact IDs, and source chunk IDs when available. The workflow fails before packet export if a present artifact lacks provenance, if provenance uses generic provider labels, or if provenance records appear for artifacts that are not actually present in the packet. This keeps the MVP aligned with PRIME_DIRECTIVES by making provenance an enforcement gate, not a cosmetic metadata field.
+
+Next repair: render real clinical artifact panels in the UI.
+
+
+## Tutorial 14 completed: lexical retrieval scope enforcement
+
+The MVP retrieval scope is now explicit and enforced. Translume uses OpenSearch lexical and metadata-scoped retrieval for source document chunks, filtered by case ID, session ID, and source file ID. The document chunk index no longer emits `knn_vector` mappings or accepts embeddings in the production path. If `TRANSLUME_RETRIEVAL_MODE` is set to `vector`, `hybrid`, `hnsw`, or `knn`, the production gate and retrieval functions fail loudly because there is not yet a real local embedding generation and indexing path. This prevents the project from claiming vector or HNSW retrieval before embeddings are actually produced, indexed, retrieved, and live-validated.
+
+Future vector retrieval should be added only by implementing a real local embedding provider, generating embeddings for every indexed chunk, storing the vectors in OpenSearch, and proving vector queries in live VM validation. Until then, docs, runtime reports, and UI language must describe retrieval as lexical/metadata-grounded.
+
+Next repair is Tutorial 15: render real clinical artifact panels in the UI.
+
+## Tutorial 15 status
+
+Clinician-facing artifact renderers have been added for the persisted review packet. Code and unit validation are complete in the local test environment; Docker/GPU/full-service runtime proof remains part of the live VM validation step.

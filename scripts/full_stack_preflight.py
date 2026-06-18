@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
 from translume_core.prime_directives import (
     PrimeDirectiveViolation,
     assert_prime_directives,
@@ -270,6 +271,27 @@ def validate_gpu_visible(require_gpu: bool) -> tuple[str, ...]:
     return ("nvidia-smi",)
 
 
+def validate_retrieval_scope(requirements: Mapping[str, Any], environment: Mapping[str, str]) -> str:
+    """Validate full-stack retrieval scope is lexical-only for this MVP.
+
+    Acceptance criteria:
+        1. Reads retrieval scope from the requirements config.
+        2. Accepts lexical mode.
+        3. Rejects vector/HNSW/hybrid modes until embeddings are real.
+        4. Returns the checked mode for diagnostics.
+    """
+    config = requirements.get("retrieval_scope", {})
+    if not isinstance(config, dict):
+        raise PreflightError("retrieval_scope requirements must be an object")
+    env_name = str(config.get("mode_env", "TRANSLUME_RETRIEVAL_MODE"))
+    mode = env_value(env_name, environment) or str(config.get("required_mode", "lexical"))
+    try:
+        scope = require_lexical_retrieval_scope(mode)
+    except Exception as error:
+        raise PreflightError(str(error)) from error
+    return f"retrieval_mode:{scope.mode}"
+
+
 def run_preflight(
     *,
     requirements_path: Path,
@@ -286,7 +308,8 @@ def run_preflight(
         3. Validates non-placeholder vLLM model id.
         4. Validates vendor repositories.
         5. Optionally validates Docker and GPU availability.
-        6. Does not start services or fabricate readiness.
+        6. Validates retrieval scope does not overclaim vector/HNSW.
+        7. Does not start services or fabricate readiness.
 
     Args:
         requirements_path: Full-stack requirements JSON.
@@ -322,6 +345,7 @@ def run_preflight(
         )
     )
     checked.extend(validate_vendor_repositories(root))
+    checked.append(validate_retrieval_scope(requirements, environment))
     if require_docker:
         checked.extend(validate_docker_available())
     checked.extend(validate_gpu_visible(require_gpu))

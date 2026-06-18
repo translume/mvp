@@ -11,6 +11,7 @@ from optimuskg_service.main import ContextRequest
 from tooluniverse_service.main import workflows as tooluniverse_workflows
 from tooluniverse_service.main import WorkflowRequest
 from medea_service.main import reason as medea_reason
+from medea_service.main import runtime_contract as medea_runtime_contract
 from medea_service.main import ReasonRequest
 from translume_schemas.entities import NormalizedEntity, NormalizedEntitySet
 from translume_schemas.evidence import EvidenceContextBundle
@@ -22,7 +23,7 @@ from translume_schemas.medea import MedeaReasoningArtifact
 def _write_fake_optimuskg_repo(tmp_path: Path):
     """Create a tiny real OptimusKG-shaped package with parquet graph data."""
     import json
-    import polars as pl
+    pl = pytest.importorskip("polars")
 
     repo = tmp_path / "OptimusKG"
     package_dir = repo / "packages" / "optimuskg" / "src" / "optimuskg"
@@ -252,6 +253,10 @@ async def test_medea_service_runs_vendored_entrypoint_with_local_vllm_env(
         "medea",
         {
             "__init__.py": """
+LAST_RUNTIME = {}
+def chat_completion(*args, **kwargs):
+    LAST_RUNTIME["chat_completion_called"] = True
+    return "local vllm response"
 class LLMConfig:
     def __init__(self, config):
         self.config = config
@@ -274,6 +279,11 @@ class LiteratureReasoning:
         self.actions = actions
 
 def literature_reasoning(query, literature_module):
+    import os
+    assert os.environ["LLM_PROVIDER_NAME"] == "OpenAI"
+    assert os.environ["OPENAI_BASE_URL"] == "http://vllm:8000/v1"
+    assert os.environ["OPENAI_API_KEY"] == "local-vllm"
+    assert literature_module.llm.llm_name == "local-model"
     return {"final": "bounded reasoning for " + query[:40]}
 """,
         },
@@ -325,3 +335,83 @@ def literature_reasoning(query, literature_module):
     assert artifact["reasoning_mode"] == "medea_literature_reasoning_local_vllm"
     assert artifact["requires_human_review"] is True
     assert "bounded reasoning" in artifact["summary"]
+
+
+def test_medea_runtime_contract_requires_local_routing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "medea", raising=False)
+    repo = tmp_path / "Medea"
+    _write_package(
+        repo,
+        "medea",
+        {
+            "__init__.py": """
+def chat_completion(*args, **kwargs):
+    return 'local'
+class LLMConfig:
+    def __init__(self, config):
+        self.config = config
+class AgentLLM:
+    def __init__(self, config, llm_name):
+        self.llm_name = llm_name
+class LiteratureSearch:
+    def __init__(self, model_name, verbose=False):
+        pass
+class PaperJudge:
+    def __init__(self, model_name, verbose=False):
+        pass
+class OpenScholarReasoning:
+    def __init__(self, tmp, llm_provider, verbose=False):
+        pass
+class LiteratureReasoning:
+    def __init__(self, llm, actions):
+        pass
+def literature_reasoning(query, literature_module):
+    return {'final': 'ok'}
+""",
+        },
+    )
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(repo))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    payload = medea_runtime_contract()
+    assert payload["local_model_configured"] is True
+    assert payload["remote_provider_blocked"] is True
+    assert payload["local_chat_completion_patched"] is True
+    assert payload["patched_modules"]
+
+
+def test_medea_runtime_contract_blocks_remote_provider_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "medea", raising=False)
+    repo = tmp_path / "Medea"
+    _write_package(
+        repo,
+        "medea",
+        {
+            "__init__.py": """
+def chat_completion(*args, **kwargs):
+    return 'local'
+class LLMConfig: pass
+class AgentLLM: pass
+class LiteratureSearch: pass
+class PaperJudge: pass
+class OpenScholarReasoning: pass
+class LiteratureReasoning: pass
+def literature_reasoning(query, literature_module):
+    return {'final': 'ok'}
+""",
+        },
+    )
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(repo))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "real-remote-key")
+    with pytest.raises(Exception, match="remote model-provider"):
+        medea_runtime_contract()

@@ -28,7 +28,8 @@ class Settings(BaseModel):
     opensearch_url: str = "http://opensearch:9200"
     opensearch_timeout_seconds: float = 30.0
     opensearch_required: bool = True
-    vector_dimension: int = 384
+    retrieval_mode: str = "lexical"
+    vector_dimension: int | None = None
     postgres_dsn: str = "postgresql://translume:translume@postgres:5432/translume"
     postgres_connect_timeout_seconds: float = 10.0
     postgres_required: bool = True
@@ -67,7 +68,8 @@ def get_settings() -> Settings:
         opensearch_url=os.getenv("OPENSEARCH_URL", "http://opensearch:9200"),
         opensearch_timeout_seconds=float(os.getenv("OPENSEARCH_TIMEOUT_SECONDS", "30")),
         opensearch_required=os.getenv("TRANSLUME_REQUIRE_OPENSEARCH", "true").casefold() == "true",
-        vector_dimension=int(os.getenv("TRANSLUME_VECTOR_DIMENSION", "384")),
+        retrieval_mode=os.getenv("TRANSLUME_RETRIEVAL_MODE", "lexical"),
+        vector_dimension=_optional_int(os.getenv("TRANSLUME_VECTOR_DIMENSION", "")),
         postgres_dsn=os.getenv("POSTGRES_DSN", "postgresql://translume:translume@postgres:5432/translume"),
         postgres_connect_timeout_seconds=float(os.getenv("POSTGRES_CONNECT_TIMEOUT_SECONDS", "10")),
         postgres_required=os.getenv("TRANSLUME_REQUIRE_POSTGRES", "true").casefold() == "true",
@@ -85,3 +87,8 @@ def get_settings() -> Settings:
 
 def _parse_csv_tuple(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _optional_int(value: str) -> int | None:
+    stripped = value.strip()
+    return int(stripped) if stripped else None
