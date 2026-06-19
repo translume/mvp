@@ -159,6 +159,8 @@ Fix the first reported error instead of disabling a required service.
 The command below intentionally starts one GPU-backed vLLM service. It does not start the unused `vllm-docling` or worker services.
 
 ```bash
+export COMPOSE_PROFILES=gpu,docling
+
 docker compose up --build -d --wait --wait-timeout 1800 \
   postgres \
   opensearch \

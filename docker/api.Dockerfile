@@ -2,6 +2,7 @@ FROM python:3.12.13-slim
 WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 COPY apps ./apps
+COPY docker-compose.yml ./
 COPY packages ./packages
 COPY services ./services
 COPY third_party ./third_party
