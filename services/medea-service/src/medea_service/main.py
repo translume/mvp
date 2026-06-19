@@ -133,12 +133,11 @@ def runtime_contract() -> dict[str, object]:
         _assert_medea_reasoning_members(medea_module)
         database = inspect_medeadb()
         required = database_required()
-        if required:
-            runtime = validate_medeadb_runtime(medea_module, database)
-        elif database.available:
-            runtime = validate_medeadb_runtime(medea_module, database)
-        else:
-            runtime = None
+        runtime = _validate_database_runtime_if_enabled(
+            medea_module,
+            database,
+            required=required,
+        )
     except (MedeaDatabaseError, VendorRuntimeError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {
@@ -173,12 +172,11 @@ async def reason(request: ReasonRequest) -> dict[str, object]:
         )
         database = inspect_medeadb()
         required = database_required()
-        if required:
-            require_medeadb(database)
-        database_evidence = (
-            _collect_database_evidence(medea_module, context, database)
-            if database.available
-            else None
+        database_evidence = _collect_database_evidence_if_enabled(
+            medea_module,
+            context,
+            database,
+            required=required,
         )
         result = _run_medea_literature_reasoning(
             medea_module,
@@ -198,6 +196,79 @@ async def reason(request: ReasonRequest) -> dict[str, object]:
     except (MedeaDatabaseError, ValueError, VendorRuntimeError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return artifact.model_dump(mode="json")
+
+
+def _validate_database_runtime_if_enabled(
+    medea_module: Any,
+    database: MedeaDBStatus,
+    *,
+    required: bool,
+) -> Any | None:
+    """Validate MedeaDB only when required or fully usable.
+
+    Acceptance criteria:
+        1. Strict mode: Required MedeaDB failures propagate to the caller.
+        2. Optional mode: Missing MedeaDB returns `None`.
+        3. Optional mode: Parser/import failures return `None`.
+        4. No mutation: Do not mutate the supplied database status.
+
+    Args:
+        medea_module: Imported vendored Medea package.
+        database: Inspected MedeaDB filesystem status.
+        required: Whether `MEDEA_REQUIRE_DATABASE` enables strict mode.
+
+    Returns:
+        Parsed MedeaDB runtime when usable, otherwise `None`.
+
+    Raises:
+        MedeaDatabaseError: If strict mode validation fails.
+    """
+    if required:
+        return validate_medeadb_runtime(medea_module, database)
+    if not database.available:
+        return None
+    try:
+        return validate_medeadb_runtime(medea_module, database)
+    except MedeaDatabaseError:
+        return None
+
+
+def _collect_database_evidence_if_enabled(
+    medea_module: Any,
+    context: EvidenceContextBundle,
+    database: MedeaDBStatus,
+    *,
+    required: bool,
+) -> MedeaDBEvidence | None:
+    """Collect optional MedeaDB evidence without making it mandatory.
+
+    Acceptance criteria:
+        1. Strict mode: Missing or unparseable MedeaDB failures propagate.
+        2. Optional mode: Missing MedeaDB returns `None`.
+        3. Optional mode: Parser/import failures return `None`.
+        4. No mutation: Do not mutate the evidence context or database status.
+
+    Args:
+        medea_module: Imported vendored Medea package.
+        context: Source evidence context for the reasoning request.
+        database: Inspected MedeaDB filesystem status.
+        required: Whether `MEDEA_REQUIRE_DATABASE` enables strict mode.
+
+    Returns:
+        Bounded MedeaDB evidence when usable, otherwise `None`.
+
+    Raises:
+        MedeaDatabaseError: If strict mode validation or parsing fails.
+    """
+    if required:
+        require_medeadb(database)
+        return _collect_database_evidence(medea_module, context, database)
+    if not database.available:
+        return None
+    try:
+        return _collect_database_evidence(medea_module, context, database)
+    except MedeaDatabaseError:
+        return None
 
 
 def _repo_path() -> Path:
