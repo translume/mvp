@@ -1,3 +1,17 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:d04a205d0dd88c47b4292c5ea38ff9ef9c07c22d31b59dd8ef9512bd5f00d6c6
-size 444
+{
+  "inspection": {
+    "available": true,
+    "missing": [],
+    "path": "/home/ubuntu/mvp/data/medea_cache/MedeaDB",
+    "resources": {
+      "compass_checkpoints": true,
+      "depmap_24q2": true,
+      "pinnacle_embeds": true,
+      "transcriptformer_embeddings": true,
+      "transcriptformer_metadata": true
+    }
+  },
+  "repository": "mims-harvard/MedeaDB",
+  "revision": "latest",
+  "validated_at": "2026-06-19T21:44:16.238858+00:00"
+}

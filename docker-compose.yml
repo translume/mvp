@@ -67,7 +67,7 @@ services:
       --structured-outputs-config.backend=auto
       --limit-mm-per-prompt '{"image":1}'
     gpus:
-      - device_ids: ["0"]
+      - device_ids: ["1"]
         capabilities: ["gpu"]
     ports:
       - "8001:8000"
