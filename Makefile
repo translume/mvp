@@ -45,17 +45,12 @@ OPTIMUSKG_LCC_FLAG = $(if $(call truthy,$(OPTIMUSKG_USE_LCC)),--use-lcc,--no-use
 .PHONY: \
 	test lint docker-config validate-prime-directives \
 	check-vllm-model check-ui-dockerfile check-local-data-ignore \
-	vendor-repos vendor-git-clone vendor-git-pull vendor-status \
-	vendor-bootstrap-from-zips audit-vendor-model-calls catalog-vendor-repos \
+	vendor-repos vendor-status \
 	medea-data optimuskg-data mims-data mims-data-status prepare-full-stack \
-	init-opensearch init-postgres docling-health preflight-full-stack \
+	wait-postgres wait-opensearch wait-vllm-clinical wait-vllm-docling wait-foundation-services wait-ui \
+	init-postgres init-opensearch \
 	gradio-up gradio-down gradio-logs gradio-status gradio-rebuild \
-	full-stack-up full-stack-down full-stack-logs full-stack-status \
-	integration-full-stack-up integration-full-stack \
-	integration-full-stack-down integration-full-stack-logs \
-	live-vm-validate live-vm-validate-leave-up \
-	live-vm-validate-down-on-failure live-vm-validation-logs \
-	live-vm-validate-diagnostics live-vm-logs check-ui-health
+	full-stack-up full-stack-down full-stack-logs full-stack-status
 
 test:
 	$(PYTEST) -q
@@ -106,21 +101,8 @@ check-local-data-ignore:
 vendor-repos:
 	$(PYTHON) scripts/vendor_repos.py
 
-vendor-git-clone: vendor-repos
-
-vendor-git-pull: vendor-repos
-
 vendor-status:
 	$(PYTHON) scripts/vendor_status.py
-
-vendor-bootstrap-from-zips:
-	$(PYTHON) scripts/vendor_from_zips.py --force
-
-audit-vendor-model-calls:
-	$(PYTHON) scripts/audit_vendor_model_calls.py
-
-catalog-vendor-repos:
-	$(PYTHON) scripts/catalog_vendor_repos.py
 
 medea-data: vendor-repos
 	mkdir -p "$(MEDEA_DATA_HOST_DIR)"
@@ -144,42 +126,89 @@ mims-data-status:
 
 prepare-full-stack: check-local-data-ignore mims-data
 
-init-opensearch:
-	$(PYTHON) scripts/init_opensearch.py
+wait-postgres:
+	@echo "Waiting for Postgres..."
+	@for i in $$(seq 1 60); do \
+		if docker exec mvp-postgres-1 pg_isready -U translume -d translume >/dev/null 2>&1; then \
+			echo "Postgres is ready."; \
+			exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "ERROR: Postgres did not become ready."; \
+	$(COMPOSE) logs --tail=100 postgres; \
+	exit 1
+
+wait-opensearch:
+	@echo "Waiting for OpenSearch..."
+	@for i in $$(seq 1 90); do \
+		if curl -fsS http://localhost:9200/_cluster/health >/dev/null 2>&1; then \
+			echo "OpenSearch is ready."; \
+			exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "ERROR: OpenSearch did not become ready."; \
+	$(COMPOSE) logs --tail=100 opensearch; \
+	exit 1
+
+wait-vllm-clinical:
+	@echo "Waiting for clinical vLLM..."
+	@for i in $$(seq 1 180); do \
+		if curl -fsS http://localhost:8000/v1/models >/dev/null 2>&1; then \
+			echo "Clinical vLLM is ready."; \
+			exit 0; \
+		fi; \
+		sleep 5; \
+	done; \
+	echo "ERROR: clinical vLLM did not become ready."; \
+	$(COMPOSE) --profile gpu logs --tail=100 vllm-clinical; \
+	exit 1
+
+wait-vllm-docling:
+	@echo "Waiting for Docling vLLM..."
+	@for i in $$(seq 1 180); do \
+		if curl -fsS http://localhost:8001/v1/models >/dev/null 2>&1; then \
+			echo "Docling vLLM is ready."; \
+			exit 0; \
+		fi; \
+		sleep 5; \
+	done; \
+	echo "ERROR: Docling vLLM did not become ready."; \
+	$(COMPOSE) --profile gpu --profile docling logs --tail=100 vllm-docling; \
+	exit 1
+
+wait-foundation-services: wait-postgres wait-opensearch wait-vllm-clinical wait-vllm-docling
+
+wait-ui:
+	@echo "Waiting for Gradio UI..."
+	@for i in $$(seq 1 90); do \
+		if curl -fsS http://localhost:7860 >/dev/null 2>&1; then \
+			echo "Gradio UI is ready."; \
+			exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "ERROR: Gradio UI did not become ready."; \
+	$(COMPOSE) --profile gpu --profile docling logs --tail=150 translume-ui; \
+	exit 1
 
 init-postgres:
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) scripts/init_postgres.py
 
-docling-health:
-	curl -fsS http://localhost:8090/health
+init-opensearch:
+	$(PYTHON) scripts/init_opensearch.py
 
-preflight-full-stack:
-	$(PYTHON) scripts/full_stack_preflight.py --require-docker --require-gpu
-
-check-ui-health:
-	$(PYTHON) scripts/check_ui_health.py
-
-# One-command path for local/demo usage:
-#
-#   make gradio-up
-#
-# This target:
-#   1. checks required local config
-#   2. clones/updates MIMS vendor repos
-#   3. downloads MedeaDB and OptimusKG data
-#   4. validates repos and data
-#   5. rebuilds and starts Docker with gpu + docling profiles
-#   6. initializes Postgres and OpenSearch
-#   7. verifies the Gradio UI
 gradio-up: check-vllm-model check-ui-dockerfile prepare-full-stack
 	$(MAKE) vendor-status
 	$(MAKE) mims-data-status
 	$(COMPOSE) --profile gpu --profile docling down --remove-orphans
 	$(COMPOSE) --profile gpu --profile docling up --build -d postgres opensearch vllm-clinical vllm-docling
+	$(MAKE) wait-foundation-services
 	$(MAKE) init-postgres
 	$(MAKE) init-opensearch
 	$(COMPOSE) --profile gpu --profile docling up --build -d
-	$(MAKE) check-ui-health
+	$(MAKE) wait-ui
 	@echo ""
 	@echo "Translume Gradio UI is ready here:"
 	@echo "http://localhost:7860"
@@ -194,7 +223,7 @@ gradio-rebuild: check-vllm-model check-ui-dockerfile
 	$(COMPOSE) --profile gpu --profile docling down --remove-orphans
 	$(COMPOSE) --profile gpu --profile docling build --no-cache
 	$(COMPOSE) --profile gpu --profile docling up -d
-	$(MAKE) check-ui-health
+	$(MAKE) wait-ui
 	@echo ""
 	@echo "Translume Gradio UI is ready here:"
 	@echo "http://localhost:7860"
@@ -209,7 +238,6 @@ gradio-logs:
 gradio-status:
 	$(COMPOSE) --profile gpu --profile docling ps
 
-# Keep old names as aliases so there is one real startup path.
 full-stack-up: gradio-up
 
 full-stack-down: gradio-down
@@ -217,27 +245,3 @@ full-stack-down: gradio-down
 full-stack-logs: gradio-logs
 
 full-stack-status: gradio-status
-
-integration-full-stack-up: check-vllm-model check-ui-dockerfile prepare-full-stack
-	$(MAKE) preflight-full-stack
-	$(COMPOSE) --profile gpu --profile docling up --build -d
-
-integration-full-stack: integration-full-stack-up
-	$(PYTHON) scripts/run_full_stack_integration.py
-
-integration-full-stack-down:
-	$(COMPOSE) --profile gpu --profile docling down
-
-integration-full-stack-logs:
-	$(COMPOSE) --profile gpu --profile docling logs --tail=200
-
-live-vm-validate:
-	$(PYTHON) scripts/live_vm_runtime_validate.py
-
-live-vm-validate-diagnostics:
-	$(PYTHON) scripts/live_vm_runtime_validate.py --continue-after-failure
-
-live-vm-logs:
-	$(COMPOSE) --profile gpu --profile docling logs --tail=300
-
-# make gradio-up
