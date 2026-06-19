@@ -6,3 +6,8 @@
 # image build context. The root project .git remains excluded.
 !third_party/upstream/**/.git/
 !third_party/upstream/**/.git/**
+.git/
+**/.git/
+
+!third_party/upstream/**/.git/
+!third_party/upstream/**/.git/**
