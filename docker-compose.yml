@@ -151,6 +151,8 @@ services:
     env_file: ${TRANSLUME_ENV_FILE:-.env}
     ports:
       - "8080:8080"
+    volumes:
+      - "./third_party:/app/third_party:ro"
     depends_on:
       postgres:
         condition: service_healthy
