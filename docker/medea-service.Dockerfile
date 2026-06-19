@@ -7,7 +7,7 @@ COPY services ./services
 COPY third_party ./third_party
 COPY configs ./configs
 RUN pip install --no-cache-dir uv \
-    && uv pip install --system pydantic fastapi uvicorn httpx gradio pytest \
+    && uv pip install --system pydantic fastapi uvicorn httpx gradio pytest numpy h5py \
     && for repo in /app/third_party/upstream/*; do \
         if [ -f "$repo/pyproject.toml" ] || [ -f "$repo/setup.py" ]; then \
           uv pip install --system -e "$repo"; \

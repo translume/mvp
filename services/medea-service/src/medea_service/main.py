@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
@@ -8,6 +9,18 @@ from uuid import NAMESPACE_URL, uuid5
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from medea_service.database_runtime import (
+    MedeaDatabaseError,
+    MedeaDBEvidence,
+    MedeaDBStatus,
+    collect_medeadb_evidence,
+    database_required,
+    depmap_correlation,
+    evidence_prompt_text,
+    inspect_medeadb,
+    require_medeadb,
+    validate_medeadb_runtime,
+)
 from medea_service.local_runtime import (
     LocalMedeaRoutingConfig,
     build_local_medea_routing_config,
@@ -24,16 +37,14 @@ class ReasonRequest(BaseModel):
     context: dict[str, object]
 
 
+class DepMapCorrelationRequest(BaseModel):
+    gene_a: str
+    gene_b: str
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
-    """Return service health, vendored Medea availability, and local routing status.
-
-    Acceptance criteria:
-        1. Reports whether the real vendored Medea package can import.
-        2. Reports whether local-vLLM routing is configured.
-        3. Reports remote-provider configuration failures explicitly.
-        4. Does not run bounded reasoning or fabricate readiness.
-    """
+    """Return literature-runtime, local-model, and MedeaDB availability."""
     repo_path = _repo_path()
     try:
         import_vendor_module(repo_path, _module_names())
@@ -55,77 +66,136 @@ def health() -> dict[str, object]:
         routing_error = str(runtime_error)
         local_model_base_url = None
         local_model_name = None
+    database = inspect_medeadb()
     return {
         "status": "ok",
         "service": "medea_service",
         "vendor_path": str(repo_path),
         "vendor_available": vendor_available,
+        "literature_reasoning_available": vendor_available,
         "local_model_configured": local_model_configured,
         "remote_provider_blocked": remote_provider_blocked,
         "local_model_base_url": local_model_base_url,
         "local_model_name": local_model_name,
+        "database_required": database_required(),
+        "database_available": database.available,
+        "medeadb_path": str(database.path),
+        "medeadb_resources": database.resources,
+        "medeadb_missing": list(database.missing),
         "error": vendor_error or routing_error,
+    }
+
+
+@app.get("/database/status")
+def database_status() -> dict[str, object]:
+    """Report the exact MedeaDB resources visible to the service."""
+    status = inspect_medeadb()
+    return {
+        "status": "ok" if status.available else "incomplete",
+        "database_required": database_required(),
+        **status.as_dict(),
+    }
+
+
+@app.post("/database/depmap-correlation")
+def database_depmap_correlation(
+    request: DepMapCorrelationRequest,
+) -> dict[str, object]:
+    """Query MedeaDB through upstream Medea's GeneCorrelationLookup parser."""
+    try:
+        medea_module = import_vendor_module(_repo_path(), _module_names())
+        status = inspect_medeadb()
+        require_medeadb(status)
+        result = depmap_correlation(
+            medea_module,
+            status,
+            request.gene_a,
+            request.gene_b,
+        )
+    except (MedeaDatabaseError, VendorRuntimeError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {
+        "status": "ok",
+        "source": "MedeaDB/depmap_24q2",
+        "requires_human_review": True,
+        **asdict(result),
     }
 
 
 @app.get("/runtime-contract")
 def runtime_contract() -> dict[str, object]:
-    """Validate Medea import, local-vLLM routing, and patchability without faking reasoning.
-
-    Acceptance criteria:
-        1. Imports the real vendored Medea package.
-        2. Requires local vLLM routing configuration.
-        3. Blocks remote-provider credentials.
-        4. Patches Medea LLM call sites from Translume-owned code.
-        5. Returns patched module names for live VM validation.
-    """
+    """Validate literature reasoning, local vLLM routing, and MedeaDB parsing."""
     try:
         medea_module = import_vendor_module(_repo_path(), _module_names())
-        routing, patched_modules = configure_and_patch_medea_for_local_vllm(medea_module)
+        routing, patched_modules = configure_and_patch_medea_for_local_vllm(
+            medea_module
+        )
         _assert_medea_reasoning_members(medea_module)
-    except VendorRuntimeError as error:
+        database = inspect_medeadb()
+        required = database_required()
+        if required:
+            runtime = validate_medeadb_runtime(medea_module, database)
+        elif database.available:
+            runtime = validate_medeadb_runtime(medea_module, database)
+        else:
+            runtime = None
+    except (MedeaDatabaseError, VendorRuntimeError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {
         "status": "ok",
         "service": "medea_service",
         "vendor_available": True,
+        "literature_reasoning_available": True,
         "local_model_configured": True,
         "remote_provider_blocked": True,
         "local_chat_completion_patched": True,
         "patched_modules": list(patched_modules),
         "local_model_base_url": routing.vllm_base_url,
         "local_model_name": routing.model_name,
+        "database_required": required,
+        "database_available": database.available,
+        "database_parseable": runtime is not None,
+        "database_gene_count": runtime.gene_count if runtime else None,
+        "database_format": runtime.storage_format if runtime else None,
+        "medeadb_path": str(database.path),
+        "medeadb_resources": database.resources,
     }
 
 
 @app.post("/reason")
 async def reason(request: ReasonRequest) -> dict[str, object]:
-    """Run bounded Medea reasoning using local-vLLM-routed vendored Medea.
-
-    Acceptance criteria:
-        1. Requires the real vendored Medea package.
-        2. Requires validated local vLLM configuration.
-        3. Blocks remote model-provider credentials.
-        4. Patches Medea LLM call sites to local vLLM from outside the vendor repo.
-        5. Executes Medea literature_reasoning; no fallback reasoning is made up.
-        6. Normalizes Medea output to `MedeaReasoningArtifact`.
-    """
+    """Run Medea literature reasoning enriched with bounded MedeaDB evidence."""
     try:
         context = EvidenceContextBundle.model_validate(request.context)
         medea_module = import_vendor_module(_repo_path(), _module_names())
-        routing, patched_modules = configure_and_patch_medea_for_local_vllm(medea_module)
+        routing, patched_modules = configure_and_patch_medea_for_local_vllm(
+            medea_module
+        )
+        database = inspect_medeadb()
+        required = database_required()
+        if required:
+            require_medeadb(database)
+        database_evidence = (
+            _collect_database_evidence(medea_module, context, database)
+            if database.available
+            else None
+        )
         result = _run_medea_literature_reasoning(
             medea_module,
             context,
             routing=routing,
+            database_evidence=database_evidence,
         )
         artifact = _artifact_from_medea_result(
             context,
             result,
             routing=routing,
             patched_modules=patched_modules,
+            database=database,
+            database_evidence=database_evidence,
+            required_database=required,
         )
-    except (ValueError, VendorRuntimeError) as error:
+    except (MedeaDatabaseError, ValueError, VendorRuntimeError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return artifact.model_dump(mode="json")
 
@@ -157,27 +227,69 @@ def _assert_medea_reasoning_members(medea_module: Any) -> None:
         )
 
 
+def _positive_int_environment(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise MedeaDatabaseError(f"{name} must be an integer") from error
+    if value <= 0:
+        raise MedeaDatabaseError(f"{name} must be positive")
+    return value
+
+
+def _nonnegative_int_environment(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise MedeaDatabaseError(f"{name} must be an integer") from error
+    if value < 0:
+        raise MedeaDatabaseError(f"{name} cannot be negative")
+    return value
+
+
+def _collect_database_evidence(
+    medea_module: Any,
+    context: EvidenceContextBundle,
+    database: MedeaDBStatus,
+) -> MedeaDBEvidence:
+    return collect_medeadb_evidence(
+        medea_module,
+        context,
+        database,
+        max_pairs=_positive_int_environment("MEDEA_DB_MAX_GENE_PAIRS", 10),
+        neighbors_per_single_gene=_nonnegative_int_environment(
+            "MEDEA_DB_SIMILAR_GENES_PER_SINGLE_GENE",
+            3,
+        ),
+    )
+
+
 def _run_medea_literature_reasoning(
     medea_module: Any,
     context: EvidenceContextBundle,
     *,
     routing: LocalMedeaRoutingConfig,
+    database_evidence: MedeaDBEvidence | None,
 ) -> Any:
-    """Run Medea's bounded literature reasoning entrypoint.
-
-    Acceptance criteria:
-        1. Requires `literature_reasoning` entrypoint and module classes.
-        2. Builds the query from structured context, not hardcoded disease facts.
-        3. Uses the local vLLM model configured in `routing`.
-        4. Raises if Medea execution fails.
-    """
+    """Run Medea's bounded literature-reasoning entrypoint."""
     _assert_medea_reasoning_members(medea_module)
     try:
         llm_config = medea_module.LLMConfig({"temperature": 0.0})
-        literature_llm = medea_module.AgentLLM(llm_config, llm_name=routing.model_name)
+        literature_llm = medea_module.AgentLLM(
+            llm_config,
+            llm_name=routing.model_name,
+        )
         literature_actions = [
-            medea_module.LiteratureSearch(model_name=routing.model_name, verbose=False),
-            medea_module.PaperJudge(model_name=routing.model_name, verbose=False),
+            medea_module.LiteratureSearch(
+                model_name=routing.model_name,
+                verbose=False,
+            ),
+            medea_module.PaperJudge(
+                model_name=routing.model_name,
+                verbose=False,
+            ),
             medea_module.OpenScholarReasoning(
                 tmp=0.0,
                 llm_provider=routing.model_name,
@@ -189,14 +301,17 @@ def _run_medea_literature_reasoning(
             actions=literature_actions,
         )
         return medea_module.literature_reasoning(
-            query=_query_from_context(context),
+            query=_query_from_context(context, database_evidence),
             literature_module=literature_module,
         )
     except Exception as error:
         raise VendorRuntimeError(f"Medea bounded reasoning failed: {error}") from error
 
 
-def _query_from_context(context: EvidenceContextBundle) -> str:
+def _query_from_context(
+    context: EvidenceContextBundle,
+    database_evidence: MedeaDBEvidence | None = None,
+) -> str:
     findings = [
         f"{finding.gene or ''} {finding.alteration}".strip()
         for finding in context.extraction.molecular_findings
@@ -204,6 +319,11 @@ def _query_from_context(context: EvidenceContextBundle) -> str:
     disease = context.extraction.disease or "the reported tumor type"
     graph_terms = sorted({node.label for node in context.graph_evidence.nodes})[:20]
     tool_summaries = [output.workflow for output in context.tool_outputs][:10]
+    database_context = (
+        "\n\n" + evidence_prompt_text(database_evidence)
+        if database_evidence is not None
+        else ""
+    )
     return (
         "Provide literature and omics reasoning support for reviewable tumor-behavior "
         f"hypotheses in {disease}. Reported molecular findings: "
@@ -212,7 +332,8 @@ def _query_from_context(context: EvidenceContextBundle) -> str:
         + ", ".join(graph_terms)
         + ". ToolUniverse workflows available: "
         + ", ".join(tool_summaries)
-        + ". Do not recommend treatment; identify support, uncertainty, and validation gaps."
+        + database_context
+        + "\nDo not recommend treatment; identify support, uncertainty, and validation gaps."
     )
 
 
@@ -222,6 +343,9 @@ def _artifact_from_medea_result(
     *,
     routing: LocalMedeaRoutingConfig,
     patched_modules: tuple[str, ...],
+    database: MedeaDBStatus,
+    database_evidence: MedeaDBEvidence | None,
+    required_database: bool,
 ) -> MedeaReasoningArtifact:
     text = _result_to_text(result)
     if not text.strip():
@@ -232,11 +356,40 @@ def _artifact_from_medea_result(
         "medea_model_calls_routed_through_local_vllm",
         "patched_modules=" + ",".join(patched_modules),
         "local_model=" + routing.model_name,
+        f"medeadb_required={str(required_database).lower()}",
+        f"medeadb_available={str(database.available).lower()}",
+        "medeadb_path=" + str(database.path),
     ]
+    summary_parts: list[str] = []
+    if database_evidence is not None:
+        summary_parts.append(
+            "MedeaDB evidence supplied to literature reasoning:\n"
+            + evidence_prompt_text(database_evidence)
+        )
+        warnings.extend(
+            (
+                "medeadb_evidence_is_exploratory_and_requires_human_review",
+                f"medeadb_depmap_pair_count={len(database_evidence.pairwise)}",
+                f"medeadb_depmap_neighbor_count={len(database_evidence.neighbors)}",
+            )
+        )
+        if database_evidence.missing_genes:
+            warnings.append(
+                "medeadb_missing_report_genes="
+                + ",".join(database_evidence.missing_genes)
+            )
+    elif not database.available:
+        warnings.append("medeadb_not_available_for_this_reasoning_run")
+    summary_parts.append("Medea literature reasoning:\n" + text)
+    mode = (
+        "medea_literature_reasoning_with_medeadb_local_vllm"
+        if database_evidence is not None
+        else "medea_literature_reasoning_local_vllm"
+    )
     return MedeaReasoningArtifact(
         artifact_id=artifact_id,
-        reasoning_mode="medea_literature_reasoning_local_vllm",
-        summary=text[:4000],
+        reasoning_mode=mode,
+        summary="\n\n".join(summary_parts)[:4000],
         supported_hypotheses=[],
         weakened_hypotheses=[],
         warnings=warnings,

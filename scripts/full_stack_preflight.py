@@ -19,9 +19,23 @@ from translume_core.prime_directives import (
 from translume_core.vendor.repositories import (
     VendorRepositoryError,
     load_vendor_repo_specs,
-    render_vendor_status,
     require_updateable_vendor_repos,
 )
+
+try:
+    from scripts.download_mims_data import (
+        MimsDataError,
+        inspect_medeadb,
+        inspect_optimuskg_cache,
+        validate_optimuskg_parquet,
+    )
+except ModuleNotFoundError:  # direct execution from the scripts directory
+    from download_mims_data import (  # type: ignore[no-redef]
+        MimsDataError,
+        inspect_medeadb,
+        inspect_optimuskg_cache,
+        validate_optimuskg_parquet,
+    )
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -210,6 +224,78 @@ def validate_vendor_repositories(root: Path) -> tuple[str, ...]:
     return tuple(state.name for state in report.states)
 
 
+def _host_path(value: str, root: Path) -> Path:
+    """Resolve a host path relative to the repository root when necessary."""
+    path = Path(value).expanduser()
+    return path.resolve() if path.is_absolute() else (root / path).resolve()
+
+
+def validate_mims_data(
+    root: Path,
+    environment: Mapping[str, str],
+) -> tuple[str, ...]:
+    """Validate host-side MedeaDB and OptimusKG caches before Docker starts.
+
+    Acceptance criteria:
+        1. MedeaDB contains all resource families consumed by upstream Medea.
+        2. OptimusKG contains the exact LCC or full parquet pair configured.
+        3. Uses host paths, not container-only `/app` paths.
+        4. Does not download or mutate data during preflight.
+    """
+    medea_host = env_value("MEDEA_DATA_HOST_DIR", environment)
+    explicit_medeadb = env_value("MEDEADB_PATH", environment)
+    if explicit_medeadb and not explicit_medeadb.startswith("/app/"):
+        medeadb_path = _host_path(explicit_medeadb, root)
+    elif medea_host:
+        medeadb_path = _host_path(medea_host, root) / "MedeaDB"
+    else:
+        medeadb_path = root / "data" / "medea_cache" / "MedeaDB"
+
+    optimus_host = env_value("OPTIMUSKG_DATA_HOST_DIR", environment)
+    explicit_cache = env_value("OPTIMUSKG_CACHE_DIR", environment)
+    if explicit_cache and not explicit_cache.startswith("/app/"):
+        optimus_cache = _host_path(explicit_cache, root)
+    elif optimus_host:
+        optimus_cache = _host_path(optimus_host, root)
+    else:
+        optimus_cache = root / "data" / "optimuskg_cache"
+    use_lcc = env_value("OPTIMUSKG_USE_LCC", environment).casefold() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
+    medea = inspect_medeadb(medeadb_path)
+    if not medea.available:
+        raise PreflightError(
+            "MedeaDB is incomplete at "
+            f"{medea.path}: {', '.join(medea.missing)}. "
+            "Run `make medea-data`."
+        )
+    optimus = inspect_optimuskg_cache(optimus_cache, use_lcc=use_lcc)
+    if not optimus.available:
+        raise PreflightError(
+            "OptimusKG cache is incomplete at "
+            f"{optimus.cache_dir}: {', '.join(optimus.missing)}. "
+            "Run `make optimuskg-data`."
+        )
+    try:
+        validate_optimuskg_parquet(
+            Path(str(optimus.nodes_path)),
+            Path(str(optimus.edges_path)),
+        )
+    except MimsDataError as error:
+        raise PreflightError(
+            "OptimusKG cache exists but cannot be parsed by Translume: "
+            f"{error}. Run `make optimuskg-data`."
+        ) from error
+    return (
+        f"medeadb:{medea.path}",
+        f"optimuskg_cache:{optimus.cache_dir}",
+    )
+
+
 def validate_docker_available() -> tuple[str, ...]:
     """Validate Docker and Docker Compose CLI availability.
 
@@ -271,7 +357,9 @@ def validate_gpu_visible(require_gpu: bool) -> tuple[str, ...]:
     return ("nvidia-smi",)
 
 
-def validate_retrieval_scope(requirements: Mapping[str, Any], environment: Mapping[str, str]) -> str:
+def validate_retrieval_scope(
+    requirements: Mapping[str, Any], environment: Mapping[str, str]
+) -> str:
     """Validate full-stack retrieval scope is lexical-only for this MVP.
 
     Acceptance criteria:
@@ -284,7 +372,9 @@ def validate_retrieval_scope(requirements: Mapping[str, Any], environment: Mappi
     if not isinstance(config, dict):
         raise PreflightError("retrieval_scope requirements must be an object")
     env_name = str(config.get("mode_env", "TRANSLUME_RETRIEVAL_MODE"))
-    mode = env_value(env_name, environment) or str(config.get("required_mode", "lexical"))
+    mode = env_value(env_name, environment) or str(
+        config.get("required_mode", "lexical")
+    )
     try:
         scope = require_lexical_retrieval_scope(mode)
     except Exception as error:
@@ -307,9 +397,10 @@ def run_preflight(
         2. Validates report PDF path.
         3. Validates non-placeholder vLLM model id.
         4. Validates vendor repositories.
-        5. Optionally validates Docker and GPU availability.
-        6. Validates retrieval scope does not overclaim vector/HNSW.
-        7. Does not start services or fabricate readiness.
+        5. Validates host-side MedeaDB and OptimusKG data caches.
+        6. Optionally validates Docker and GPU availability.
+        7. Validates retrieval scope does not overclaim vector/HNSW.
+        8. Does not start services or fabricate readiness.
 
     Args:
         requirements_path: Full-stack requirements JSON.
@@ -334,7 +425,9 @@ def run_preflight(
             environment,
         )
     )
-    checked.append(str(validate_report_path(env_value("TRANSLUME_E2E_REPORT_PATH", environment))))
+    checked.append(
+        str(validate_report_path(env_value("TRANSLUME_E2E_REPORT_PATH", environment)))
+    )
     vllm = requirements.get("vllm", {})
     if not isinstance(vllm, dict):
         raise PreflightError("vllm requirements must be an object")
@@ -345,6 +438,7 @@ def run_preflight(
         )
     )
     checked.extend(validate_vendor_repositories(root))
+    checked.extend(validate_mims_data(root, environment))
     checked.append(validate_retrieval_scope(requirements, environment))
     if require_docker:
         checked.extend(validate_docker_available())

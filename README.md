@@ -220,6 +220,8 @@ Run:
 
 ```bash
 make vendor-repos
+make mims-data
+make mims-data-status
 make audit-vendor-model-calls
 make catalog-vendor-repos
 ```
@@ -229,6 +231,23 @@ make catalog-vendor-repos
 `make vendor-bootstrap-from-zips` can unpack local zip archives for offline
 inspection only, but zip-extracted folders are not production-updateable and
 will fail `make vendor-status`.
+
+`make mims-data` provisions the complete Hugging Face MedeaDB snapshot at
+`data/medea_cache/MedeaDB` and the exact OptimusKG LCC Parquet pair at
+`data/optimuskg_cache` through the upstream OptimusKG client. Docker Compose
+mounts those host caches at `/app/data/medea_cache/MedeaDB` and
+`/app/data/optimuskg_cache`, matching `MEDEADB_PATH` and
+`OPTIMUSKG_CACHE_DIR` inside the services. `make integration-full-stack-up`
+performs this provisioning automatically before its read-only preflight.
+
+The Medea `/reason` path still runs `LiteratureSearch`, `PaperJudge`, and
+`OpenScholarReasoning`; when MedeaDB is present it also parses bounded DepMap
+observations through upstream Medea and supplies them to the literature query.
+Direct database status and pairwise correlation endpoints are available at
+`/database/status` and `/database/depmap-correlation`. See
+`docs/architecture/mims_data_runtime.md` for parser locations, path overrides,
+download controls, and the distinction between the full provisioned snapshot
+and the DepMap resource currently used for automatic report enrichment.
 
 Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`.
 
@@ -380,14 +399,15 @@ The production workflow now runs deterministic narrative containment after `Clin
 The production workflow now validates the generated clinical narrative before review-packet export. `ClinicalNarrativeCompilerOutput` must be contained by the structured artifacts in the bundle: report extraction, normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning, phenotype, matrix, Sankey, confirmatory tests, tumor-behavior model, claim cards, and provenance. Unsupported gene-like terms, therapy-like terms, alteration-like phrases, or unknown source artifact IDs fail loudly instead of being returned as a polished narrative. A passing narrative creates a `NarrativeContainmentReport` and containment provenance; a failing narrative records a workflow failure event and blocks export.
 
 
-### OptimusKG graph context
+### Harvard MIMS data provisioning and OptimusKG graph parsing
 
-Translume now requires OptimusKG graph context to come from the real OptimusKG Python client and its parquet graph tables. The production path does not read arbitrary CSV/JSON edge files as a substitute. Configure `OPTIMUSKG_CACHE_DIR`, `OPTIMUSKG_USE_LCC`, `OPTIMUSKG_MAX_EDGES`, and `OPTIMUSKG_FORCE_DOWNLOAD` as needed. Missing OptimusKG package/data fails loudly.
+`make mims-data` now provisions both external data payloads before the full-stack integration path starts. OptimusKG is downloaded through its real Python client into `data/optimuskg_cache`, mounted at `/app/data/optimuskg_cache`, and then parsed from the client-returned Parquet paths with Polars. Node `properties` JSON is used for entity matching and only matching edges are emitted as graph evidence. The service retains OptimusKG's lazy `get_file()` behavior, while pre-provisioning makes network and cache failures visible before clinical workflow execution.
 
+### Medea literature reasoning plus MedeaDB
 
-## Medea local-vLLM runtime enforcement
+The Medea service now uses both requested capabilities. It preserves Medea's literature search/judging/reasoning path through local vLLM and also opens the downloaded `data/medea_cache/MedeaDB/depmap_24q2` data through upstream Medea's `GeneCorrelationLookup`. Bounded DepMap observations for report genes are supplied to the literature query as exploratory evidence and returned alongside the literature synthesis. `/database/status` and `/database/depmap-correlation` provide direct database inspection, while `/runtime-contract` proves that the real database parser can open the mounted data. With the default `MEDEA_REQUIRE_DATABASE=true`, missing data fails loudly rather than degrading to literature-only behavior.
 
-Medea is now routed through Translume-owned service code that validates local model configuration, blocks remote model-provider credentials, and patches Medea LLM call sites from outside the vendored repository. The Harvard Medea source under `third_party/upstream/Medea` remains clean and updateable; Translume applies local-vLLM behavior through `services/medea-service` and adapter/service boundaries rather than editing Medea files. Runtime validation now checks `/runtime-contract` on the Medea service and requires local routing fields before the full-stack report workflow can proceed. This code path is unit-validated, but Docker/GPU/vLLM/Medea runtime still requires live VM execution.
+See [`docs/architecture/mims_data_runtime.md`](docs/architecture/mims_data_runtime.md) for exact host/container paths, Make targets, parser locations, endpoints, and override variables.
 
 
 ## Evidence-derived tumor behavior validation

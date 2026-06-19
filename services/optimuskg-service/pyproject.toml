@@ -2,7 +2,16 @@
 name = "optimuskg-service"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ['polars>=1.0.0', 'fastapi', 'uvicorn', 'pydantic']
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "polars>=1.19.0",
+    "pyarrow>=19.0.0",
+    "networkx>=3.0",
+    "requests>=2.32.3",
+    "platformdirs>=4.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]

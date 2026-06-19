@@ -1,0 +1,17 @@
+{
+  "inspection": {
+    "available": true,
+    "missing": [],
+    "path": "/home/ubuntu/mvp/data/medea_cache/MedeaDB",
+    "resources": {
+      "compass_checkpoints": true,
+      "depmap_24q2": true,
+      "pinnacle_embeds": true,
+      "transcriptformer_embeddings": true,
+      "transcriptformer_metadata": true
+    }
+  },
+  "repository": "mims-harvard/MedeaDB",
+  "revision": "latest",
+  "validated_at": "2026-06-19T19:20:48.006109+00:00"
+}
