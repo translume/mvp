@@ -80,6 +80,86 @@ class FullStackIntegrationResult:
     checked_paths: tuple[str, ...]
 
 
+WORKFLOW_SET_FIELDS = frozenset(
+    {
+        "configured_workflows",
+        "missing_required_workflows",
+    }
+)
+
+
+def health_field_mismatch(
+    key: str,
+    expected: object,
+    payload: Mapping[str, object],
+) -> str | None:
+    """Return a health-field mismatch message when one exists.
+
+    Acceptance criteria:
+        1. Scalar fields must match exactly.
+        2. Workflow list fields compare by set because order is not meaningful.
+        3. Missing `missing_required_workflows` is equivalent to an empty list
+           only when the expected value is an empty list.
+        4. The input payload is not mutated.
+
+    Args:
+        key: Health response field name.
+        expected: Required field value from integration requirements.
+        payload: JSON health response object.
+
+    Returns:
+        A mismatch message, or `None` when the field satisfies requirements.
+    """
+    actual = payload.get(key)
+    if key == "missing_required_workflows" and actual is None and expected == []:
+        actual = []
+    if key in WORKFLOW_SET_FIELDS and isinstance(expected, list):
+        if not isinstance(actual, list):
+            return f"{key} expected {expected!r} got {actual!r}"
+        if set(actual) != set(expected):
+            return f"{key} expected {expected!r} got {actual!r}"
+        return None
+    if actual != expected:
+        return f"{key} expected {expected!r} got {actual!r}"
+    return None
+
+
+def build_vllm_structured_output_request(
+    *,
+    model: str,
+    schema: Mapping[str, object],
+) -> dict[str, object]:
+    """Build the vLLM structured-output preflight request.
+
+    Acceptance criteria:
+        1. Uses a single `user` message for chat-template compatibility.
+        2. Preserves the configured JSON schema response format.
+        3. Uses deterministic generation settings.
+        4. Does not mutate the supplied schema.
+
+    Args:
+        model: Model name served by the local vLLM endpoint.
+        schema: JSON schema response-format object from requirements.
+
+    Returns:
+        OpenAI-compatible chat completion request payload.
+    """
+    return {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Return only schema-valid JSON for this status check. "
+                    "Return status ready for Translume."
+                ),
+            }
+        ],
+        "response_format": {"type": "json_schema", "json_schema": dict(schema)},
+    }
+
+
 def get_path(payload: object, path: str) -> object:
     """Return a nested value from dict/list payloads using dotted paths.
 
@@ -206,7 +286,8 @@ async def wait_for_json_endpoint(
         1. Repeatedly calls the configured service endpoint.
         2. Requires HTTP 2xx.
         3. Requires JSON object response.
-        4. Requires configured fields to match exactly.
+        4. Requires configured fields to match with field-appropriate
+           comparison semantics.
         5. Times out with the last observed error.
     """
     deadline = time.monotonic() + timeout_seconds
@@ -224,9 +305,16 @@ async def wait_for_json_endpoint(
                     last_error = "health response was not a JSON object"
                 else:
                     mismatches = [
-                        f"{key} expected {expected!r} got {payload.get(key)!r}"
+                        mismatch
                         for key, expected in endpoint.required_fields.items()
-                        if payload.get(key) != expected
+                        if (
+                            mismatch := health_field_mismatch(
+                                key,
+                                expected,
+                                payload,
+                            )
+                        )
+                        is not None
                     ]
                     if not mismatches:
                         return payload
@@ -376,18 +464,7 @@ async def validate_vllm_structured_output(
             raise FullStackIntegrationError(
                 f"vLLM /models failed: {models_response.status_code} {models_response.text}"
             )
-        request = {
-            "model": model,
-            "temperature": 0,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Return only schema-valid JSON for the requested status check.",
-                },
-                {"role": "user", "content": "Return status ready for Translume."},
-            ],
-            "response_format": {"type": "json_schema", "json_schema": schema},
-        }
+        request = build_vllm_structured_output_request(model=model, schema=schema)
         response = await client.post(f"{base_url.rstrip('/')}/chat/completions", json=request)
     if response.status_code >= 400:
         raise FullStackIntegrationError(

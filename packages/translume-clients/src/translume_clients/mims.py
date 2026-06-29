@@ -60,7 +60,8 @@ async def _post_json(
 
     Acceptance criteria:
         1. Performs exactly one HTTP POST.
-        2. Non-2xx responses raise `MimsServiceClientError`.
+        2. Non-2xx responses raise `MimsServiceClientError` with response
+           details.
         3. Invalid JSON responses raise `MimsServiceClientError`.
         4. Does not fabricate fallback payloads.
 
@@ -81,6 +82,12 @@ async def _post_json(
             response = await client.post(url, json=payload)
             response.raise_for_status()
             data = response.json()
+    except httpx.HTTPStatusError as error:
+        response = error.response
+        raise MimsServiceClientError(
+            f"MIMS service request failed: {url}: "
+            f"{response.status_code} {response.text}"
+        ) from error
     except httpx.HTTPError as error:
         raise MimsServiceClientError(f"MIMS service request failed: {url}: {error}") from error
     except ValueError as error:

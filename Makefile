@@ -194,10 +194,12 @@ wait-ui:
 	exit 1
 
 init-postgres:
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON) scripts/init_postgres.py
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) scripts/init_postgres.py \
+		--dsn "$${POSTGRES_PUBLIC_DSN:-postgresql://translume:translume@localhost:5432/translume}"
 
 init-opensearch:
-	$(PYTHON) scripts/init_opensearch.py
+	OPENSEARCH_URL="$${OPENSEARCH_PUBLIC_URL:-http://localhost:9200}" \
+		$(PYTHON) scripts/init_opensearch.py
 
 gradio-up: check-vllm-model check-ui-dockerfile prepare-full-stack
 	$(MAKE) vendor-status

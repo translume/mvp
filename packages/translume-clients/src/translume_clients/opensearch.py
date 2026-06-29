@@ -72,7 +72,13 @@ class OpenSearchVectorStore:
                     f"{created.status_code} {created.text}"
                 )
 
-    async def index(self, index_name: str, documents: list[dict[str, object]]) -> None:
+    async def index(
+        self,
+        index_name: str,
+        documents: list[dict[str, object]],
+        *,
+        refresh: str | None = None,
+    ) -> None:
         """Bulk index documents into OpenSearch.
 
         Acceptance criteria:
@@ -80,10 +86,12 @@ class OpenSearchVectorStore:
             2. Every document must include `document_id`.
             3. Bulk API item failures raise `OpenSearchClientError`.
             4. Caller-owned documents are not mutated.
+            5. Optional refresh behavior is passed through explicitly.
 
         Args:
             index_name: Target OpenSearch index.
             documents: JSON-compatible documents with `document_id`.
+            refresh: Optional OpenSearch refresh parameter such as `wait_for`.
 
         Raises:
             ValueError: If a document lacks `document_id`.
@@ -101,11 +109,13 @@ class OpenSearchVectorStore:
             lines.append(json.dumps(dict(document), separators=(",", ":"), default=str))
         payload = "\n".join(lines) + "\n"
         headers = {"Content-Type": "application/x-ndjson"}
+        params = {"refresh": refresh} if refresh is not None else None
         async with httpx.AsyncClient(timeout=self._config.timeout_seconds) as client:
             response = await client.post(
                 f"{self._base_url}/_bulk",
                 content=payload,
                 headers=headers,
+                params=params,
             )
         if response.status_code not in {200, 201}:
             raise OpenSearchClientError(

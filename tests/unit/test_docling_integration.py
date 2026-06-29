@@ -4,10 +4,24 @@ from pathlib import Path
 
 import pytest
 
+from docling.datamodel.base_models import InputFormat
+from docling_service.converter import build_docling_format_options
 from translume_clients.docling import DoclingClientConfig, DoclingServiceClient
 from translume_core.document.docling_json import docling_dict_to_document_extraction
 from translume_core.workflow import TranslumeWorkflowConfig, TranslumeWorkflowProviders, _extract_best_document
 from translume_schemas.session import StoredFile
+
+
+def test_docling_pdf_format_options_disable_ocr() -> None:
+    first_options = build_docling_format_options()
+    second_options = build_docling_format_options()
+
+    pdf_options = first_options[InputFormat.PDF]
+
+    assert first_options is not second_options
+    assert pdf_options.pipeline_options is not None
+    assert pdf_options.pipeline_options.do_ocr is False
+    assert pdf_options.pipeline_options.do_table_structure is True
 
 
 def test_docling_dict_to_document_extraction_preserves_layout() -> None:

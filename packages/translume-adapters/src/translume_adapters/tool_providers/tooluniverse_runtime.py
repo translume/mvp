@@ -20,6 +20,8 @@ REQUIRED_MVP_WORKFLOWS: tuple[str, ...] = (
     "variant_context",
     "trial_context_review",
 )
+MAX_TOOL_QUERY_TERMS = 8
+MAX_GRAPH_QUERY_TERMS = 3
 
 
 class ToolUniverseWorkflowError(ProviderUnavailableError):
@@ -110,7 +112,8 @@ class ToolUniverseRuntime:
             2. Every configured workflow must map to real ToolUniverse tool names.
             3. ToolUniverse is loaded from the vendored repository path.
             4. Results are normalized to `ToolRunArtifact` only.
-            5. Missing configuration/data/tool execution fails loudly.
+            5. Missing workflow context returns skipped artifacts.
+            6. Missing configuration and tool execution failures fail loudly.
         """
         catalog = load_workflow_catalog(self._workflow_config_path)
         requested = tuple(workflows)
@@ -323,6 +326,13 @@ def run_workflow(
     """Execute one configured workflow and normalize real tool outputs."""
     spec = catalog.workflows[workflow]
     context = template_context(entities, graph)
+    missing_context = missing_required_context(spec, context)
+    if missing_context:
+        return skipped_workflow_artifact(
+            workflow=workflow,
+            entities=entities,
+            missing_context=missing_context,
+        )
     evidence_items: list[dict[str, str]] = []
     summaries: list[str] = []
     for index, step in enumerate(spec["steps"]):
@@ -345,6 +355,94 @@ def run_workflow(
         summary="\n".join(summaries).strip(),
         evidence_items=evidence_items,
         warnings=[],
+        requires_human_review=True,
+    )
+
+
+def missing_required_context(
+    workflow_spec: dict[str, Any],
+    context: dict[str, Any],
+) -> list[str]:
+    """Return missing context keys required by a workflow spec.
+
+    Acceptance criteria:
+        1. Checks workflow-level `required_context` values.
+        2. Checks step-level `required_context` values.
+        3. Treats `None`, empty strings, and empty lists as missing.
+        4. Returns keys in deterministic first-seen order without duplicates.
+
+    Args:
+        workflow_spec: Validated ToolUniverse workflow specification.
+        context: Rendered dynamic context values.
+
+    Returns:
+        Missing context keys.
+    """
+    missing: list[str] = []
+    for key in workflow_spec.get("required_context", []):
+        if is_missing_context_value(context.get(key)) and key not in missing:
+            missing.append(key)
+    for step in workflow_spec.get("steps", []):
+        for key in step.get("required_context", []):
+            if is_missing_context_value(context.get(key)) and key not in missing:
+                missing.append(key)
+    return missing
+
+
+def is_missing_context_value(value: Any) -> bool:
+    """Return whether a ToolUniverse context value is missing.
+
+    Acceptance criteria:
+        1. `None` is missing.
+        2. Empty strings are missing.
+        3. Empty lists are missing.
+        4. Falsey scalar values such as `0` and `False` are preserved.
+    """
+    return value is None or value == "" or value == []
+
+
+def skipped_workflow_artifact(
+    *,
+    workflow: str,
+    entities: NormalizedEntitySet,
+    missing_context: list[str],
+) -> ToolRunArtifact:
+    """Return a reviewable artifact for a skipped ToolUniverse workflow.
+
+    Acceptance criteria:
+        1. Artifact ID is deterministic for entity set and workflow.
+        2. Summary states that required context was missing.
+        3. Evidence items do not claim external tool execution.
+        4. Requires human review.
+
+    Args:
+        workflow: Workflow name that could not execute.
+        entities: Normalized entity set used to derive the workflow context.
+        missing_context: Missing context keys.
+
+    Returns:
+        Tool run artifact documenting the skipped workflow.
+    """
+    missing = ", ".join(missing_context)
+    artifact_id = (
+        f"artifact_{uuid5(NAMESPACE_URL, entities.artifact_id + workflow + ':tooluniverse').hex[:16]}"
+    )
+    return ToolRunArtifact(
+        artifact_id=artifact_id,
+        workflow=workflow,
+        input_entity_ids=[entity.entity_id for entity in entities.entities],
+        summary=(
+            "ToolUniverse workflow skipped because required context is missing: "
+            f"{missing}."
+        ),
+        evidence_items=[
+            {
+                "workflow": workflow,
+                "status": "skipped_missing_context",
+                "missing_context": missing,
+            }
+        ],
+        warnings=[f"missing_required_context:{missing}"],
         requires_human_review=True,
     )
 
@@ -390,7 +488,7 @@ def validate_required_context(
     """Ensure a configured workflow has real input values before tool execution."""
     for key in step.get("required_context", []):
         value = context.get(key)
-        if value is None or value == "" or value == []:
+        if is_missing_context_value(value):
             raise ToolUniverseWorkflowError(
                 f"ToolUniverse workflow {workflow}[{step_index}] requires non-empty context: {key}"
             )
@@ -400,7 +498,14 @@ def template_context(
     entities: NormalizedEntitySet,
     graph: GraphEvidenceArtifact,
 ) -> dict[str, Any]:
-    """Build dynamic workflow arguments from normalized entities and graph evidence."""
+    """Build dynamic workflow arguments from normalized entities and graph evidence.
+
+    Acceptance criteria:
+        1. Keeps unbounded entity and graph lists available for audit.
+        2. Preserves first gene, disease, and variant values.
+        3. Bounds generated ToolUniverse query strings deterministically.
+        4. Prioritizes source entities before graph-expanded context.
+    """
     groups: dict[str, list[str]] = {}
     for entity in entities.entities:
         groups.setdefault(entity.entity_type, []).append(entity.normalized_label)
@@ -411,8 +516,33 @@ def template_context(
     graph_relations = unique_nonempty([edge.relation_type for edge in graph.edges])
     copy_number_loss = unique_nonempty(groups.get("copy_number_loss", []))
     copy_number_gain = unique_nonempty(groups.get("copy_number_gain", []))
-    all_terms = unique_nonempty([*diseases, *genes, *variants, *copy_number_loss, *copy_number_gain, *graph_nodes])
     gene_terms = unique_nonempty([*genes, *copy_number_loss, *copy_number_gain])
+    literature_terms = bounded_query_terms(
+        priority_terms=[
+            *diseases,
+            *genes,
+            *variants,
+            *copy_number_loss,
+            *copy_number_gain,
+        ],
+        secondary_terms=graph_nodes,
+    )
+    pathway_terms = bounded_query_terms(
+        priority_terms=gene_terms,
+        secondary_terms=[*graph_nodes, *graph_relations],
+    )
+    target_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms],
+        secondary_terms=graph_nodes,
+    )
+    variant_terms = bounded_query_terms(
+        priority_terms=[*genes, *variants, *diseases],
+        secondary_terms=[],
+    )
+    trial_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms],
+        secondary_terms=[],
+    )
     return {
         "entities": unique_nonempty([entity.normalized_label for entity in entities.entities]),
         "genes": genes,
@@ -425,14 +555,50 @@ def template_context(
         "copy_number_gain": copy_number_gain,
         "graph_nodes": graph_nodes,
         "graph_relations": graph_relations,
-        "literature_query": join_terms(all_terms),
-        "pathway_query": join_terms(unique_nonempty([*gene_terms, *graph_nodes, *graph_relations])),
-        "target_query": join_terms(unique_nonempty([*diseases, *gene_terms, *graph_nodes])),
-        "variant_context_query": join_terms(unique_nonempty([*genes, *variants, *diseases])),
-        "variant_query": join_terms(unique_nonempty([*genes, *variants, *diseases])),
-        "trial_query": join_terms(unique_nonempty([*diseases, *gene_terms])),
-        "clinical_trial_query": join_terms(unique_nonempty([*diseases, *gene_terms])),
+        "literature_query": join_terms(literature_terms),
+        "pathway_query": join_terms(pathway_terms),
+        "target_query": join_terms(target_terms),
+        "variant_context_query": join_terms(variant_terms),
+        "variant_query": join_terms(variant_terms),
+        "trial_query": join_terms(trial_terms),
+        "clinical_trial_query": join_terms(trial_terms),
     }
+
+
+def bounded_query_terms(
+    *,
+    priority_terms: list[str],
+    secondary_terms: list[str],
+    max_terms: int = MAX_TOOL_QUERY_TERMS,
+    max_secondary_terms: int = MAX_GRAPH_QUERY_TERMS,
+) -> list[str]:
+    """Return deterministic bounded terms for external tool queries.
+
+    Acceptance criteria:
+        1. Preserves priority terms before secondary terms.
+        2. Limits secondary terms so graph expansion cannot dominate queries.
+        3. Removes duplicates case-insensitively.
+        4. Does not mutate caller-owned lists.
+
+    Args:
+        priority_terms: Source-derived terms such as disease, gene, and variant.
+        secondary_terms: Expansion terms such as graph node labels.
+        max_terms: Maximum returned terms.
+        max_secondary_terms: Maximum secondary terms considered.
+
+    Returns:
+        Ordered, deduplicated, bounded terms.
+
+    Raises:
+        ValueError: If limits are negative.
+    """
+    if max_terms < 0 or max_secondary_terms < 0:
+        raise ValueError("query term limits must be non-negative")
+    candidates = [
+        *priority_terms,
+        *unique_nonempty(secondary_terms)[:max_secondary_terms],
+    ]
+    return unique_nonempty(candidates)[:max_terms]
 
 
 def omit_empty_arguments(arguments: dict[str, Any]) -> dict[str, Any]:

@@ -11,6 +11,28 @@ class DoclingServiceError(RuntimeError):
     """Raised when the Docling service cannot convert a document."""
 
 
+def build_docling_format_options() -> dict[Any, Any]:
+    """Build Docling format options for Translume PDF extraction.
+
+    Acceptance criteria:
+        1. Uses Docling's standard PDF pipeline.
+        2. Disables OCR to avoid unsupported RapidOCR runtime defaults.
+        3. Preserves text-native PDF layout and table extraction behavior.
+        4. Returns a new options mapping on every call.
+
+    Returns:
+        Format options keyed by Docling input format.
+    """
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import PdfFormatOption
+
+    pipeline_options = PdfPipelineOptions(do_ocr=False)
+    return {
+        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+    }
+
+
 def convert_pdf_with_docling(
     file_path: Path,
     *,
@@ -47,7 +69,9 @@ def convert_pdf_with_docling(
     except ImportError as error:
         raise DoclingServiceError("docling package is not installed") from error
     try:
-        result = DocumentConverter().convert(str(file_path))
+        result = DocumentConverter(
+            format_options=build_docling_format_options(),
+        ).convert(str(file_path))
         document = result.document
         exported: dict[str, Any] = document.export_to_dict()
     except Exception as error:  # pragma: no cover - depends on Docling runtime.

@@ -15,7 +15,9 @@ from scripts.full_stack_preflight import (
 from scripts.run_full_stack_integration import (
     assert_absent_phrases,
     assert_non_empty_paths,
+    build_vllm_structured_output_request,
     get_path,
+    health_field_mismatch,
     is_non_empty,
 )
 
@@ -67,6 +69,82 @@ def test_absent_phrase_check_blocks_unsafe_output() -> None:
     assert_absent_phrases({"text": "molecular fit for expert review"}, ["recommended treatment"])
     with pytest.raises(Exception):
         assert_absent_phrases({"text": "recommended treatment"}, ["recommended treatment"])
+
+
+def test_health_field_mismatch_accepts_workflows_in_any_order() -> None:
+    expected = [
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    ]
+    payload = {
+        "configured_workflows": [
+            "literature_validation",
+            "pathway_context",
+            "target_context",
+            "trial_context_review",
+            "variant_context",
+        ]
+    }
+    assert health_field_mismatch("configured_workflows", expected, payload) is None
+
+
+def test_health_field_mismatch_rejects_missing_workflow() -> None:
+    expected = [
+        "literature_validation",
+        "pathway_context",
+        "target_context",
+        "variant_context",
+        "trial_context_review",
+    ]
+    payload = {
+        "configured_workflows": [
+            "literature_validation",
+            "pathway_context",
+            "target_context",
+            "trial_context_review",
+        ]
+    }
+    mismatch = health_field_mismatch("configured_workflows", expected, payload)
+    assert mismatch is not None
+    assert "variant_context" in mismatch
+
+
+def test_health_field_mismatch_accepts_omitted_empty_missing_workflows() -> None:
+    assert health_field_mismatch("missing_required_workflows", [], {}) is None
+    assert (
+        health_field_mismatch(
+            "missing_required_workflows",
+            ["variant_context"],
+            {},
+        )
+        is not None
+    )
+
+
+def test_vllm_preflight_request_uses_single_user_message() -> None:
+    schema = {"name": "status_schema", "schema": {"type": "object"}}
+    request = build_vllm_structured_output_request(
+        model="local-model",
+        schema=schema,
+    )
+    assert request["model"] == "local-model"
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": schema,
+    }
+    assert request["messages"] == [
+        {
+            "role": "user",
+            "content": (
+                "Return only schema-valid JSON for this status check. "
+                "Return status ready for Translume."
+            ),
+        }
+    ]
+    assert schema == {"name": "status_schema", "schema": {"type": "object"}}
 
 
 @pytest.mark.skipif(
