@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import asdict
 from pathlib import Path
@@ -188,7 +189,7 @@ async def reason(request: ReasonRequest) -> dict[str, object]:
     except (MedeaDatabaseError, ValueError, VendorRuntimeError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     try:
-        result = _run_medea_literature_reasoning(
+        result = await _run_medea_literature_reasoning_with_timeout(
             medea_module,
             context,
             routing=routing,
@@ -400,6 +401,89 @@ def _run_medea_literature_reasoning(
         )
     except Exception as error:
         raise VendorRuntimeError(f"Medea bounded reasoning failed: {error}") from error
+
+
+async def _run_medea_literature_reasoning_with_timeout(
+    medea_module: Any,
+    context: EvidenceContextBundle,
+    *,
+    routing: LocalMedeaRoutingConfig,
+    database_evidence: MedeaDBEvidence | None,
+) -> Any:
+    """Run blocking Medea reasoning off the event loop with a timeout.
+
+    Acceptance criteria:
+        1. Runs vendored Medea literature reasoning outside the FastAPI event
+           loop so health checks remain responsive.
+        2. Uses the existing MIMS request-timeout budget to return before the
+           calling API client times out.
+        3. Converts timeout into `VendorRuntimeError` so callers can emit the
+           schema-valid unavailable Medea artifact.
+        4. Does not mutate the evidence context, routing config, or database
+           evidence.
+
+    Args:
+        medea_module: Imported vendored Medea module.
+        context: Source evidence context for the reasoning request.
+        routing: Validated local-vLLM routing config.
+        database_evidence: Optional bounded MedeaDB evidence.
+
+    Returns:
+        Raw vendored Medea reasoning result.
+
+    Raises:
+        VendorRuntimeError: If reasoning exceeds the timeout budget.
+    """
+    timeout_seconds = _medea_reasoning_timeout_seconds()
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(
+                _run_medea_literature_reasoning,
+                medea_module,
+                context,
+                routing=routing,
+                database_evidence=database_evidence,
+            ),
+            timeout=timeout_seconds,
+        )
+    except TimeoutError as error:
+        raise VendorRuntimeError(
+            "Medea bounded reasoning timed out after "
+            f"{timeout_seconds:.3g} seconds"
+        ) from error
+
+
+def _medea_reasoning_timeout_seconds() -> float:
+    """Return the Medea reasoning timeout derived from existing settings.
+
+    Acceptance criteria:
+        1. Determinism: Same environment returns the same timeout.
+        2. Validation: Non-positive or non-numeric values raise
+           `VendorRuntimeError`.
+        3. Compatibility: Uses existing timeout environment variables instead
+           of introducing a new public setting.
+        4. Caller headroom: Returns a value below the upstream MIMS client
+           timeout when practical.
+
+    Returns:
+        Timeout in seconds for one vendored Medea reasoning call.
+
+    Raises:
+        VendorRuntimeError: If the selected timeout value is invalid.
+    """
+    raw = os.getenv(
+        "MIMS_TIMEOUT_SECONDS",
+        os.getenv("MEDEA_VLLM_TIMEOUT_SECONDS", "240"),
+    )
+    try:
+        client_timeout = float(raw)
+    except ValueError as error:
+        raise VendorRuntimeError("MIMS_TIMEOUT_SECONDS must be numeric") from error
+    if client_timeout <= 0:
+        raise VendorRuntimeError("MIMS_TIMEOUT_SECONDS must be positive")
+    if client_timeout > 30:
+        return client_timeout - 15
+    return client_timeout * 0.8
 
 
 def _query_from_context(

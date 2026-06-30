@@ -19,11 +19,19 @@ class LocalVLLMClient:
             1. Sends requests only to configured base URL.
             2. Non-2xx responses raise LocalVLLMClientError.
             3. Invalid response shapes raise LocalVLLMClientError.
-            4. Network I/O is isolated here.
+            4. Timeout failures include type, URL, and configured timeout.
+            5. Network I/O is isolated here.
         """
         url = f"{self._base_url}/chat/completions"
-        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-            response = await client.post(url, json=request)
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+                response = await client.post(url, json=request)
+        except httpx.TimeoutException as error:
+            raise LocalVLLMClientError(
+                "Local vLLM request timed out: "
+                f"{url}: {type(error).__name__} after "
+                f"{self._timeout_seconds:g} seconds"
+            ) from error
         if response.status_code >= 400:
             raise LocalVLLMClientError(f"vLLM error {response.status_code}: {response.text}")
         data = response.json()

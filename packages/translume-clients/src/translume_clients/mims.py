@@ -88,8 +88,16 @@ async def _post_json(
             f"MIMS service request failed: {url}: "
             f"{response.status_code} {response.text}"
         ) from error
+    except httpx.TimeoutException as error:
+        raise MimsServiceClientError(
+            f"MIMS service request timed out: {url}: "
+            f"{type(error).__name__} after {config.timeout_seconds:g} seconds"
+        ) from error
     except httpx.HTTPError as error:
-        raise MimsServiceClientError(f"MIMS service request failed: {url}: {error}") from error
+        raise MimsServiceClientError(
+            f"MIMS service request failed: {url}: "
+            f"{type(error).__name__}: {error}"
+        ) from error
     except ValueError as error:
         raise MimsServiceClientError(f"MIMS service returned invalid JSON: {url}") from error
     if not isinstance(data, dict):

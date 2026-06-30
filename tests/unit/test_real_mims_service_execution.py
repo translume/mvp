@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -399,6 +400,36 @@ async def test_medea_service_returns_unavailable_artifact_for_agent_trace(
     assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
     assert any(
         warning.startswith("upstream_reason=Medea returned an unusable agent trace")
+        for warning in artifact["warnings"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_medea_service_returns_unavailable_artifact_for_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    _write_fake_medea_reasoning_repo(
+        tmp_path / "Medea",
+        "(__import__('time').sleep(0.05) or 'late reasoning')",
+    )
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(tmp_path / "Medea"))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
+    monkeypatch.setenv("MIMS_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    started_at = time.monotonic()
+    artifact = await medea_reason(
+        ReasonRequest(context=_medea_context().model_dump(mode="json"))
+    )
+
+    assert time.monotonic() - started_at < 0.2
+    assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
+    assert any(
+        warning.startswith("upstream_reason=Medea bounded reasoning timed out")
         for warning in artifact["warnings"]
     )
 

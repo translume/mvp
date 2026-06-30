@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import pytest
 
 from translume_core.compiler.structured_model_artifacts import (
     StructuredArtifactGenerationError,
+    generate_claim_evidence_with_model,
     generate_tumor_behavior_model_with_model,
 )
 from translume_schemas.confirmatory import ConfirmatoryTest, ConfirmatoryTestingOutput
@@ -239,6 +239,115 @@ async def test_tumor_behavior_accepts_case_derived_model(tmp_path: Path) -> None
     )
     assert result.artifact.state_evidence[0].graph_support == ["edge_mtap_prmt5"]
     assert provider.schema_names == ["TumorBehaviorModelOutput"]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_normalizes_generated_validation_status() -> None:
+    output = _valid_output()
+    output["transition_hypotheses"][0]["validation_status"] = "validated"
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert result.artifact.transition_hypotheses[0].validation_status == "needs_review"
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_accepts_confirmatory_test_support() -> None:
+    output = _valid_output()
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+        "test_mtap",
+    ]
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert "test_mtap" in result.artifact.transition_hypotheses[0].supporting_artifacts
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_counts_generated_ids_as_mims_support() -> None:
+    output = _valid_output()
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["transition_hypotheses"][0]["supporting_artifacts"] = ["test_mtap"]
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert result.artifact.transition_hypotheses[0].supporting_artifacts == [
+        "test_mtap"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_claim_evidence_normalizes_generated_validation_status() -> None:
+    provider = TumorBehaviorModelProvider(
+        {
+            "claims": [
+                {
+                    "claim_id": "claim_mtap_review",
+                    "claim": "MTAP loss supports only a reviewable hypothesis.",
+                    "claim_class": "model_derived_hypothesis",
+                    "source_artifact_ids": ["artifact_context"],
+                    "evidence_source": "report_graph_tool_medea_context",
+                    "relevance": "Connects MTAP loss to review workflow.",
+                    "limitations": "Requires human validation.",
+                    "validation_status": "approved",
+                }
+            ]
+        }
+    )
+    tumor_provider = TumorBehaviorModelProvider(_valid_output())
+    tumor_behavior = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=tumor_provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    result = await generate_claim_evidence_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        tumor_behavior=tumor_behavior.artifact,
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert result.artifact.claims[0].validation_status == "needs_review"
 
 
 @pytest.mark.asyncio
