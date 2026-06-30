@@ -352,6 +352,57 @@ def literature_reasoning(query, literature_module):
     assert "bounded reasoning" in artifact["summary"]
 
 
+@pytest.mark.asyncio
+async def test_medea_service_returns_unavailable_artifact_for_empty_reasoning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    _write_fake_medea_reasoning_repo(tmp_path / "Medea", "''")
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(tmp_path / "Medea"))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    artifact = await medea_reason(
+        ReasonRequest(context=_medea_context().model_dump(mode="json"))
+    )
+
+    assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
+    assert artifact["requires_human_review"] is True
+    assert artifact["supported_hypotheses"] == []
+    assert "Medea literature reasoning was unavailable" in artifact["summary"]
+    assert "medea_output_not_used_for_claim_support" in artifact["warnings"]
+
+
+@pytest.mark.asyncio
+async def test_medea_service_returns_unavailable_artifact_for_agent_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    _write_fake_medea_reasoning_repo(
+        tmp_path / "Medea",
+        "{'final': 'Action parameter missing or not match with the action'}",
+    )
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(tmp_path / "Medea"))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    artifact = await medea_reason(
+        ReasonRequest(context=_medea_context().model_dump(mode="json"))
+    )
+
+    assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
+    assert any(
+        warning.startswith("upstream_reason=Medea returned an unusable agent trace")
+        for warning in artifact["warnings"]
+    )
+
+
 def test_medea_runtime_contract_requires_local_routing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -437,6 +488,77 @@ def _clear_medea_modules(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in tuple(sys.modules):
         if name == "medea" or name.startswith("medea."):
             monkeypatch.delitem(sys.modules, name, raising=False)
+
+
+def _write_fake_medea_reasoning_repo(repo: Path, result_expression: str) -> None:
+    _write_package(
+        repo,
+        "medea",
+        {
+            "__init__.py": f"""
+def chat_completion(*args, **kwargs):
+    return 'local'
+class LLMConfig:
+    def __init__(self, config):
+        self.config = config
+class AgentLLM:
+    def __init__(self, config, llm_name):
+        self.llm_name = llm_name
+class LiteratureSearch:
+    def __init__(self, model_name, verbose=False):
+        pass
+class PaperJudge:
+    def __init__(self, model_name, verbose=False):
+        pass
+class OpenScholarReasoning:
+    def __init__(self, tmp, llm_provider, verbose=False):
+        pass
+class LiteratureReasoning:
+    def __init__(self, llm, actions):
+        self.llm = llm
+        self.actions = actions
+        self.max_exec_steps = 20
+def literature_reasoning(query, literature_module):
+    assert literature_module.max_exec_steps == 6
+    return {result_expression}
+""",
+        },
+    )
+
+
+def _medea_context() -> EvidenceContextBundle:
+    return EvidenceContextBundle(
+        artifact_id="artifact_context_unavailable",
+        extraction=ReportExtractionOutput(
+            artifact_id="artifact_report_unavailable",
+            report_type="NGS",
+            disease="sarcoma",
+            molecular_findings=[
+                MolecularFinding(
+                    finding_id="finding_mtap_unavailable",
+                    gene="MTAP",
+                    alteration="loss",
+                    alteration_type="copy_number_loss",
+                    confidence=0.9,
+                )
+            ],
+            source_file_id="file_unavailable",
+        ),
+        graph_evidence=GraphEvidenceArtifact(
+            artifact_id="artifact_graph_unavailable",
+            source_entity_ids=[],
+            nodes=[],
+            edges=[],
+        ),
+        tool_outputs=[],
+        medea_reasoning=MedeaReasoningArtifact(
+            artifact_id="artifact_empty_unavailable",
+            reasoning_mode="not_yet_run",
+            summary="",
+            supported_hypotheses=[],
+            weakened_hypotheses=[],
+        ),
+    )
 
 
 def _write_complete_fake_medeadb(root: Path) -> Path:

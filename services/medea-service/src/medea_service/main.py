@@ -31,6 +31,13 @@ from translume_schemas.evidence import EvidenceContextBundle
 from translume_schemas.medea import MedeaReasoningArtifact
 
 app = FastAPI(title="medea_service")
+_DEFAULT_LITERATURE_MAX_EXEC_STEPS = 6
+_UNUSABLE_REASONING_MARKERS = (
+    "Action parameter missing or not match with the action",
+    "Expected format:",
+    "Expcted format:",
+    "TaskPackage",
+)
 
 
 class ReasonRequest(BaseModel):
@@ -178,6 +185,9 @@ async def reason(request: ReasonRequest) -> dict[str, object]:
             database,
             required=required,
         )
+    except (MedeaDatabaseError, ValueError, VendorRuntimeError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    try:
         result = _run_medea_literature_reasoning(
             medea_module,
             context,
@@ -193,8 +203,16 @@ async def reason(request: ReasonRequest) -> dict[str, object]:
             database_evidence=database_evidence,
             required_database=required,
         )
-    except (MedeaDatabaseError, ValueError, VendorRuntimeError) as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+    except VendorRuntimeError as error:
+        artifact = _unavailable_medea_artifact(
+            context,
+            routing=routing,
+            patched_modules=patched_modules,
+            database=database,
+            database_evidence=database_evidence,
+            required_database=required,
+            reason=str(error),
+        )
     return artifact.model_dump(mode="json")
 
 
@@ -371,6 +389,11 @@ def _run_medea_literature_reasoning(
             llm=literature_llm,
             actions=literature_actions,
         )
+        if hasattr(literature_module, "max_exec_steps"):
+            literature_module.max_exec_steps = _positive_int_runtime_environment(
+                "MEDEA_LITERATURE_MAX_EXEC_STEPS",
+                _DEFAULT_LITERATURE_MAX_EXEC_STEPS,
+            )
         return medea_module.literature_reasoning(
             query=_query_from_context(context, database_evidence),
             literature_module=literature_module,
@@ -419,8 +442,7 @@ def _artifact_from_medea_result(
     required_database: bool,
 ) -> MedeaReasoningArtifact:
     text = _result_to_text(result)
-    if not text.strip():
-        raise VendorRuntimeError("Medea returned empty reasoning output")
+    _validate_reasoning_text(text)
     artifact_id = f"artifact_{uuid5(NAMESPACE_URL, context.artifact_id + ':medea_service').hex[:16]}"
     warnings = [
         "medea_output_is_bounded_reasoning_support_not_clinical_truth",
@@ -466,6 +488,116 @@ def _artifact_from_medea_result(
         warnings=warnings,
         requires_human_review=True,
     )
+
+
+def _unavailable_medea_artifact(
+    context: EvidenceContextBundle,
+    *,
+    routing: LocalMedeaRoutingConfig,
+    patched_modules: tuple[str, ...],
+    database: MedeaDBStatus,
+    database_evidence: MedeaDBEvidence | None,
+    required_database: bool,
+    reason: str,
+) -> MedeaReasoningArtifact:
+    """Return a bounded unavailable artifact for unusable upstream reasoning.
+
+    Acceptance criteria:
+        1. Returns schema-valid `MedeaReasoningArtifact`.
+        2. Does not fabricate literature conclusions or hypotheses.
+        3. Preserves local routing and MedeaDB availability metadata.
+        4. Requires human review for all downstream claims.
+
+    Args:
+        context: Evidence context that was submitted to Medea.
+        routing: Local vLLM routing used by the service.
+        patched_modules: Vendored modules patched for local model routing.
+        database: Inspected MedeaDB status.
+        database_evidence: Optional bounded MedeaDB evidence.
+        required_database: Whether MedeaDB strict mode was enabled.
+        reason: Upstream reasoning failure or unusable-output reason.
+
+    Returns:
+        Review-required Medea reasoning artifact.
+    """
+    artifact_id = f"artifact_{uuid5(NAMESPACE_URL, context.artifact_id + ':medea_service_unavailable').hex[:16]}"
+    warnings = [
+        "medea_literature_reasoning_unavailable",
+        "medea_output_not_used_for_claim_support",
+        "medea_model_calls_routed_through_local_vllm",
+        "patched_modules=" + ",".join(patched_modules),
+        "local_model=" + routing.model_name,
+        f"medeadb_required={str(required_database).lower()}",
+        f"medeadb_available={str(database.available).lower()}",
+        "medeadb_path=" + str(database.path),
+        "upstream_reason=" + reason[:500],
+    ]
+    summary_parts = [
+        (
+            "Medea literature reasoning was unavailable or unusable for this "
+            "case; downstream claims must remain needs_review."
+        )
+    ]
+    if database_evidence is not None:
+        summary_parts.append(
+            "MedeaDB evidence was available but remains exploratory and "
+            "requires human review:\n"
+            + evidence_prompt_text(database_evidence)
+        )
+        warnings.extend(
+            (
+                "medeadb_evidence_is_exploratory_and_requires_human_review",
+                f"medeadb_depmap_pair_count={len(database_evidence.pairwise)}",
+                f"medeadb_depmap_neighbor_count={len(database_evidence.neighbors)}",
+            )
+        )
+    elif not database.available:
+        warnings.append("medeadb_not_available_for_this_reasoning_run")
+    return MedeaReasoningArtifact(
+        artifact_id=artifact_id,
+        reasoning_mode="medea_literature_reasoning_unavailable",
+        summary="\n\n".join(summary_parts)[:4000],
+        supported_hypotheses=[],
+        weakened_hypotheses=[],
+        warnings=warnings,
+        requires_human_review=True,
+    )
+
+
+def _validate_reasoning_text(text: str) -> None:
+    """Validate that upstream Medea output is usable reasoning text.
+
+    Acceptance criteria:
+        1. Rejects blank output.
+        2. Rejects agent traces and action-parameter error text.
+        3. Rejects placeholder `None` output.
+        4. Does not mutate caller-owned values.
+
+    Args:
+        text: Text extracted from the upstream Medea result.
+
+    Raises:
+        VendorRuntimeError: If the text is unusable as reasoning support.
+    """
+    normalized = text.strip()
+    if not normalized or normalized in {"None", "{}", "[]"}:
+        raise VendorRuntimeError("Medea returned empty reasoning output")
+    for marker in _UNUSABLE_REASONING_MARKERS:
+        if marker in normalized:
+            raise VendorRuntimeError(
+                "Medea returned an unusable agent trace instead of reasoning"
+            )
+
+
+def _positive_int_runtime_environment(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise VendorRuntimeError(f"{name} must be an integer") from error
+    if value <= 0:
+        raise VendorRuntimeError(f"{name} must be positive")
+    return value
 
 
 def _result_to_text(result: Any) -> str:

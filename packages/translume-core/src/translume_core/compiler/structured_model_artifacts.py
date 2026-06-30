@@ -34,6 +34,20 @@ _BANNED_CLINICAL_PHRASES = [
     "best treatment",
     "will respond",
 ]
+_MAX_PROMPT_FINDINGS = 20
+_MAX_PROMPT_GRAPH_NODES = 25
+_MAX_PROMPT_GRAPH_EDGES = 50
+_MAX_PROMPT_TOOL_OUTPUTS = 8
+_MAX_PROMPT_TOOL_EVIDENCE_ITEMS = 5
+_MAX_PROMPT_SOURCE_TEXT_CHARS = 700
+_MAX_PROMPT_SUMMARY_CHARS = 1200
+_MAX_PROMPT_MEDEA_SUMMARY_CHARS = 1600
+_MAX_PROMPT_HYPOTHESES = 10
+_PROMPT_CONTEXT_CAP_NOTICE = (
+    "Context is relevance-capped for prompt length. Missing graph nodes, "
+    "edges, tool rows, or reasoning items must not be interpreted as absent "
+    "biological evidence."
+)
 
 
 class StructuredArtifactGenerationError(RuntimeError):
@@ -139,11 +153,12 @@ async def generate_molecular_phenotype_with_model(
 ) -> StructuredArtifactResult[MolecularPhenotypeOutput]:
     """Generate MolecularPhenotypeOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "MolecularPhenotypeOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     return await _generate_artifact(
         prompt_name="molecular_phenotype",
         schema_model=MolecularPhenotypeOutput,
         planned_artifact_id=artifact_id,
-        payload={"evidence_context": context.model_dump(mode="json")},
+        payload={"evidence_context": compact_context},
         source_artifact_ids=_context_source_ids(context),
         source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
@@ -165,12 +180,13 @@ async def generate_molecular_fit_matrix_with_model(
 ) -> StructuredArtifactResult[TherapyEvidenceMatrixOutput]:
     """Generate TherapyEvidenceMatrixOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "TherapyEvidenceMatrixOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="molecular_fit_matrix",
         schema_model=TherapyEvidenceMatrixOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
+            "evidence_context": compact_context,
             "molecular_phenotype": phenotype.model_dump(mode="json"),
         },
         source_artifact_ids=[*_context_source_ids(context), phenotype.artifact_id],
@@ -205,12 +221,13 @@ async def generate_mechanism_sankey_with_model(
 ) -> StructuredArtifactResult[MechanismSankeyOutput]:
     """Generate MechanismSankeyOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "MechanismSankeyOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="mechanism_sankey",
         schema_model=MechanismSankeyOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
+            "evidence_context": compact_context,
             "molecular_phenotype": phenotype.model_dump(mode="json"),
             "molecular_fit_matrix": matrix.model_dump(mode="json"),
         },
@@ -244,12 +261,13 @@ async def generate_confirmatory_testing_with_model(
 ) -> StructuredArtifactResult[ConfirmatoryTestingOutput]:
     """Generate ConfirmatoryTestingOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ConfirmatoryTestingOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     return await _generate_artifact(
         prompt_name="confirmatory_testing",
         schema_model=ConfirmatoryTestingOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
+            "evidence_context": compact_context,
             "molecular_phenotype": phenotype.model_dump(mode="json"),
             "molecular_fit_matrix": matrix.model_dump(mode="json"),
             "mechanism_sankey": sankey.model_dump(mode="json"),
@@ -283,12 +301,13 @@ async def generate_tumor_behavior_model_with_model(
 ) -> StructuredArtifactResult[TumorBehaviorModelOutput]:
     """Generate TumorBehaviorModelOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "TumorBehaviorModelOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="tumor_behavior_model",
         schema_model=TumorBehaviorModelOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
+            "evidence_context": compact_context,
             "molecular_phenotype": phenotype.model_dump(mode="json"),
             "molecular_fit_matrix": matrix.model_dump(mode="json"),
             "mechanism_sankey": sankey.model_dump(mode="json"),
@@ -597,12 +616,13 @@ async def generate_claim_evidence_with_model(
 ) -> StructuredArtifactResult[ClaimEvidenceListOutput]:
     """Generate ClaimEvidenceOutput list through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ClaimEvidenceListOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="claim_evidence",
         schema_model=ClaimEvidenceListOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
+            "evidence_context": compact_context,
             "molecular_phenotype": phenotype.model_dump(mode="json"),
             "molecular_fit_matrix": matrix.model_dump(mode="json"),
             "mechanism_sankey": sankey.model_dump(mode="json"),
@@ -643,11 +663,12 @@ async def generate_clinical_narrative_with_model(
     """Generate ClinicalNarrativeCompilerOutput through local vLLM structured output."""
     source_ids = _bundle_source_ids(bundle)
     artifact_id = _artifact_id(bundle.session_id, "ClinicalNarrativeCompilerOutput")
+    compact_bundle = compact_clinical_artifact_bundle_for_prompt(bundle)
     return await _generate_artifact(
         prompt_name="clinical_narrative",
         schema_model=ClinicalNarrativeCompilerOutput,
         planned_artifact_id=artifact_id,
-        payload={"clinical_artifact_bundle": bundle.model_dump(mode="json")},
+        payload={"clinical_artifact_bundle": compact_bundle},
         source_artifact_ids=source_ids,
         source_chunk_ids=_bundle_source_chunk_ids(bundle),
         source_file_id=bundle.extraction.source_file_id,
@@ -663,6 +684,511 @@ class ClaimEvidenceListOutput(BaseModel):
 
     artifact_id: str
     claims: list[ClaimEvidenceOutput]
+
+
+def truncate_text(value: str | None, max_chars: int) -> str | None:
+    """Return text capped to a deterministic character budget.
+
+    Acceptance criteria:
+        1. Determinism: Same input and limit return the same output.
+        2. No mutation: Caller-owned values are not mutated.
+        3. Validation: Non-positive limits raise `ValueError`.
+        4. Provenance: Truncated output includes omitted character count.
+
+    Args:
+        value: Optional text value to cap.
+        max_chars: Maximum number of source characters to retain.
+
+    Returns:
+        Original text when under limit, truncated text when over limit, or
+        `None` when `value` is `None`.
+
+    Raises:
+        ValueError: If `max_chars` is less than one.
+    """
+    if max_chars < 1:
+        raise ValueError("max_chars must be positive")
+    if value is None:
+        return None
+    if len(value) <= max_chars:
+        return value
+    omitted = len(value) - max_chars
+    return f"{value[:max_chars]}... [truncated {omitted} chars]"
+
+
+def entity_labels_from_context(context: EvidenceContextBundle) -> list[str]:
+    """Return unique report-derived labels for prompt relevance ranking.
+
+    Acceptance criteria:
+        1. Determinism: Label order follows report order.
+        2. No mutation: The evidence context is not mutated.
+        3. Coverage: Disease, specimen, tumor percentage, gene, alteration,
+           and alteration type values are considered.
+        4. Normalization: Empty and duplicate labels are removed.
+
+    Args:
+        context: Evidence context to inspect.
+
+    Returns:
+        Unique non-empty labels from the source report extraction.
+    """
+    raw_labels = [
+        context.extraction.disease,
+        context.extraction.specimen,
+        context.extraction.tumor_percentage,
+    ]
+    for finding in context.extraction.molecular_findings:
+        raw_labels.extend(
+            [
+                finding.gene,
+                finding.alteration,
+                finding.alteration_type,
+            ]
+        )
+    return _unique_nonempty_strings(raw_labels)
+
+
+def compact_evidence_context_for_prompt(
+    context: EvidenceContextBundle,
+) -> dict[str, object]:
+    """Return a bounded prompt payload for an evidence context.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same compact payload.
+        2. No mutation: The input context is not mutated.
+        3. Provenance: Artifact IDs, finding IDs, source chunk IDs, graph IDs,
+           tool IDs, and Medea IDs remain present.
+        4. Context safety: Truncation metadata states that omitted context is
+           not evidence of biological absence.
+
+    Args:
+        context: Full evidence context bundle.
+
+    Returns:
+        JSON-serializable compact evidence context for vLLM prompts.
+    """
+    entity_labels = entity_labels_from_context(context)
+    findings = [
+        _compact_finding_for_prompt(finding)
+        for finding in context.extraction.molecular_findings[:_MAX_PROMPT_FINDINGS]
+    ]
+    return {
+        "artifact_id": context.artifact_id,
+        "extraction": {
+            "artifact_id": context.extraction.artifact_id,
+            "report_type": context.extraction.report_type,
+            "disease": context.extraction.disease,
+            "specimen": context.extraction.specimen,
+            "tumor_percentage": context.extraction.tumor_percentage,
+            "source_file_id": context.extraction.source_file_id,
+            "needs_human_review": context.extraction.needs_human_review,
+            "molecular_findings": findings,
+            "negative_findings": context.extraction.negative_findings,
+            "assay_limitations": context.extraction.assay_limitations,
+            "truncation": {
+                "original_molecular_findings": (
+                    len(context.extraction.molecular_findings)
+                ),
+                "kept_molecular_findings": len(findings),
+            },
+        },
+        "graph_evidence": compact_graph_for_prompt(
+            context.graph_evidence.model_dump(mode="json"),
+            entity_labels,
+        ),
+        "tool_outputs": compact_tool_outputs_for_prompt(context.tool_outputs),
+        "medea_reasoning": compact_medea_reasoning_for_prompt(
+            context.medea_reasoning.model_dump(mode="json")
+        ),
+        "missing_evidence": context.missing_evidence,
+        "conflicting_evidence": context.conflicting_evidence,
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_graph_for_prompt(
+    graph: Mapping[str, Any],
+    entity_labels: Sequence[str],
+) -> dict[str, object]:
+    """Return relevance-capped graph evidence for prompt payloads.
+
+    Acceptance criteria:
+        1. Determinism: Same graph and labels return the same node/edge order.
+        2. No mutation: Caller-owned graph mappings are not mutated.
+        3. Relevance: Exact or partial label matches are ranked before
+           connected context nodes, which are ranked before unrelated nodes.
+        4. Safety: Returned metadata warns that omitted graph context is not
+           evidence of biological absence.
+
+    Args:
+        graph: JSON-serializable graph evidence artifact.
+        entity_labels: Source report labels used to rank graph relevance.
+
+    Returns:
+        Compact graph payload with capped nodes, capped edges, and metadata.
+    """
+    nodes = list(graph.get("nodes", []))
+    edges = list(graph.get("edges", []))
+    matched_node_ids = _matched_graph_node_ids(nodes, entity_labels)
+    connected_node_ids = _connected_graph_node_ids(edges, matched_node_ids)
+    ranked_nodes = sorted(
+        nodes,
+        key=lambda node: _graph_node_sort_key(
+            node,
+            entity_labels=entity_labels,
+            matched_node_ids=matched_node_ids,
+            connected_node_ids=connected_node_ids,
+        ),
+    )
+    kept_nodes = ranked_nodes[:_MAX_PROMPT_GRAPH_NODES]
+    kept_node_ids = {
+        str(node.get("node_id", "")).strip()
+        for node in kept_nodes
+        if str(node.get("node_id", "")).strip()
+    }
+    incident_edges = [
+        edge
+        for edge in edges
+        if _edge_source_id(edge) in kept_node_ids
+        or _edge_target_id(edge) in kept_node_ids
+    ]
+    ranked_edges = sorted(
+        incident_edges,
+        key=lambda edge: _graph_edge_sort_key(edge, kept_node_ids),
+    )
+    kept_edges = ranked_edges[:_MAX_PROMPT_GRAPH_EDGES]
+    return {
+        "artifact_id": graph.get("artifact_id"),
+        "source_entity_ids": graph.get("source_entity_ids", []),
+        "nodes": kept_nodes,
+        "edges": kept_edges,
+        "missing_entities": graph.get("missing_entities", []),
+        "warnings": graph.get("warnings", []),
+        "truncation": {
+            "original_nodes": len(nodes),
+            "kept_nodes": len(kept_nodes),
+            "original_edges": len(edges),
+            "kept_edges": len(kept_edges),
+            "node_cap": _MAX_PROMPT_GRAPH_NODES,
+            "edge_cap": _MAX_PROMPT_GRAPH_EDGES,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_tool_outputs_for_prompt(
+    tool_outputs: Sequence[object],
+) -> list[dict[str, object]]:
+    """Return bounded ToolUniverse artifacts for prompt payloads.
+
+    Acceptance criteria:
+        1. Determinism: Tool order and evidence item order are preserved.
+        2. No mutation: Tool artifacts are not mutated.
+        3. Provenance: Artifact IDs, workflow names, and input entity IDs are
+           retained.
+        4. Boundedness: Tool count, summary text, and evidence item count are
+           capped.
+
+    Args:
+        tool_outputs: Full ToolUniverse artifacts.
+
+    Returns:
+        Compact list of JSON-serializable tool output dictionaries.
+    """
+    compact_outputs = []
+    for tool in tool_outputs[:_MAX_PROMPT_TOOL_OUTPUTS]:
+        payload = tool.model_dump(mode="json")
+        evidence_items = payload.get("evidence_items", [])
+        compact_outputs.append(
+            {
+                "artifact_id": payload.get("artifact_id"),
+                "workflow": payload.get("workflow"),
+                "input_entity_ids": payload.get("input_entity_ids", []),
+                "summary": truncate_text(
+                    payload.get("summary", ""),
+                    _MAX_PROMPT_SUMMARY_CHARS,
+                ),
+                "evidence_items": evidence_items[
+                    :_MAX_PROMPT_TOOL_EVIDENCE_ITEMS
+                ],
+                "warnings": payload.get("warnings", []),
+                "requires_human_review": payload.get(
+                    "requires_human_review",
+                    True,
+                ),
+                "truncation": {
+                    "original_evidence_items": len(evidence_items),
+                    "kept_evidence_items": min(
+                        len(evidence_items),
+                        _MAX_PROMPT_TOOL_EVIDENCE_ITEMS,
+                    ),
+                    "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+                },
+            }
+        )
+    return compact_outputs
+
+
+def compact_medea_reasoning_for_prompt(
+    medea_reasoning: Mapping[str, Any],
+) -> dict[str, object]:
+    """Return bounded Medea reasoning for prompt payloads.
+
+    Acceptance criteria:
+        1. Determinism: Hypothesis order is preserved.
+        2. No mutation: Caller-owned mappings are not mutated.
+        3. Provenance: Artifact ID and reasoning mode remain present.
+        4. Boundedness: Summary and hypothesis lists are capped.
+
+    Args:
+        medea_reasoning: JSON-serializable Medea reasoning artifact.
+
+    Returns:
+        Compact Medea reasoning dictionary.
+    """
+    supported = list(medea_reasoning.get("supported_hypotheses", []))
+    weakened = list(medea_reasoning.get("weakened_hypotheses", []))
+    return {
+        "artifact_id": medea_reasoning.get("artifact_id"),
+        "reasoning_mode": medea_reasoning.get("reasoning_mode"),
+        "summary": truncate_text(
+            medea_reasoning.get("summary", ""),
+            _MAX_PROMPT_MEDEA_SUMMARY_CHARS,
+        ),
+        "supported_hypotheses": supported[:_MAX_PROMPT_HYPOTHESES],
+        "weakened_hypotheses": weakened[:_MAX_PROMPT_HYPOTHESES],
+        "warnings": medea_reasoning.get("warnings", []),
+        "requires_human_review": medea_reasoning.get(
+            "requires_human_review",
+            True,
+        ),
+        "truncation": {
+            "original_supported_hypotheses": len(supported),
+            "kept_supported_hypotheses": min(
+                len(supported),
+                _MAX_PROMPT_HYPOTHESES,
+            ),
+            "original_weakened_hypotheses": len(weakened),
+            "kept_weakened_hypotheses": min(
+                len(weakened),
+                _MAX_PROMPT_HYPOTHESES,
+            ),
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_clinical_artifact_bundle_for_prompt(
+    bundle: ClinicalArtifactBundle,
+) -> dict[str, object]:
+    """Return bounded clinical artifact bundle for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same bundle returns the same compact payload.
+        2. No mutation: The input bundle is not mutated.
+        3. Provenance: Source artifact IDs and source chunk IDs are retained.
+        4. Boundedness: The nested evidence context is prompt-capped.
+
+    Args:
+        bundle: Full clinical artifact bundle.
+
+    Returns:
+        JSON-serializable compact bundle for vLLM prompts.
+    """
+    compact_context = (
+        compact_evidence_context_for_prompt(bundle.evidence_context)
+        if bundle.evidence_context is not None
+        else None
+    )
+    return {
+        "case_id": bundle.case_id,
+        "session_id": bundle.session_id,
+        "extraction": _compact_extraction_for_prompt(bundle.extraction),
+        "entities": (
+            bundle.entities.model_dump(mode="json")
+            if bundle.entities is not None
+            else None
+        ),
+        "evidence_context": compact_context,
+        "phenotype": (
+            bundle.phenotype.model_dump(mode="json")
+            if bundle.phenotype is not None
+            else None
+        ),
+        "matrix": (
+            bundle.matrix.model_dump(mode="json")
+            if bundle.matrix is not None
+            else None
+        ),
+        "sankey": (
+            bundle.sankey.model_dump(mode="json")
+            if bundle.sankey is not None
+            else None
+        ),
+        "confirmatory": (
+            bundle.confirmatory.model_dump(mode="json")
+            if bundle.confirmatory is not None
+            else None
+        ),
+        "tumor_behavior": (
+            bundle.tumor_behavior.model_dump(mode="json")
+            if bundle.tumor_behavior is not None
+            else None
+        ),
+        "claims": [claim.model_dump(mode="json") for claim in bundle.claims],
+        "source_artifact_ids": _bundle_source_ids(bundle),
+        "source_chunk_ids": _bundle_source_chunk_ids(bundle),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def _compact_extraction_for_prompt(
+    extraction: ReportExtractionOutput,
+) -> dict[str, object]:
+    findings = [
+        _compact_finding_for_prompt(finding)
+        for finding in extraction.molecular_findings[:_MAX_PROMPT_FINDINGS]
+    ]
+    return {
+        "artifact_id": extraction.artifact_id,
+        "report_type": extraction.report_type,
+        "disease": extraction.disease,
+        "specimen": extraction.specimen,
+        "tumor_percentage": extraction.tumor_percentage,
+        "molecular_findings": findings,
+        "negative_findings": extraction.negative_findings,
+        "assay_limitations": extraction.assay_limitations,
+        "source_file_id": extraction.source_file_id,
+        "needs_human_review": extraction.needs_human_review,
+        "truncation": {
+            "original_molecular_findings": len(extraction.molecular_findings),
+            "kept_molecular_findings": len(findings),
+        },
+    }
+
+
+def _compact_finding_for_prompt(finding: MolecularFinding) -> dict[str, object]:
+    return {
+        "finding_id": finding.finding_id,
+        "gene": finding.gene,
+        "alteration": finding.alteration,
+        "alteration_type": finding.alteration_type,
+        "source_page": finding.source_page,
+        "source_text": truncate_text(
+            finding.source_text,
+            _MAX_PROMPT_SOURCE_TEXT_CHARS,
+        ),
+        "source_chunk_id": finding.source_chunk_id,
+        "confidence": finding.confidence,
+        "needs_human_review": finding.needs_human_review,
+        "research_use_only": finding.research_use_only,
+    }
+
+
+def _unique_nonempty_strings(values: Sequence[str | None]) -> list[str]:
+    seen: set[str] = set()
+    unique_values: list[str] = []
+    for value in values:
+        text = (value or "").strip()
+        key = text.casefold()
+        if text and key not in seen:
+            seen.add(key)
+            unique_values.append(text)
+    return unique_values
+
+
+def _matched_graph_node_ids(
+    nodes: Sequence[Mapping[str, Any]],
+    entity_labels: Sequence[str],
+) -> set[str]:
+    return {
+        str(node.get("node_id", "")).strip()
+        for node in nodes
+        if _graph_label_match_rank(str(node.get("label", "")), entity_labels) < 2
+        and str(node.get("node_id", "")).strip()
+    }
+
+
+def _connected_graph_node_ids(
+    edges: Sequence[Mapping[str, Any]],
+    matched_node_ids: set[str],
+) -> set[str]:
+    connected: set[str] = set()
+    for edge in edges:
+        source_id = _edge_source_id(edge)
+        target_id = _edge_target_id(edge)
+        if source_id in matched_node_ids and target_id:
+            connected.add(target_id)
+        if target_id in matched_node_ids and source_id:
+            connected.add(source_id)
+    return connected
+
+
+def _graph_node_sort_key(
+    node: Mapping[str, Any],
+    *,
+    entity_labels: Sequence[str],
+    matched_node_ids: set[str],
+    connected_node_ids: set[str],
+) -> tuple[int, str, str, str]:
+    node_id = str(node.get("node_id", "")).strip()
+    match_rank = _graph_label_match_rank(str(node.get("label", "")), entity_labels)
+    if node_id in matched_node_ids:
+        rank = match_rank
+    elif node_id in connected_node_ids:
+        rank = 2
+    else:
+        rank = 3
+    return (
+        rank,
+        str(node.get("kind", "")).casefold(),
+        str(node.get("label", "")).casefold(),
+        node_id.casefold(),
+    )
+
+
+def _graph_label_match_rank(label: str, entity_labels: Sequence[str]) -> int:
+    normalized_label = label.strip().casefold()
+    if not normalized_label:
+        return 3
+    normalized_entities = [
+        value.strip().casefold()
+        for value in entity_labels
+        if value.strip()
+    ]
+    if normalized_label in normalized_entities:
+        return 0
+    for entity in normalized_entities:
+        if entity in normalized_label or normalized_label in entity:
+            return 1
+    return 3
+
+
+def _graph_edge_sort_key(
+    edge: Mapping[str, Any],
+    kept_node_ids: set[str],
+) -> tuple[int, str, str, str, str]:
+    source_id = _edge_source_id(edge)
+    target_id = _edge_target_id(edge)
+    endpoint_matches = int(source_id in kept_node_ids) + int(
+        target_id in kept_node_ids
+    )
+    rank = 0 if endpoint_matches == 2 else 1
+    return (
+        rank,
+        str(edge.get("relation_type", "")).casefold(),
+        source_id.casefold(),
+        target_id.casefold(),
+        str(edge.get("edge_id", "")).casefold(),
+    )
+
+
+def _edge_source_id(edge: Mapping[str, Any]) -> str:
+    return str(edge.get("source_node_id", "")).strip()
+
+
+def _edge_target_id(edge: Mapping[str, Any]) -> str:
+    return str(edge.get("target_node_id", "")).strip()
 
 
 async def _generate_artifact(

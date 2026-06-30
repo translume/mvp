@@ -53,7 +53,7 @@
           "use_cache": true,
           "arguments": {
             "query": "$pathway_query",
-            "type": "pathway",
+            "type": "Pathway",
             "organism": "9606"
           }
         },
