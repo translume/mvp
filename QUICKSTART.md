@@ -91,7 +91,8 @@ DOCLING_EXTRACTION_METHOD=docling
 OPTIMUSKG_SERVICE_URL=http://optimuskg-service:8091
 OPTIMUSKG_PUBLIC_URL=http://localhost:8091
 OPTIMUSKG_VENDOR_DIR=/app/third_party/upstream/OptimusKG
-OPTIMUSKG_CACHE_DIR=/data/optimuskg_cache
+OPTIMUSKG_DATA_HOST_DIR=./data/optimuskg_cache
+OPTIMUSKG_CACHE_DIR=./data/optimuskg_cache
 OPTIMUSKG_USE_LCC=true
 OPTIMUSKG_MAX_EDGES=500
 OPTIMUSKG_FORCE_DOWNLOAD=false
@@ -108,6 +109,11 @@ MEDEA_SERVICE_URL=http://medea-service:8093
 MEDEA_PUBLIC_URL=http://localhost:8093
 MEDEA_VENDOR_DIR=/app/third_party/upstream/Medea
 MEDEA_MODULE_NAMES=medea
+MEDEA_DATA_HOST_DIR=./data/medea_cache
+MEDEADB_PATH=./data/medea_cache/MedeaDB
+MEDEA_REQUIRE_DATABASE=true
+MEDEA_DB_MAX_GENE_PAIRS=10
+MEDEA_DB_SIMILAR_GENES_PER_SINGLE_GENE=3
 MEDEA_ALLOWED_LOCAL_MODEL_HOSTS=localhost,127.0.0.1,0.0.0.0,host.docker.internal,vllm,vllm-clinical
 MEDEA_LOCAL_OPENAI_API_KEY=local-vllm
 MEDEA_VLLM_TIMEOUT_SECONDS=240
@@ -125,6 +131,12 @@ TRANSLUME_UI_EXPORT_DIR=/tmp/translume-ui-exports
 TRANSLUME_MAX_CHUNK_CHARS=2400
 TRANSLUME_E2E_REPORT_PATH=<ABSOLUTE_HOST_PATH_TO_REAL_ONCOLOGY_PDF>
 TRANSLUME_E2E_REPORT_TYPE=NGS
+
+TRANSLUME_REQUIRE_MIMS=true
+TRANSLUME_REQUIRE_DOCLING=true
+TRANSLUME_REQUIRE_OPENSEARCH=true
+TRANSLUME_REQUIRE_POSTGRES=true
+TOOLUNIVERSE_WORKFLOW_CONFIG=./configs/local/tooluniverse_workflows.json
 ```
 
 `VLLM_MODEL` must be a real model identifier that fits the VM GPU. The current Compose file does not pass a Hugging Face token into the vLLM container, so use a public model or update the deployment separately before using a gated model.
@@ -143,7 +155,16 @@ source .env
 set +a
 ```
 
-## 5. Validate configuration before starting Docker
+## 5. Download and validate the Harvard MIMS data
+
+```bash
+make mims-data
+make mims-data-status
+```
+
+This stores MedeaDB at `data/medea_cache/MedeaDB` and the OptimusKG client cache at `data/optimuskg_cache`. Compose bind-mounts those exact `MEDEADB_PATH` and `OPTIMUSKG_CACHE_DIR` host paths into the services; the data is not copied into Docker images. The combined target is cache-aware, so rerunning it reuses complete downloads.
+
+## 6. Validate configuration before starting Docker
 
 ```bash
 make vendor-status
@@ -154,11 +175,13 @@ make test
 
 Fix the first reported error instead of disabling a required service.
 
-## 6. Start the real MVP stack
+## 7. Start the real MVP stack
 
 The command below intentionally starts one GPU-backed vLLM service. It does not start the unused `vllm-docling` or worker services.
 
 ```bash
+export COMPOSE_PROFILES=gpu,docling
+
 docker compose up --build -d --wait --wait-timeout 1800 \
   postgres \
   opensearch \
@@ -196,7 +219,7 @@ curl -fsS "$TRANSLUME_API_URL/health"
 uv run python scripts/check_ui_health.py --url "$TRANSLUME_UI_URL"
 ```
 
-## 7. Run the real end-to-end CLI validation
+## 8. Run the real end-to-end CLI validation
 
 This command uploads the PDF from `TRANSLUME_E2E_REPORT_PATH`, checks the real services, validates the persisted review packet, persists a human-review decision, and verifies Postgres and OpenSearch side effects.
 
@@ -216,7 +239,7 @@ Follow one service live:
 docker compose logs -f translume-api
 ```
 
-## 8. Use the Gradio Oncologist Cockpit
+## 9. Use the Gradio Oncologist Cockpit
 
 Open on the VM:
 
@@ -227,7 +250,7 @@ http://localhost:7860
 For a remote VM, create a tunnel from your local machine:
 
 ```bash
-ssh -L 7860:localhost:7860 -L 8080:localhost:8080 user@your-vm
+ssh -L 7860:localhost:7860 -L 8080:localhost:8080 ubuntu@ec2-34-202-237-191.compute-1.amazonaws.com
 ```
 
 Then open:
@@ -247,7 +270,7 @@ In the cockpit:
 
 The UI reloads the exact packet persisted by FastAPI/Postgres before rendering. A missing service, invalid provenance record, or failed containment check is shown as a real error; the UI does not substitute demo data.
 
-## 9. Use the REST API
+## 10. Use the REST API
 
 Process a real report:
 
@@ -291,7 +314,7 @@ curl --fail-with-body \
   -o translume_review_packet_export.json
 ```
 
-## 10. Update the Harvard MIMS repositories safely
+## 11. Update the Harvard MIMS repositories safely
 
 Translume does not modify the upstream MIMS source trees. The upstream repositories remain under `third_party/upstream/`; Translume-specific behavior lives in `packages/translume-ports`, `packages/translume-adapters`, and `services/*-service`. Those wrappers enforce local vLLM routing, block remote model-provider escape, normalize outputs into Translume schemas, and preserve provenance.
 
@@ -346,7 +369,7 @@ uv run python scripts/run_full_stack_integration.py
 
 If an upstream update changes an API, update the Translume adapter or service wrapper. Do not edit the Harvard repository to make the integration pass.
 
-## 11. Stop or reset the stack
+## 12. Stop or reset the stack
 
 Stop containers and preserve Postgres/OpenSearch volumes:
 

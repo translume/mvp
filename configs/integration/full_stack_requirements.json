@@ -30,7 +30,8 @@
       "path": "/health",
       "required_fields": {
         "status": "ok",
-        "vendor_available": true
+        "vendor_available": true,
+        "data_available": true
       }
     },
     {
@@ -63,7 +64,11 @@
         "vendor_available": true,
         "local_model_configured": true,
         "remote_provider_blocked": true,
-        "local_chat_completion_patched": true
+        "local_chat_completion_patched": true,
+        "literature_reasoning_available": true,
+        "database_required": true,
+        "database_available": true,
+        "database_parseable": true
       }
     }
   ],

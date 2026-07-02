@@ -11,6 +11,9 @@ from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ValidationError
 
+from translume_core.compiler.mechanism_sankey import (
+    generate_mechanism_sankey_from_context,
+)
 from translume_core.provenance.provenance import build_artifact_provenance
 from translume_core.safety.language import validate_safety_language
 from translume_schemas.claims import ClaimEvidenceOutput
@@ -34,6 +37,52 @@ _BANNED_CLINICAL_PHRASES = [
     "best treatment",
     "will respond",
 ]
+_VAGUE_NARRATIVE_ALTERATION = re.compile(
+    r"\b(?P<prefix>"
+    r"the|this|that|a|an|any|identified|detected|observed|noted|"
+    r"reported|described"
+    r")\s+"
+    r"(?P<term>mutation|variant|amplification|deletion|fusion|"
+    r"overexpression|underexpression|rearrangement|splicing)\b",
+    re.IGNORECASE,
+)
+_MAX_PROMPT_FINDINGS = 20
+_MAX_PROMPT_GRAPH_NODES = 25
+_MAX_PROMPT_GRAPH_EDGES = 50
+_MAX_PROMPT_TOOL_OUTPUTS = 8
+_MAX_PROMPT_TOOL_EVIDENCE_ITEMS = 5
+_MAX_PROMPT_EVIDENCE_ITEM_FIELDS = 6
+_MAX_PROMPT_RETRIEVED_CHUNKS = 20
+_MAX_PROMPT_SOURCE_TEXT_CHARS = 700
+_MAX_PROMPT_SUMMARY_CHARS = 1200
+_MAX_PROMPT_MISC_TEXT_CHARS = 500
+_MAX_PROMPT_MEDEA_SUMMARY_CHARS = 1600
+_MAX_PROMPT_HYPOTHESES = 10
+_MAX_PROMPT_GENERATED_TEXT_CHARS = 700
+_MAX_PROMPT_AXES = 12
+_MAX_PROMPT_MATRIX_ROWS = 12
+_MAX_PROMPT_SANKEY_NODES = 30
+_MAX_PROMPT_SANKEY_LINKS = 60
+_MAX_PROMPT_CONFIRMATORY_TESTS = 12
+_MAX_PROMPT_TUMOR_STATES = 10
+_MAX_PROMPT_TRANSITIONS = 10
+_MAX_PROMPT_CLAIMS = 20
+_MAX_PROMPT_SUPPORT_IDS = 30
+_MAX_PROMPT_SANKEY_INPUT_FINDINGS = 6
+_MAX_PROMPT_SANKEY_INPUT_GRAPH_NODES = 8
+_MAX_PROMPT_SANKEY_INPUT_GRAPH_EDGES = 10
+_MAX_PROMPT_SANKEY_INPUT_TOOL_OUTPUTS = 2
+_MAX_PROMPT_SANKEY_INPUT_TOOL_EVIDENCE_ITEMS = 1
+_MAX_PROMPT_SANKEY_INPUT_HYPOTHESES = 4
+_MAX_PROMPT_SANKEY_INPUT_AXES = 3
+_MAX_PROMPT_SANKEY_INPUT_MATRIX_ROWS = 2
+_MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS = 120
+_MAX_PROMPT_SANKEY_INPUT_SUMMARY_CHARS = 200
+_PROMPT_CONTEXT_CAP_NOTICE = (
+    "Context is relevance-capped for prompt length. Missing graph nodes, "
+    "edges, tool rows, or reasoning items must not be interpreted as absent "
+    "biological evidence."
+)
 
 
 class StructuredArtifactGenerationError(RuntimeError):
@@ -90,6 +139,7 @@ async def generate_report_extraction_with_model(
     """
     source_chunks = _require_retrieved_source_chunks(retrieved_chunks)
     planned_artifact_id = _artifact_id(source_file_id, "ReportExtractionOutput")
+    prompt_chunks = _cap_retrieved_chunks_for_prompt(source_chunks)
     payload = {
         "planned_artifact_id": planned_artifact_id,
         "report_type": report_type,
@@ -100,15 +150,21 @@ async def generate_report_extraction_with_model(
             "unsupported_findings_must_be_low_confidence": True,
             "graph_literature_treatment_and_behavior_inference_disallowed": True,
         },
-        "retrieved_chunks": [_retrieved_chunk_prompt_payload(item) for item in source_chunks],
+        "retrieved_chunks": [
+            _retrieved_chunk_prompt_payload(item) for item in prompt_chunks
+        ],
+        "retrieval_truncation": _retrieved_chunk_truncation_summary(
+            source_chunks,
+            prompt_chunks,
+        ),
     }
     result = await _generate_artifact(
         prompt_name="report_extraction",
         schema_model=ReportExtractionOutput,
         planned_artifact_id=planned_artifact_id,
         payload=payload,
-        source_artifact_ids=[item.chunk.chunk_id for item in source_chunks],
-        source_chunk_ids=[item.chunk.chunk_id for item in source_chunks],
+        source_artifact_ids=[item.chunk.chunk_id for item in prompt_chunks],
+        source_chunk_ids=[item.chunk.chunk_id for item in prompt_chunks],
         source_file_id=source_file_id,
         model_provider=model_provider,
         model_name=model_name,
@@ -117,7 +173,7 @@ async def generate_report_extraction_with_model(
     )
     aligned = _source_align_report_extraction(
         result.artifact,
-        source_chunks,
+        prompt_chunks,
         report_type=report_type,
         source_file_id=source_file_id,
     )
@@ -139,11 +195,12 @@ async def generate_molecular_phenotype_with_model(
 ) -> StructuredArtifactResult[MolecularPhenotypeOutput]:
     """Generate MolecularPhenotypeOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "MolecularPhenotypeOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     return await _generate_artifact(
         prompt_name="molecular_phenotype",
         schema_model=MolecularPhenotypeOutput,
         planned_artifact_id=artifact_id,
-        payload={"evidence_context": context.model_dump(mode="json")},
+        payload={"evidence_context": compact_context},
         source_artifact_ids=_context_source_ids(context),
         source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
@@ -165,13 +222,14 @@ async def generate_molecular_fit_matrix_with_model(
 ) -> StructuredArtifactResult[TherapyEvidenceMatrixOutput]:
     """Generate TherapyEvidenceMatrixOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "TherapyEvidenceMatrixOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="molecular_fit_matrix",
         schema_model=TherapyEvidenceMatrixOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
-            "molecular_phenotype": phenotype.model_dump(mode="json"),
+            "evidence_context": compact_context,
+            "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
         },
         source_artifact_ids=[*_context_source_ids(context), phenotype.artifact_id],
         source_chunk_ids=_context_source_chunk_ids(context),
@@ -205,30 +263,209 @@ async def generate_mechanism_sankey_with_model(
 ) -> StructuredArtifactResult[MechanismSankeyOutput]:
     """Generate MechanismSankeyOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "MechanismSankeyOutput")
-    result = await _generate_artifact(
-        prompt_name="mechanism_sankey",
-        schema_model=MechanismSankeyOutput,
-        planned_artifact_id=artifact_id,
-        payload={
-            "evidence_context": context.model_dump(mode="json"),
-            "molecular_phenotype": phenotype.model_dump(mode="json"),
-            "molecular_fit_matrix": matrix.model_dump(mode="json"),
-        },
-        source_artifact_ids=[*_context_source_ids(context), phenotype.artifact_id, matrix.artifact_id],
-        source_chunk_ids=_context_source_chunk_ids(context),
-        source_file_id=context.extraction.source_file_id,
-        model_provider=model_provider,
-        model_name=model_name,
-        prompts_root=prompts_root,
-        created_at=created_at,
+    compact_context = compact_evidence_context_for_mechanism_sankey_prompt(
+        context
     )
-    node_ids = {node.node_id for node in result.artifact.nodes}
-    for link in result.artifact.links:
-        if link.source_node_id not in node_ids or link.target_node_id not in node_ids:
+    source_artifact_ids = [
+        *_context_source_ids(context),
+        phenotype.artifact_id,
+        matrix.artifact_id,
+    ]
+    try:
+        result = await _generate_artifact(
+            prompt_name="mechanism_sankey",
+            schema_model=MechanismSankeyOutput,
+            planned_artifact_id=artifact_id,
+            payload={
+                "evidence_context": compact_context,
+                "molecular_phenotype": compact_phenotype_for_sankey_prompt(
+                    phenotype
+                ),
+                "molecular_fit_matrix": compact_matrix_for_sankey_prompt(
+                    matrix
+                ),
+            },
+            source_artifact_ids=source_artifact_ids,
+            source_chunk_ids=_context_source_chunk_ids(context),
+            source_file_id=context.extraction.source_file_id,
+            model_provider=model_provider,
+            model_name=model_name,
+            prompts_root=prompts_root,
+            created_at=created_at,
+        )
+    except StructuredArtifactGenerationError as error:
+        if not _is_structured_output_timeout(error):
+            raise
+        result = _generate_mechanism_sankey_timeout_fallback(
+            context=context,
+            phenotype=phenotype,
+            matrix=matrix,
+            planned_artifact_id=artifact_id,
+            source_artifact_ids=source_artifact_ids,
+            source_chunk_ids=_context_source_chunk_ids(context),
+            created_at=created_at,
+        )
+    normalized_artifact = _normalize_and_validate_mechanism_sankey(
+        result.artifact
+    )
+    return StructuredArtifactResult(
+        artifact=normalized_artifact,
+        provenance=result.provenance,
+    )
+
+
+def _generate_mechanism_sankey_timeout_fallback(
+    *,
+    context: EvidenceContextBundle,
+    phenotype: MolecularPhenotypeOutput,
+    matrix: TherapyEvidenceMatrixOutput,
+    planned_artifact_id: str,
+    source_artifact_ids: Sequence[str],
+    source_chunk_ids: Sequence[str],
+    created_at: datetime,
+) -> StructuredArtifactResult[MechanismSankeyOutput]:
+    """Return deterministic Sankey output after a model timeout.
+
+    Acceptance criteria:
+        1. Determinism: Same context, phenotype, matrix, and timestamp return
+           equivalent artifact and provenance values.
+        2. No mutation: Do not mutate caller-owned schema models or ID lists.
+        3. Scope: Use this only for timeout handling by the caller.
+        4. Auditability: Mark provenance as `deterministic_fallback`.
+        5. Contract: The returned artifact ID matches the planned artifact ID.
+
+    Args:
+        context: Combined evidence context.
+        phenotype: Molecular phenotype artifact.
+        matrix: Molecular-fit matrix artifact.
+        planned_artifact_id: Artifact ID reserved for this workflow stage.
+        source_artifact_ids: Source artifacts used by provenance.
+        source_chunk_ids: Source chunks used by provenance.
+        created_at: Timestamp for provenance.
+
+    Returns:
+        Deterministic Sankey result with fallback provenance.
+    """
+    fallback = generate_mechanism_sankey_from_context(
+        context,
+        phenotype,
+        matrix,
+    ).model_copy(update={"artifact_id": planned_artifact_id})
+    _validate_safety(fallback.model_dump_json())
+    provenance = build_artifact_provenance(
+        artifact_type="MechanismSankeyOutput",
+        schema_name="MechanismSankeyOutput",
+        model_name="mechanism_sankey_deterministic_fallback",
+        prompt_text=None,
+        schema_json=MechanismSankeyOutput.model_json_schema(),
+        source_artifact_ids=list(source_artifact_ids),
+        source_chunk_ids=list(source_chunk_ids),
+        created_at=created_at,
+        source_file_id=context.extraction.source_file_id,
+        generation_status="deterministic_fallback",
+        artifact_id=planned_artifact_id,
+    )
+    return StructuredArtifactResult(artifact=fallback, provenance=provenance)
+
+
+def _is_structured_output_timeout(
+    error: StructuredArtifactGenerationError,
+) -> bool:
+    """Return whether a structured-output failure came from a timeout.
+
+    Acceptance criteria:
+        1. Determinism: Same exception chain returns the same boolean.
+        2. No mutation: Do not mutate exception objects.
+        3. Narrowness: Match timeout wording from provider errors only.
+        4. Safety: Non-timeout provider and validation errors return `False`.
+
+    Args:
+        error: Structured artifact generation failure.
+
+    Returns:
+        `True` when the error or chained cause carries timeout wording.
+    """
+    messages = [
+        str(item)
+        for item in (error, error.__cause__, error.__context__)
+        if item is not None
+    ]
+    return any(
+        "timed out" in message.casefold()
+        or "readtimeout" in message.casefold()
+        for message in messages
+    )
+
+
+def _normalize_and_validate_mechanism_sankey(
+    sankey: MechanismSankeyOutput,
+) -> MechanismSankeyOutput:
+    """Return Sankey output with unique nodes and valid links.
+
+    Acceptance criteria:
+        1. Determinism: Same Sankey artifact always produces equivalent output.
+        2. No mutation: Do not mutate nodes or links.
+        3. Deduplication: Exact duplicate node records are collapsed.
+        4. Validation: Conflicting duplicate node IDs raise
+           `StructuredArtifactGenerationError`.
+        5. Validation: Links must reference existing unique node IDs.
+
+    Args:
+        sankey: Mechanism Sankey artifact to normalize and validate.
+
+    Returns:
+        A copied Sankey artifact with unique nodes.
+
+    Raises:
+        StructuredArtifactGenerationError: If duplicate node IDs conflict or
+            any link references a missing node ID.
+    """
+    nodes = []
+    node_fingerprints: dict[str, tuple[str, str, str]] = {}
+    for node in sankey.nodes:
+        fingerprint = (node.label, node.kind, node.evidence_class)
+        existing = node_fingerprints.get(node.node_id)
+        if existing is None:
+            node_fingerprints[node.node_id] = fingerprint
+            nodes.append(node)
+            continue
+        if existing != fingerprint:
+            raise StructuredArtifactGenerationError(
+                "MechanismSankeyOutput duplicate node_id has conflicting "
+                f"content: {node.node_id}"
+            )
+    normalized = sankey.model_copy(update={"nodes": nodes})
+    _validate_mechanism_sankey_links(normalized)
+    return normalized
+
+
+def _validate_mechanism_sankey_links(
+    sankey: MechanismSankeyOutput,
+) -> None:
+    """Fail when a Sankey link references a missing node.
+
+    Acceptance criteria:
+        1. Determinism: Same Sankey artifact always produces the same result.
+        2. No mutation: Do not mutate nodes or links.
+        3. Validation: Raise `StructuredArtifactGenerationError` for missing
+           source or target nodes.
+
+    Args:
+        sankey: Mechanism Sankey artifact to validate.
+
+    Raises:
+        StructuredArtifactGenerationError: If any link references a missing
+            node ID.
+    """
+    node_ids = {node.node_id for node in sankey.nodes}
+    for link in sankey.links:
+        if (
+            link.source_node_id not in node_ids
+            or link.target_node_id not in node_ids
+        ):
             raise StructuredArtifactGenerationError(
                 "MechanismSankeyOutput link references a missing node"
             )
-    return result
 
 
 async def generate_confirmatory_testing_with_model(
@@ -244,15 +481,16 @@ async def generate_confirmatory_testing_with_model(
 ) -> StructuredArtifactResult[ConfirmatoryTestingOutput]:
     """Generate ConfirmatoryTestingOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ConfirmatoryTestingOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     return await _generate_artifact(
         prompt_name="confirmatory_testing",
         schema_model=ConfirmatoryTestingOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
-            "molecular_phenotype": phenotype.model_dump(mode="json"),
-            "molecular_fit_matrix": matrix.model_dump(mode="json"),
-            "mechanism_sankey": sankey.model_dump(mode="json"),
+            "evidence_context": compact_context,
+            "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
+            "molecular_fit_matrix": compact_matrix_for_prompt(matrix),
+            "mechanism_sankey": compact_sankey_for_prompt(sankey),
         },
         source_artifact_ids=[
             *_context_source_ids(context),
@@ -283,16 +521,19 @@ async def generate_tumor_behavior_model_with_model(
 ) -> StructuredArtifactResult[TumorBehaviorModelOutput]:
     """Generate TumorBehaviorModelOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "TumorBehaviorModelOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="tumor_behavior_model",
         schema_model=TumorBehaviorModelOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
-            "molecular_phenotype": phenotype.model_dump(mode="json"),
-            "molecular_fit_matrix": matrix.model_dump(mode="json"),
-            "mechanism_sankey": sankey.model_dump(mode="json"),
-            "confirmatory_testing": confirmatory.model_dump(mode="json"),
+            "evidence_context": compact_context,
+            "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
+            "molecular_fit_matrix": compact_matrix_for_prompt(matrix),
+            "mechanism_sankey": compact_sankey_for_prompt(sankey),
+            "confirmatory_testing": compact_confirmatory_for_prompt(
+                confirmatory
+            ),
         },
         source_artifact_ids=[
             *_context_source_ids(context),
@@ -308,15 +549,21 @@ async def generate_tumor_behavior_model_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
+    normalized_artifact = _normalize_tumor_behavior_transition_support(
+        _normalize_tumor_behavior_review_fields(result.artifact)
+    )
     _validate_tumor_behavior_is_case_derived(
-        result.artifact,
+        normalized_artifact,
         context=context,
         phenotype=phenotype,
         matrix=matrix,
         sankey=sankey,
         confirmatory=confirmatory,
     )
-    return result
+    return StructuredArtifactResult(
+        artifact=normalized_artifact,
+        provenance=result.provenance,
+    )
 
 
 def _validate_tumor_behavior_is_case_derived(
@@ -356,6 +603,7 @@ def _validate_tumor_behavior_is_case_derived(
     medea_ids = {context.medea_reasoning.artifact_id}
     medea_ids.update(context.medea_reasoning.supported_hypotheses)
     medea_ids.update(context.medea_reasoning.weakened_hypotheses)
+    confirmatory_ids = {test.test_id for test in confirmatory.tests}
     artifact_ids = {
         context.extraction.artifact_id,
         context.graph_evidence.artifact_id,
@@ -366,7 +614,14 @@ def _validate_tumor_behavior_is_case_derived(
         confirmatory.artifact_id,
         *tool_ids,
     }
-    evidence_ids = artifact_ids | finding_ids | graph_ids | medea_ids
+    evidence_ids = artifact_ids | finding_ids | graph_ids | medea_ids | confirmatory_ids
+    mims_derived_ids = _mims_derived_support_ids(
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        sankey=sankey,
+        confirmatory=confirmatory,
+    )
     case_terms = _tumor_behavior_case_terms(
         context=context,
         phenotype=phenotype,
@@ -441,7 +696,10 @@ def _validate_tumor_behavior_is_case_derived(
             "transition_hypotheses.supporting_artifacts",
         )
         used_mims_support = used_mims_support or any(
-            item in graph_ids or item in tool_ids or item in medea_ids
+            item in graph_ids
+            or item in tool_ids
+            or item in medea_ids
+            or item in mims_derived_ids
             for item in transition.supporting_artifacts
         )
         _validate_transition_rationale_is_case_derived(transition.rationale, case_terms)
@@ -480,6 +738,44 @@ def _mims_evidence_available(context: EvidenceContextBundle) -> bool:
         or context.medea_reasoning.supported_hypotheses
         or context.medea_reasoning.weakened_hypotheses
     )
+
+
+def _mims_derived_support_ids(
+    *,
+    context: EvidenceContextBundle,
+    phenotype: MolecularPhenotypeOutput,
+    matrix: TherapyEvidenceMatrixOutput,
+    sankey: MechanismSankeyOutput,
+    confirmatory: ConfirmatoryTestingOutput,
+) -> set[str]:
+    """Return generated artifact IDs that carry current-case MIMS support.
+
+    Acceptance criteria:
+        1. Determinism: Same artifacts return the same ID set.
+        2. No mutation: Input models are not mutated.
+        3. Scope: Return an empty set when no MIMS evidence is available.
+        4. Provenance: Include only current-case generated artifact IDs and
+           confirmatory test IDs already validated elsewhere.
+
+    Args:
+        context: Current evidence context.
+        phenotype: Current generated molecular phenotype artifact.
+        matrix: Current generated molecular-fit matrix artifact.
+        sankey: Current generated mechanism Sankey artifact.
+        confirmatory: Current generated confirmatory-testing artifact.
+
+    Returns:
+        Generated support IDs that can satisfy MIMS-support usage.
+    """
+    if not _mims_evidence_available(context):
+        return set()
+    return {
+        phenotype.artifact_id,
+        matrix.artifact_id,
+        sankey.artifact_id,
+        confirmatory.artifact_id,
+        *(test.test_id for test in confirmatory.tests),
+    }
 
 
 def _tumor_behavior_case_terms(
@@ -597,17 +893,22 @@ async def generate_claim_evidence_with_model(
 ) -> StructuredArtifactResult[ClaimEvidenceListOutput]:
     """Generate ClaimEvidenceOutput list through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ClaimEvidenceListOutput")
+    compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
         prompt_name="claim_evidence",
         schema_model=ClaimEvidenceListOutput,
         planned_artifact_id=artifact_id,
         payload={
-            "evidence_context": context.model_dump(mode="json"),
-            "molecular_phenotype": phenotype.model_dump(mode="json"),
-            "molecular_fit_matrix": matrix.model_dump(mode="json"),
-            "mechanism_sankey": sankey.model_dump(mode="json"),
-            "confirmatory_testing": confirmatory.model_dump(mode="json"),
-            "tumor_behavior_model": tumor_behavior.model_dump(mode="json"),
+            "evidence_context": compact_context,
+            "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
+            "molecular_fit_matrix": compact_matrix_for_prompt(matrix),
+            "mechanism_sankey": compact_sankey_for_prompt(sankey),
+            "confirmatory_testing": compact_confirmatory_for_prompt(
+                confirmatory
+            ),
+            "tumor_behavior_model": compact_tumor_behavior_for_prompt(
+                tumor_behavior
+            ),
         },
         source_artifact_ids=[
             *_context_source_ids(context),
@@ -624,12 +925,16 @@ async def generate_claim_evidence_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
-    for claim in result.artifact.claims:
-        if claim.validation_status not in {"needs_review", "validated", "rejected"}:
+    normalized_artifact = _normalize_claim_validation_statuses(result.artifact)
+    for claim in normalized_artifact.claims:
+        if claim.validation_status != "needs_review":
             raise StructuredArtifactGenerationError(
-                f"ClaimEvidenceOutput has invalid validation_status: {claim.validation_status}"
+                "ClaimEvidenceOutput validation_status must be needs_review"
             )
-    return result
+    return StructuredArtifactResult(
+        artifact=normalized_artifact,
+        provenance=result.provenance,
+    )
 
 
 async def generate_clinical_narrative_with_model(
@@ -643,11 +948,12 @@ async def generate_clinical_narrative_with_model(
     """Generate ClinicalNarrativeCompilerOutput through local vLLM structured output."""
     source_ids = _bundle_source_ids(bundle)
     artifact_id = _artifact_id(bundle.session_id, "ClinicalNarrativeCompilerOutput")
-    return await _generate_artifact(
+    compact_bundle = compact_clinical_artifact_bundle_for_prompt(bundle)
+    result = await _generate_artifact(
         prompt_name="clinical_narrative",
         schema_model=ClinicalNarrativeCompilerOutput,
         planned_artifact_id=artifact_id,
-        payload={"clinical_artifact_bundle": bundle.model_dump(mode="json")},
+        payload={"clinical_artifact_bundle": compact_bundle},
         source_artifact_ids=source_ids,
         source_chunk_ids=_bundle_source_chunk_ids(bundle),
         source_file_id=bundle.extraction.source_file_id,
@@ -656,6 +962,10 @@ async def generate_clinical_narrative_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
+    return StructuredArtifactResult(
+        artifact=_normalize_clinical_narrative_fragments(result.artifact),
+        provenance=result.provenance,
+    )
 
 
 class ClaimEvidenceListOutput(BaseModel):
@@ -663,6 +973,1493 @@ class ClaimEvidenceListOutput(BaseModel):
 
     artifact_id: str
     claims: list[ClaimEvidenceOutput]
+
+
+def _normalize_validation_status_for_review(_value: object) -> str:
+    """Return the initial review status for model-generated artifacts.
+
+    Acceptance criteria:
+        1. Determinism: Any input value returns the same normalized status.
+        2. No mutation: Caller-owned values are not mutated.
+        3. Safety: Model-generated validated or rejected statuses are not
+           accepted as human validation decisions.
+        4. Reviewability: Every generated validation status starts as
+           `needs_review`.
+
+    Args:
+        value: Raw model-generated validation status.
+
+    Returns:
+        The only allowed initial status, `needs_review`.
+    """
+    return "needs_review"
+
+
+def _normalize_tumor_behavior_review_fields(
+    tumor_behavior: TumorBehaviorModelOutput,
+) -> TumorBehaviorModelOutput:
+    """Return tumor behavior output with workflow review gates normalized.
+
+    Acceptance criteria:
+        1. Determinism: Same tumor behavior input returns equivalent output.
+        2. No mutation: The input model and nested records are not mutated.
+        3. Evidence integrity: Do not synthesize supporting evidence IDs or
+           biological claims.
+        4. Missing evidence: Empty-support states are marked as
+           `missing_speculative_evidence`.
+        5. Reviewability: All generated states are marked validation-needed.
+        6. Hypothesis control: All generated transitions remain
+           hypothesis-generating and `needs_review`.
+
+    Args:
+        tumor_behavior: Model-generated tumor behavior artifact.
+
+    Returns:
+        A copied artifact whose reviewability fields follow workflow policy.
+    """
+    states = [
+        state.model_copy(
+            update={
+                "evidence_class": (
+                    "missing_speculative_evidence"
+                    if not (
+                        state.supporting_findings
+                        or state.graph_support
+                        or state.tool_support
+                        or state.medea_support
+                    )
+                    else state.evidence_class
+                ),
+                "validation_needed": True,
+            }
+        )
+        for state in tumor_behavior.state_evidence
+    ]
+    transitions = [
+        transition.model_copy(
+            update={
+                "hypothesis_generating": True,
+                "validation_status": _normalize_validation_status_for_review(
+                    transition.validation_status
+                ),
+            }
+        )
+        for transition in tumor_behavior.transition_hypotheses
+    ]
+    return tumor_behavior.model_copy(
+        update={
+            "state_evidence": states,
+            "transition_hypotheses": transitions,
+        }
+    )
+
+
+def _normalize_tumor_behavior_transition_support(
+    tumor_behavior: TumorBehaviorModelOutput,
+) -> TumorBehaviorModelOutput:
+    """Return tumor behavior output without self-referential support IDs.
+
+    Acceptance criteria:
+        1. Determinism: Same tumor behavior input returns equivalent output.
+        2. No mutation: The input model and nested transitions are not mutated.
+        3. Evidence integrity: Do not add or substitute supporting artifacts.
+        4. Scope: Remove only the tumor behavior artifact's own ID from
+           transition support.
+        5. Validation: Transitions with no remaining support still fail later
+           validation as missing support.
+
+    Args:
+        tumor_behavior: Model-generated tumor behavior artifact.
+
+    Returns:
+        A copied artifact whose transitions do not cite the artifact itself as
+        support.
+    """
+    transitions = [
+        transition.model_copy(
+            update={
+                "supporting_artifacts": [
+                    artifact_id
+                    for artifact_id in transition.supporting_artifacts
+                    if artifact_id != tumor_behavior.artifact_id
+                ]
+            }
+        )
+        for transition in tumor_behavior.transition_hypotheses
+    ]
+    return tumor_behavior.model_copy(update={"transition_hypotheses": transitions})
+
+
+def _normalize_claim_validation_statuses(
+    artifact: ClaimEvidenceListOutput,
+) -> ClaimEvidenceListOutput:
+    """Return claim evidence output with generated statuses reviewable.
+
+    Acceptance criteria:
+        1. Determinism: Same claim artifact input returns equivalent output.
+        2. No mutation: The input artifact and nested claims are not mutated.
+        3. Scope: Only claim validation_status values are normalized.
+        4. Reviewability: All generated claims use `needs_review`.
+
+    Args:
+        artifact: Model-generated claim evidence artifact.
+
+    Returns:
+        A copied artifact whose claim statuses are reviewable.
+    """
+    claims = [
+        claim.model_copy(
+            update={
+                "validation_status": _normalize_validation_status_for_review(
+                    claim.validation_status
+                )
+            }
+        )
+        for claim in artifact.claims
+    ]
+    return artifact.model_copy(update={"claims": claims})
+
+
+def _normalize_clinical_narrative_fragments(
+    narrative: ClinicalNarrativeCompilerOutput,
+) -> ClinicalNarrativeCompilerOutput:
+    """Return narrative markdown with vague alteration fragments neutralized.
+
+    Acceptance criteria:
+        1. Determinism: Same narrative input returns equivalent output.
+        2. No mutation: The input narrative is not mutated.
+        3. Evidence integrity: Do not add genes, alterations, or source IDs.
+        4. Scope: Only vague determiner-led or modifier-led alteration
+           fragments are normalized.
+        5. Reviewability: Replacement wording remains non-specific and
+           clinician-reviewable.
+
+    Args:
+        narrative: Model-generated clinical narrative artifact.
+
+    Returns:
+        A copied narrative whose markdown avoids unsupported fragments such as
+        `the mutation`, `This amplification`, and `identified variant`.
+    """
+    markdown = _VAGUE_NARRATIVE_ALTERATION.sub(
+        _neutral_narrative_fragment,
+        narrative.markdown,
+    )
+    return narrative.model_copy(update={"markdown": markdown})
+
+
+def _neutral_narrative_fragment(match: re.Match[str]) -> str:
+    replacement = "report finding"
+    prefix = match.group("prefix")
+    if prefix and prefix[0].isupper():
+        return replacement.capitalize()
+    return replacement
+
+
+def truncate_text(value: str | None, max_chars: int) -> str | None:
+    """Return text capped to a deterministic character budget.
+
+    Acceptance criteria:
+        1. Determinism: Same input and limit return the same output.
+        2. No mutation: Caller-owned values are not mutated.
+        3. Validation: Non-positive limits raise `ValueError`.
+        4. Provenance: Truncated output includes omitted character count.
+
+    Args:
+        value: Optional text value to cap.
+        max_chars: Maximum number of source characters to retain.
+
+    Returns:
+        Original text when under limit, truncated text when over limit, or
+        `None` when `value` is `None`.
+
+    Raises:
+        ValueError: If `max_chars` is less than one.
+    """
+    if max_chars < 1:
+        raise ValueError("max_chars must be positive")
+    if value is None:
+        return None
+    if len(value) <= max_chars:
+        return value
+    omitted = len(value) - max_chars
+    return f"{value[:max_chars]}... [truncated {omitted} chars]"
+
+
+def entity_labels_from_context(context: EvidenceContextBundle) -> list[str]:
+    """Return unique report-derived labels for prompt relevance ranking.
+
+    Acceptance criteria:
+        1. Determinism: Label order follows report order.
+        2. No mutation: The evidence context is not mutated.
+        3. Coverage: Disease, specimen, tumor percentage, gene, alteration,
+           and alteration type values are considered.
+        4. Normalization: Empty and duplicate labels are removed.
+
+    Args:
+        context: Evidence context to inspect.
+
+    Returns:
+        Unique non-empty labels from the source report extraction.
+    """
+    raw_labels = [
+        context.extraction.disease,
+        context.extraction.specimen,
+        context.extraction.tumor_percentage,
+    ]
+    for finding in context.extraction.molecular_findings:
+        raw_labels.extend(
+            [
+                finding.gene,
+                finding.alteration,
+                finding.alteration_type,
+            ]
+        )
+    return _unique_nonempty_strings(raw_labels)
+
+
+def compact_evidence_context_for_prompt(
+    context: EvidenceContextBundle,
+) -> dict[str, object]:
+    """Return a bounded prompt payload for an evidence context.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same compact payload.
+        2. No mutation: The input context is not mutated.
+        3. Provenance: Artifact IDs, finding IDs, source chunk IDs, graph IDs,
+           tool IDs, and Medea IDs remain present.
+        4. Context safety: Truncation metadata states that omitted context is
+           not evidence of biological absence.
+
+    Args:
+        context: Full evidence context bundle.
+
+    Returns:
+        JSON-serializable compact evidence context for vLLM prompts.
+    """
+    entity_labels = entity_labels_from_context(context)
+    findings = [
+        _compact_finding_for_prompt(finding)
+        for finding in context.extraction.molecular_findings[:_MAX_PROMPT_FINDINGS]
+    ]
+    return {
+        "artifact_id": context.artifact_id,
+        "extraction": {
+            "artifact_id": context.extraction.artifact_id,
+            "report_type": context.extraction.report_type,
+            "disease": context.extraction.disease,
+            "specimen": context.extraction.specimen,
+            "tumor_percentage": context.extraction.tumor_percentage,
+            "source_file_id": context.extraction.source_file_id,
+            "needs_human_review": context.extraction.needs_human_review,
+            "molecular_findings": findings,
+            "negative_findings": _compact_text_list(
+                context.extraction.negative_findings,
+            ),
+            "assay_limitations": _compact_text_list(
+                context.extraction.assay_limitations,
+            ),
+            "truncation": {
+                "original_molecular_findings": (
+                    len(context.extraction.molecular_findings)
+                ),
+                "kept_molecular_findings": len(findings),
+            },
+        },
+        "graph_evidence": compact_graph_for_prompt(
+            context.graph_evidence.model_dump(mode="json"),
+            entity_labels,
+        ),
+        "tool_outputs": compact_tool_outputs_for_prompt(context.tool_outputs),
+        "medea_reasoning": compact_medea_reasoning_for_prompt(
+            context.medea_reasoning.model_dump(mode="json")
+        ),
+        "missing_evidence": _compact_text_list(context.missing_evidence),
+        "conflicting_evidence": _compact_text_list(
+            context.conflicting_evidence,
+        ),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_evidence_context_for_mechanism_sankey_prompt(
+    context: EvidenceContextBundle,
+) -> dict[str, object]:
+    """Return a tighter evidence-context payload for mechanism Sankey prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same compact payload.
+        2. No mutation: The input context is not mutated.
+        3. Provenance: Artifact IDs, finding IDs, graph IDs, tool IDs, and
+           Medea IDs remain available for prompt grounding.
+        4. Boundedness: Nested evidence lists and free text use stricter
+           mechanism-Sankey prompt caps than the general prompt serializer.
+
+    Args:
+        context: Full evidence context bundle.
+
+    Returns:
+        JSON-serializable evidence context tuned for the mechanism Sankey call.
+    """
+    compact = compact_evidence_context_for_prompt(context)
+    extraction = dict(compact["extraction"])
+    findings = [
+        _compact_sankey_input_finding(finding)
+        for finding in extraction["molecular_findings"][
+            :_MAX_PROMPT_SANKEY_INPUT_FINDINGS
+        ]
+    ]
+    extraction.update(
+        {
+            "molecular_findings": findings,
+            "negative_findings": _compact_sankey_input_texts(
+                extraction.get("negative_findings", [])
+            ),
+            "assay_limitations": _compact_sankey_input_texts(
+                extraction.get("assay_limitations", [])
+            ),
+        }
+    )
+    extraction.pop("truncation", None)
+    graph = dict(compact["graph_evidence"])
+    graph.update(
+        {
+            "nodes": graph["nodes"][:_MAX_PROMPT_SANKEY_INPUT_GRAPH_NODES],
+            "edges": graph["edges"][:_MAX_PROMPT_SANKEY_INPUT_GRAPH_EDGES],
+            "missing_entities": _compact_sankey_input_texts(
+                graph.get("missing_entities", [])
+            ),
+            "warnings": _compact_sankey_input_texts(
+                graph.get("warnings", [])
+            ),
+        }
+    )
+    graph.pop("truncation", None)
+    medea = dict(compact["medea_reasoning"])
+    medea.update(
+        {
+            "summary": truncate_text(
+                str(medea.get("summary", "")),
+                _MAX_PROMPT_SANKEY_INPUT_SUMMARY_CHARS,
+            ),
+            "supported_hypotheses": _compact_sankey_input_texts(
+                medea.get("supported_hypotheses", []),
+                _MAX_PROMPT_SANKEY_INPUT_HYPOTHESES,
+            ),
+            "weakened_hypotheses": _compact_sankey_input_texts(
+                medea.get("weakened_hypotheses", []),
+                _MAX_PROMPT_SANKEY_INPUT_HYPOTHESES,
+            ),
+            "warnings": _compact_sankey_input_texts(
+                medea.get("warnings", [])
+            ),
+        }
+    )
+    medea.pop("truncation", None)
+    return {
+        "artifact_id": compact["artifact_id"],
+        "extraction": extraction,
+        "graph_evidence": graph,
+        "tool_outputs": [
+            _compact_sankey_input_tool(tool)
+            for tool in compact["tool_outputs"][
+                :_MAX_PROMPT_SANKEY_INPUT_TOOL_OUTPUTS
+            ]
+        ],
+        "medea_reasoning": medea,
+        "missing_evidence": _compact_sankey_input_texts(
+            compact.get("missing_evidence", [])
+        ),
+        "conflicting_evidence": _compact_sankey_input_texts(
+            compact.get("conflicting_evidence", [])
+        ),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_graph_for_prompt(
+    graph: Mapping[str, Any],
+    entity_labels: Sequence[str],
+) -> dict[str, object]:
+    """Return relevance-capped graph evidence for prompt payloads.
+
+    Acceptance criteria:
+        1. Determinism: Same graph and labels return the same node/edge order.
+        2. No mutation: Caller-owned graph mappings are not mutated.
+        3. Relevance: Exact or partial label matches are ranked before
+           connected context nodes, which are ranked before unrelated nodes.
+        4. Safety: Returned metadata warns that omitted graph context is not
+           evidence of biological absence.
+
+    Args:
+        graph: JSON-serializable graph evidence artifact.
+        entity_labels: Source report labels used to rank graph relevance.
+
+    Returns:
+        Compact graph payload with capped nodes, capped edges, and metadata.
+    """
+    nodes = list(graph.get("nodes", []))
+    edges = list(graph.get("edges", []))
+    matched_node_ids = _matched_graph_node_ids(nodes, entity_labels)
+    connected_node_ids = _connected_graph_node_ids(edges, matched_node_ids)
+    ranked_nodes = sorted(
+        nodes,
+        key=lambda node: _graph_node_sort_key(
+            node,
+            entity_labels=entity_labels,
+            matched_node_ids=matched_node_ids,
+            connected_node_ids=connected_node_ids,
+        ),
+    )
+    kept_nodes = ranked_nodes[:_MAX_PROMPT_GRAPH_NODES]
+    kept_node_ids = {
+        str(node.get("node_id", "")).strip()
+        for node in kept_nodes
+        if str(node.get("node_id", "")).strip()
+    }
+    incident_edges = [
+        edge
+        for edge in edges
+        if _edge_source_id(edge) in kept_node_ids
+        or _edge_target_id(edge) in kept_node_ids
+    ]
+    ranked_edges = sorted(
+        incident_edges,
+        key=lambda edge: _graph_edge_sort_key(edge, kept_node_ids),
+    )
+    kept_edges = ranked_edges[:_MAX_PROMPT_GRAPH_EDGES]
+    return {
+        "artifact_id": graph.get("artifact_id"),
+        "source_entity_ids": _compact_id_list(
+            _string_sequence(graph.get("source_entity_ids", [])),
+        ),
+        "nodes": [_compact_graph_node_for_prompt(node) for node in kept_nodes],
+        "edges": [_compact_graph_edge_for_prompt(edge) for edge in kept_edges],
+        "missing_entities": _compact_text_list(
+            _string_sequence(graph.get("missing_entities", [])),
+        ),
+        "warnings": _compact_text_list(
+            _string_sequence(graph.get("warnings", [])),
+        ),
+        "truncation": {
+            "original_nodes": len(nodes),
+            "kept_nodes": len(kept_nodes),
+            "original_edges": len(edges),
+            "kept_edges": len(kept_edges),
+            "node_cap": _MAX_PROMPT_GRAPH_NODES,
+            "edge_cap": _MAX_PROMPT_GRAPH_EDGES,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_tool_outputs_for_prompt(
+    tool_outputs: Sequence[object],
+) -> list[dict[str, object]]:
+    """Return bounded ToolUniverse artifacts for prompt payloads.
+
+    Acceptance criteria:
+        1. Determinism: Tool order and evidence item order are preserved.
+        2. No mutation: Tool artifacts are not mutated.
+        3. Provenance: Artifact IDs, workflow names, and input entity IDs are
+           retained.
+        4. Boundedness: Tool count, summary text, and evidence item count are
+           capped.
+
+    Args:
+        tool_outputs: Full ToolUniverse artifacts.
+
+    Returns:
+        Compact list of JSON-serializable tool output dictionaries.
+    """
+    compact_outputs = []
+    for tool in tool_outputs[:_MAX_PROMPT_TOOL_OUTPUTS]:
+        payload = tool.model_dump(mode="json")
+        evidence_items = _mapping_sequence(payload.get("evidence_items", []))
+        compact_outputs.append(
+            {
+                "artifact_id": payload.get("artifact_id"),
+                "workflow": payload.get("workflow"),
+                "input_entity_ids": _compact_id_list(
+                    _string_sequence(payload.get("input_entity_ids", [])),
+                ),
+                "summary": truncate_text(
+                    payload.get("summary", ""),
+                    _MAX_PROMPT_SUMMARY_CHARS,
+                ),
+                "evidence_items": [
+                    _compact_evidence_item_for_prompt(item)
+                    for item in evidence_items[:_MAX_PROMPT_TOOL_EVIDENCE_ITEMS]
+                ],
+                "warnings": _compact_text_list(
+                    _string_sequence(payload.get("warnings", [])),
+                ),
+                "requires_human_review": payload.get(
+                    "requires_human_review",
+                    True,
+                ),
+                "truncation": {
+                    "original_evidence_items": len(evidence_items),
+                    "kept_evidence_items": min(
+                        len(evidence_items),
+                        _MAX_PROMPT_TOOL_EVIDENCE_ITEMS,
+                    ),
+                    "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+                },
+            }
+        )
+    return compact_outputs
+
+
+def compact_medea_reasoning_for_prompt(
+    medea_reasoning: Mapping[str, Any],
+) -> dict[str, object]:
+    """Return bounded Medea reasoning for prompt payloads.
+
+    Acceptance criteria:
+        1. Determinism: Hypothesis order is preserved.
+        2. No mutation: Caller-owned mappings are not mutated.
+        3. Provenance: Artifact ID and reasoning mode remain present.
+        4. Boundedness: Summary and hypothesis lists are capped.
+
+    Args:
+        medea_reasoning: JSON-serializable Medea reasoning artifact.
+
+    Returns:
+        Compact Medea reasoning dictionary.
+    """
+    supported = list(medea_reasoning.get("supported_hypotheses", []))
+    weakened = list(medea_reasoning.get("weakened_hypotheses", []))
+    return {
+        "artifact_id": medea_reasoning.get("artifact_id"),
+        "reasoning_mode": medea_reasoning.get("reasoning_mode"),
+        "summary": truncate_text(
+            medea_reasoning.get("summary", ""),
+            _MAX_PROMPT_MEDEA_SUMMARY_CHARS,
+        ),
+        "supported_hypotheses": _compact_text_list(supported),
+        "weakened_hypotheses": _compact_text_list(weakened),
+        "warnings": _compact_text_list(
+            _string_sequence(medea_reasoning.get("warnings", [])),
+        ),
+        "requires_human_review": medea_reasoning.get(
+            "requires_human_review",
+            True,
+        ),
+        "truncation": {
+            "original_supported_hypotheses": len(supported),
+            "kept_supported_hypotheses": min(
+                len(supported),
+                _MAX_PROMPT_HYPOTHESES,
+            ),
+            "original_weakened_hypotheses": len(weakened),
+            "kept_weakened_hypotheses": min(
+                len(weakened),
+                _MAX_PROMPT_HYPOTHESES,
+            ),
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_clinical_artifact_bundle_for_prompt(
+    bundle: ClinicalArtifactBundle,
+) -> dict[str, object]:
+    """Return bounded clinical artifact bundle for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same bundle returns the same compact payload.
+        2. No mutation: The input bundle is not mutated.
+        3. Provenance: Source artifact IDs and source chunk IDs are retained.
+        4. Boundedness: The nested evidence context is prompt-capped.
+
+    Args:
+        bundle: Full clinical artifact bundle.
+
+    Returns:
+        JSON-serializable compact bundle for vLLM prompts.
+    """
+    compact_context = (
+        compact_evidence_context_for_prompt(bundle.evidence_context)
+        if bundle.evidence_context is not None
+        else None
+    )
+    return {
+        "case_id": bundle.case_id,
+        "session_id": bundle.session_id,
+        "extraction": _compact_extraction_for_prompt(bundle.extraction),
+        "entities": (
+            bundle.entities.model_dump(mode="json")
+            if bundle.entities is not None
+            else None
+        ),
+        "evidence_context": compact_context,
+        "phenotype": (
+            compact_phenotype_for_prompt(bundle.phenotype)
+            if bundle.phenotype is not None
+            else None
+        ),
+        "matrix": (
+            compact_matrix_for_prompt(bundle.matrix)
+            if bundle.matrix is not None
+            else None
+        ),
+        "sankey": (
+            compact_sankey_for_prompt(bundle.sankey)
+            if bundle.sankey is not None
+            else None
+        ),
+        "confirmatory": (
+            compact_confirmatory_for_prompt(bundle.confirmatory)
+            if bundle.confirmatory is not None
+            else None
+        ),
+        "tumor_behavior": (
+            compact_tumor_behavior_for_prompt(bundle.tumor_behavior)
+            if bundle.tumor_behavior is not None
+            else None
+        ),
+        "claims": compact_claims_for_prompt(bundle.claims),
+        "source_artifact_ids": _bundle_source_ids(bundle),
+        "source_chunk_ids": _bundle_source_chunk_ids(bundle),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_phenotype_for_prompt(
+    phenotype: MolecularPhenotypeOutput,
+) -> dict[str, object]:
+    """Return a bounded molecular phenotype payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same phenotype returns the same compact payload.
+        2. No mutation: The phenotype model is not mutated.
+        3. Provenance: The artifact ID and supporting finding IDs are kept.
+        4. Boundedness: Axis count and free text are capped.
+
+    Args:
+        phenotype: Full molecular phenotype artifact.
+
+    Returns:
+        JSON-serializable compact phenotype payload.
+    """
+    axes = phenotype.axes[:_MAX_PROMPT_AXES]
+    return {
+        "artifact_id": phenotype.artifact_id,
+        "axes": [
+            {
+                "axis_id": axis.axis_id,
+                "label": axis.label,
+                "supporting_finding_ids": _compact_id_list(
+                    axis.supporting_finding_ids
+                ),
+                "evidence_class": axis.evidence_class,
+                "uncertainty": truncate_text(
+                    axis.uncertainty,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "validation_needed": axis.validation_needed,
+            }
+            for axis in axes
+        ],
+        "limitations": _compact_text_list(phenotype.limitations),
+        "truncation": {
+            "original_axes": len(phenotype.axes),
+            "kept_axes": len(axes),
+            "axis_cap": _MAX_PROMPT_AXES,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_phenotype_for_sankey_prompt(
+    phenotype: MolecularPhenotypeOutput,
+) -> dict[str, object]:
+    """Return phenotype payload tuned for the mechanism Sankey call.
+
+    Acceptance criteria:
+        1. Determinism: Same phenotype returns the same compact payload.
+        2. No mutation: The phenotype model is not mutated.
+        3. Provenance: Kept axes retain axis IDs and supporting finding IDs.
+        4. Boundedness: Axis count and free text use mechanism-Sankey caps.
+
+    Args:
+        phenotype: Full molecular phenotype artifact.
+
+    Returns:
+        JSON-serializable phenotype payload for the mechanism Sankey prompt.
+    """
+    compact = compact_phenotype_for_prompt(phenotype)
+    axes = [
+        {
+            **axis,
+            "uncertainty": truncate_text(
+                str(axis.get("uncertainty", "")),
+                _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+            ),
+        }
+        for axis in compact["axes"][:_MAX_PROMPT_SANKEY_INPUT_AXES]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "axes": axes,
+        "limitations": _compact_sankey_input_texts(
+            compact.get("limitations", [])
+        ),
+    }
+
+
+def compact_matrix_for_prompt(
+    matrix: TherapyEvidenceMatrixOutput,
+) -> dict[str, object]:
+    """Return a bounded molecular-fit matrix payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Row order is preserved.
+        2. No mutation: The matrix model is not mutated.
+        3. Safety: Not-a-recommendation flags and validation text are kept.
+        4. Boundedness: Row count and free text are capped.
+
+    Args:
+        matrix: Full molecular-fit matrix artifact.
+
+    Returns:
+        JSON-serializable compact matrix payload.
+    """
+    rows = matrix.rows[:_MAX_PROMPT_MATRIX_ROWS]
+    return {
+        "artifact_id": matrix.artifact_id,
+        "rows": [
+            {
+                "rank": row.rank,
+                "molecular_fit": truncate_text(
+                    row.molecular_fit,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "fit_label": row.fit_label,
+                "why_from_omics": truncate_text(
+                    row.why_from_omics,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "evidence_basis": truncate_text(
+                    row.evidence_basis,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "limitations": truncate_text(
+                    row.limitations,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "required_validation": truncate_text(
+                    row.required_validation,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "not_a_recommendation": row.not_a_recommendation,
+            }
+            for row in rows
+        ],
+        "truncation": {
+            "original_rows": len(matrix.rows),
+            "kept_rows": len(rows),
+            "row_cap": _MAX_PROMPT_MATRIX_ROWS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_matrix_for_sankey_prompt(
+    matrix: TherapyEvidenceMatrixOutput,
+) -> dict[str, object]:
+    """Return matrix payload tuned for the mechanism Sankey call.
+
+    Acceptance criteria:
+        1. Determinism: Row order is preserved.
+        2. No mutation: The matrix model is not mutated.
+        3. Safety: Not-a-recommendation flags and validation text are kept.
+        4. Boundedness: Row count and free text use mechanism-Sankey caps.
+
+    Args:
+        matrix: Full molecular-fit matrix artifact.
+
+    Returns:
+        JSON-serializable matrix payload for the mechanism Sankey prompt.
+    """
+    compact = compact_matrix_for_prompt(matrix)
+    rows = [
+        {
+            **row,
+            "molecular_fit": truncate_text(
+                str(row.get("molecular_fit", "")),
+                _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+            ),
+            "why_from_omics": truncate_text(
+                str(row.get("why_from_omics", "")),
+                _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+            ),
+            "evidence_basis": truncate_text(
+                str(row.get("evidence_basis", "")),
+                _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+            ),
+            "limitations": truncate_text(
+                str(row.get("limitations", "")),
+                _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+            ),
+            "required_validation": truncate_text(
+                str(row.get("required_validation", "")),
+                _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+            ),
+        }
+        for row in compact["rows"][:_MAX_PROMPT_SANKEY_INPUT_MATRIX_ROWS]
+    ]
+    return {"artifact_id": compact["artifact_id"], "rows": rows}
+
+
+def compact_sankey_for_prompt(
+    sankey: MechanismSankeyOutput,
+) -> dict[str, object]:
+    """Return a bounded mechanism Sankey payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Node and link order are preserved.
+        2. No mutation: The Sankey model is not mutated.
+        3. Provenance: Node IDs, endpoint IDs, and source artifact IDs are
+           retained for kept links.
+        4. Boundedness: Node and link counts are capped.
+
+    Args:
+        sankey: Full mechanism Sankey artifact.
+
+    Returns:
+        JSON-serializable compact Sankey payload.
+    """
+    nodes = sankey.nodes[:_MAX_PROMPT_SANKEY_NODES]
+    kept_node_ids = {node.node_id for node in nodes}
+    endpoint_links = [
+        link
+        for link in sankey.links
+        if link.source_node_id in kept_node_ids
+        or link.target_node_id in kept_node_ids
+    ]
+    links = endpoint_links[:_MAX_PROMPT_SANKEY_LINKS]
+    return {
+        "artifact_id": sankey.artifact_id,
+        "nodes": [
+            {
+                "node_id": node.node_id,
+                "label": node.label,
+                "kind": node.kind,
+                "evidence_class": node.evidence_class,
+            }
+            for node in nodes
+        ],
+        "links": [
+            {
+                "source_node_id": link.source_node_id,
+                "target_node_id": link.target_node_id,
+                "value": link.value,
+                "claim_class": link.claim_class,
+                "validation_required": link.validation_required,
+                "source_artifact_ids": _compact_id_list(
+                    link.source_artifact_ids
+                ),
+            }
+            for link in links
+        ],
+        "truncation": {
+            "original_nodes": len(sankey.nodes),
+            "kept_nodes": len(nodes),
+            "original_links": len(sankey.links),
+            "kept_links": len(links),
+            "node_cap": _MAX_PROMPT_SANKEY_NODES,
+            "link_cap": _MAX_PROMPT_SANKEY_LINKS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_confirmatory_for_prompt(
+    confirmatory: ConfirmatoryTestingOutput,
+) -> dict[str, object]:
+    """Return a bounded confirmatory-testing payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Test order is preserved.
+        2. No mutation: The confirmatory-testing model is not mutated.
+        3. Provenance: Test IDs and source claim IDs are retained.
+        4. Boundedness: Test count and free text are capped.
+
+    Args:
+        confirmatory: Full confirmatory-testing artifact.
+
+    Returns:
+        JSON-serializable compact confirmatory-testing payload.
+    """
+    tests = confirmatory.tests[:_MAX_PROMPT_CONFIRMATORY_TESTS]
+    return {
+        "artifact_id": confirmatory.artifact_id,
+        "tests": [
+            {
+                "test_id": test.test_id,
+                "question": truncate_text(
+                    test.question,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "why_it_matters": truncate_text(
+                    test.why_it_matters,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "positive_interpretation": truncate_text(
+                    test.positive_interpretation,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "negative_interpretation": truncate_text(
+                    test.negative_interpretation,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "priority": test.priority,
+                "evidence_gap": truncate_text(
+                    test.evidence_gap,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "source_claim_ids": _compact_id_list(test.source_claim_ids),
+            }
+            for test in tests
+        ],
+        "must_not_assume": _compact_text_list(confirmatory.must_not_assume),
+        "truncation": {
+            "original_tests": len(confirmatory.tests),
+            "kept_tests": len(tests),
+            "test_cap": _MAX_PROMPT_CONFIRMATORY_TESTS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_tumor_behavior_for_prompt(
+    tumor_behavior: TumorBehaviorModelOutput,
+) -> dict[str, object]:
+    """Return a bounded tumor-behavior payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: State and transition order are preserved.
+        2. No mutation: The tumor-behavior model is not mutated.
+        3. Provenance: Support IDs for kept states and transitions are kept.
+        4. Boundedness: State, transition, support-ID, and free-text payloads
+           are capped.
+
+    Args:
+        tumor_behavior: Full tumor-behavior artifact.
+
+    Returns:
+        JSON-serializable compact tumor-behavior payload.
+    """
+    states = tumor_behavior.state_evidence[:_MAX_PROMPT_TUMOR_STATES]
+    transitions = tumor_behavior.transition_hypotheses[
+        :_MAX_PROMPT_TRANSITIONS
+    ]
+    return {
+        "artifact_id": tumor_behavior.artifact_id,
+        "state_evidence": [
+            {
+                "state_label": state.state_label,
+                "supporting_findings": _compact_id_list(
+                    state.supporting_findings
+                ),
+                "graph_support": _compact_id_list(state.graph_support),
+                "tool_support": _compact_id_list(state.tool_support),
+                "medea_support": _compact_id_list(state.medea_support),
+                "evidence_class": state.evidence_class,
+                "uncertainty": truncate_text(
+                    state.uncertainty,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "validation_needed": state.validation_needed,
+            }
+            for state in states
+        ],
+        "transition_hypotheses": [
+            {
+                "from_state": transition.from_state,
+                "to_state": transition.to_state,
+                "rationale": truncate_text(
+                    transition.rationale,
+                    _MAX_PROMPT_GENERATED_TEXT_CHARS,
+                ),
+                "supporting_artifacts": _compact_id_list(
+                    transition.supporting_artifacts
+                ),
+                "confidence_label": transition.confidence_label,
+                "validation_status": transition.validation_status,
+                "hypothesis_generating": transition.hypothesis_generating,
+            }
+            for transition in transitions
+        ],
+        "limitations": _compact_text_list(tumor_behavior.limitations),
+        "truncation": {
+            "original_state_evidence": len(tumor_behavior.state_evidence),
+            "kept_state_evidence": len(states),
+            "original_transition_hypotheses": len(
+                tumor_behavior.transition_hypotheses
+            ),
+            "kept_transition_hypotheses": len(transitions),
+            "state_cap": _MAX_PROMPT_TUMOR_STATES,
+            "transition_cap": _MAX_PROMPT_TRANSITIONS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_claims_for_prompt(
+    claims: Sequence[ClaimEvidenceOutput],
+) -> list[dict[str, object]]:
+    """Return bounded claim-evidence payloads for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Claim order is preserved.
+        2. No mutation: Claim models are not mutated.
+        3. Provenance: Claim IDs and source artifact IDs are retained.
+        4. Boundedness: Claim count and free text are capped.
+
+    Args:
+        claims: Full claim evidence records.
+
+    Returns:
+        JSON-serializable compact claim payloads.
+    """
+    kept_claims = claims[:_MAX_PROMPT_CLAIMS]
+    return [
+        {
+            "claim_id": claim.claim_id,
+            "claim": truncate_text(
+                claim.claim,
+                _MAX_PROMPT_GENERATED_TEXT_CHARS,
+            ),
+            "claim_class": claim.claim_class,
+            "source_artifact_ids": _compact_id_list(
+                claim.source_artifact_ids
+            ),
+            "evidence_source": truncate_text(
+                claim.evidence_source,
+                _MAX_PROMPT_GENERATED_TEXT_CHARS,
+            ),
+            "relevance": truncate_text(
+                claim.relevance,
+                _MAX_PROMPT_GENERATED_TEXT_CHARS,
+            ),
+            "limitations": truncate_text(
+                claim.limitations,
+                _MAX_PROMPT_GENERATED_TEXT_CHARS,
+            ),
+            "validation_status": claim.validation_status,
+            "truncation": {
+                "original_claims": len(claims),
+                "kept_claims": len(kept_claims),
+                "claim_cap": _MAX_PROMPT_CLAIMS,
+                "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+            },
+        }
+        for claim in kept_claims
+    ]
+
+
+def _compact_extraction_for_prompt(
+    extraction: ReportExtractionOutput,
+) -> dict[str, object]:
+    findings = [
+        _compact_finding_for_prompt(finding)
+        for finding in extraction.molecular_findings[:_MAX_PROMPT_FINDINGS]
+    ]
+    return {
+        "artifact_id": extraction.artifact_id,
+        "report_type": extraction.report_type,
+        "disease": extraction.disease,
+        "specimen": extraction.specimen,
+        "tumor_percentage": extraction.tumor_percentage,
+        "molecular_findings": findings,
+        "negative_findings": extraction.negative_findings,
+        "assay_limitations": extraction.assay_limitations,
+        "source_file_id": extraction.source_file_id,
+        "needs_human_review": extraction.needs_human_review,
+        "truncation": {
+            "original_molecular_findings": len(extraction.molecular_findings),
+            "kept_molecular_findings": len(findings),
+        },
+    }
+
+
+def _compact_finding_for_prompt(finding: MolecularFinding) -> dict[str, object]:
+    return {
+        "finding_id": finding.finding_id,
+        "gene": finding.gene,
+        "alteration": finding.alteration,
+        "alteration_type": finding.alteration_type,
+        "source_page": finding.source_page,
+        "source_text": truncate_text(
+            finding.source_text,
+            _MAX_PROMPT_SOURCE_TEXT_CHARS,
+        ),
+        "source_chunk_id": finding.source_chunk_id,
+        "confidence": finding.confidence,
+        "needs_human_review": finding.needs_human_review,
+        "research_use_only": finding.research_use_only,
+    }
+
+
+def _compact_sankey_input_finding(
+    finding: Mapping[str, object],
+) -> dict[str, object]:
+    """Return a tighter finding payload for mechanism Sankey prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same finding mapping returns the same payload.
+        2. No mutation: Do not mutate caller-owned mappings.
+        3. Provenance: Preserve finding ID, source chunk ID, and source page.
+        4. Boundedness: Source text uses the mechanism-Sankey text cap.
+
+    Args:
+        finding: General compact finding mapping.
+
+    Returns:
+        JSON-serializable finding mapping for the mechanism Sankey prompt.
+    """
+    return {
+        **finding,
+        "source_text": truncate_text(
+            str(finding.get("source_text", "")),
+            _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+        ),
+    }
+
+
+def _compact_sankey_input_texts(
+    values: object,
+    max_items: int = _MAX_PROMPT_SANKEY_INPUT_HYPOTHESES,
+) -> list[str]:
+    """Return text values capped for mechanism Sankey prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same input sequence returns the same output list.
+        2. No mutation: Caller-owned sequences are not mutated.
+        3. Validation: Non-string values are stringified explicitly.
+        4. Boundedness: Item count and character count use Sankey caps.
+
+    Args:
+        values: Candidate text values.
+        max_items: Maximum number of values to keep.
+
+    Returns:
+        Non-empty text values capped to the mechanism-Sankey text budget.
+    """
+    if not isinstance(values, Sequence) or isinstance(values, str):
+        return []
+    return [
+        item
+        for item in (
+            truncate_text(str(value), _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS)
+            for value in values[:max_items]
+        )
+        if item
+    ]
+
+
+def _compact_sankey_input_tool(
+    tool: Mapping[str, object],
+) -> dict[str, object]:
+    """Return a tighter ToolUniverse payload for mechanism Sankey prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same tool mapping returns the same payload.
+        2. No mutation: Do not mutate caller-owned mappings.
+        3. Provenance: Preserve artifact ID, workflow, and input entity IDs.
+        4. Boundedness: Evidence item count and free text use Sankey caps.
+
+    Args:
+        tool: General compact ToolUniverse payload.
+
+    Returns:
+        JSON-serializable tool payload for the mechanism Sankey prompt.
+    """
+    payload = dict(tool)
+    payload.pop("truncation", None)
+    evidence_items = _mapping_sequence(tool.get("evidence_items", []))
+    return {
+        **payload,
+        "summary": truncate_text(
+            str(tool.get("summary", "")),
+            _MAX_PROMPT_SANKEY_INPUT_SUMMARY_CHARS,
+        ),
+        "evidence_items": [
+            {
+                str(key): truncate_text(
+                    str(value),
+                    _MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS,
+                )
+                or ""
+                for key, value in item.items()
+            }
+            for item in evidence_items[
+                :_MAX_PROMPT_SANKEY_INPUT_TOOL_EVIDENCE_ITEMS
+            ]
+        ],
+        "warnings": _compact_sankey_input_texts(tool.get("warnings", [])),
+    }
+
+
+def _compact_text_list(
+    values: Sequence[str],
+    *,
+    max_items: int = _MAX_PROMPT_HYPOTHESES,
+) -> list[str]:
+    return [
+        item
+        for item in (
+            truncate_text(value, _MAX_PROMPT_GENERATED_TEXT_CHARS)
+            for value in values[:max_items]
+        )
+        if item is not None
+    ]
+
+
+def _compact_id_list(
+    values: Sequence[str],
+    *,
+    max_items: int = _MAX_PROMPT_SUPPORT_IDS,
+) -> list[str]:
+    return [value for value in values[:max_items] if value.strip()]
+
+
+def _compact_graph_node_for_prompt(node: Mapping[str, Any]) -> dict[str, object]:
+    """Return a bounded graph node payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same node mapping returns the same payload.
+        2. No mutation: Do not mutate caller-owned node mappings.
+        3. Provenance: Preserve the node ID and source fields.
+        4. Boundedness: Free-text fields are capped.
+
+    Args:
+        node: Graph node mapping.
+
+    Returns:
+        JSON-serializable compact graph node.
+    """
+    return {
+        "node_id": str(node.get("node_id", "")),
+        "label": truncate_text(
+            str(node.get("label", "")),
+            _MAX_PROMPT_MISC_TEXT_CHARS,
+        ),
+        "kind": truncate_text(
+            str(node.get("kind", "")),
+            _MAX_PROMPT_MISC_TEXT_CHARS,
+        ),
+        "source": truncate_text(
+            str(node.get("source", "")),
+            _MAX_PROMPT_MISC_TEXT_CHARS,
+        ),
+    }
+
+
+def _compact_graph_edge_for_prompt(edge: Mapping[str, Any]) -> dict[str, object]:
+    """Return a bounded graph edge payload for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same edge mapping returns the same payload.
+        2. No mutation: Do not mutate caller-owned edge mappings.
+        3. Provenance: Preserve edge ID, endpoints, and source.
+        4. Boundedness: Free-text fields are capped.
+
+    Args:
+        edge: Graph edge mapping.
+
+    Returns:
+        JSON-serializable compact graph edge.
+    """
+    return {
+        "edge_id": str(edge.get("edge_id", "")),
+        "source_node_id": _edge_source_id(edge),
+        "target_node_id": _edge_target_id(edge),
+        "relation_type": truncate_text(
+            str(edge.get("relation_type", "")),
+            _MAX_PROMPT_MISC_TEXT_CHARS,
+        ),
+        "source": truncate_text(
+            str(edge.get("source", "")),
+            _MAX_PROMPT_MISC_TEXT_CHARS,
+        ),
+    }
+
+
+def _compact_evidence_item_for_prompt(
+    item: Mapping[str, Any],
+) -> dict[str, str]:
+    """Return a bounded ToolUniverse evidence row for prompts.
+
+    Acceptance criteria:
+        1. Determinism: Preserve insertion order for kept fields.
+        2. No mutation: Do not mutate caller-owned evidence mappings.
+        3. Boundedness: Field count and value text are capped.
+        4. Compatibility: Non-string values are converted to strings.
+
+    Args:
+        item: Tool evidence item mapping.
+
+    Returns:
+        JSON-serializable compact evidence item.
+    """
+    return {
+        str(key): truncate_text(str(value), _MAX_PROMPT_MISC_TEXT_CHARS) or ""
+        for key, value in list(item.items())[:_MAX_PROMPT_EVIDENCE_ITEM_FIELDS]
+    }
+
+
+def _string_sequence(value: object) -> list[str]:
+    """Return a list of stringified values for prompt compaction.
+
+    Acceptance criteria:
+        1. Determinism: Same value returns the same list.
+        2. No mutation: Do not mutate caller-owned collections.
+        3. Compatibility: Scalar values become one-item lists.
+        4. Filtering: Empty string values are omitted.
+
+    Args:
+        value: Unknown JSON-like value.
+
+    Returns:
+        List of non-empty string values.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, Sequence):
+        return [str(item) for item in value if str(item).strip()]
+    return [str(value)] if str(value).strip() else []
+
+
+def _mapping_sequence(value: object) -> list[Mapping[str, Any]]:
+    """Return mapping items from an unknown JSON-like collection.
+
+    Acceptance criteria:
+        1. Determinism: Preserve source order for mapping items.
+        2. No mutation: Do not mutate caller-owned collections.
+        3. Filtering: Omit non-mapping values.
+        4. Compatibility: Non-sequence inputs return an empty list.
+
+    Args:
+        value: Unknown JSON-like value.
+
+    Returns:
+        Ordered list of mapping values.
+    """
+    if not isinstance(value, Sequence) or isinstance(value, str):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
+
+
+def _unique_nonempty_strings(values: Sequence[str | None]) -> list[str]:
+    seen: set[str] = set()
+    unique_values: list[str] = []
+    for value in values:
+        text = (value or "").strip()
+        key = text.casefold()
+        if text and key not in seen:
+            seen.add(key)
+            unique_values.append(text)
+    return unique_values
+
+
+def _matched_graph_node_ids(
+    nodes: Sequence[Mapping[str, Any]],
+    entity_labels: Sequence[str],
+) -> set[str]:
+    return {
+        str(node.get("node_id", "")).strip()
+        for node in nodes
+        if _graph_label_match_rank(str(node.get("label", "")), entity_labels) < 2
+        and str(node.get("node_id", "")).strip()
+    }
+
+
+def _connected_graph_node_ids(
+    edges: Sequence[Mapping[str, Any]],
+    matched_node_ids: set[str],
+) -> set[str]:
+    connected: set[str] = set()
+    for edge in edges:
+        source_id = _edge_source_id(edge)
+        target_id = _edge_target_id(edge)
+        if source_id in matched_node_ids and target_id:
+            connected.add(target_id)
+        if target_id in matched_node_ids and source_id:
+            connected.add(source_id)
+    return connected
+
+
+def _graph_node_sort_key(
+    node: Mapping[str, Any],
+    *,
+    entity_labels: Sequence[str],
+    matched_node_ids: set[str],
+    connected_node_ids: set[str],
+) -> tuple[int, str, str, str]:
+    node_id = str(node.get("node_id", "")).strip()
+    match_rank = _graph_label_match_rank(str(node.get("label", "")), entity_labels)
+    if node_id in matched_node_ids:
+        rank = match_rank
+    elif node_id in connected_node_ids:
+        rank = 2
+    else:
+        rank = 3
+    return (
+        rank,
+        str(node.get("kind", "")).casefold(),
+        str(node.get("label", "")).casefold(),
+        node_id.casefold(),
+    )
+
+
+def _graph_label_match_rank(label: str, entity_labels: Sequence[str]) -> int:
+    normalized_label = label.strip().casefold()
+    if not normalized_label:
+        return 3
+    normalized_entities = [
+        value.strip().casefold()
+        for value in entity_labels
+        if value.strip()
+    ]
+    if normalized_label in normalized_entities:
+        return 0
+    for entity in normalized_entities:
+        if entity in normalized_label or normalized_label in entity:
+            return 1
+    return 3
+
+
+def _graph_edge_sort_key(
+    edge: Mapping[str, Any],
+    kept_node_ids: set[str],
+) -> tuple[int, str, str, str, str]:
+    source_id = _edge_source_id(edge)
+    target_id = _edge_target_id(edge)
+    endpoint_matches = int(source_id in kept_node_ids) + int(
+        target_id in kept_node_ids
+    )
+    rank = 0 if endpoint_matches == 2 else 1
+    return (
+        rank,
+        str(edge.get("relation_type", "")).casefold(),
+        source_id.casefold(),
+        target_id.casefold(),
+        str(edge.get("edge_id", "")).casefold(),
+    )
+
+
+def _edge_source_id(edge: Mapping[str, Any]) -> str:
+    return str(edge.get("source_node_id", "")).strip()
+
+
+def _edge_target_id(edge: Mapping[str, Any]) -> str:
+    return str(edge.get("target_node_id", "")).strip()
 
 
 async def _generate_artifact(
@@ -680,9 +2477,10 @@ async def _generate_artifact(
     created_at: datetime,
 ) -> StructuredArtifactResult[T]:
     prompts = _load_prompt_pair(prompts_root, prompt_name)
+    payload_json = json.dumps(payload, sort_keys=True, indent=2)
     user_prompt = prompts.user.format(
         planned_artifact_id=planned_artifact_id,
-        payload_json=json.dumps(payload, sort_keys=True, indent=2),
+        payload_json=payload_json,
     )
     schema = schema_model.model_json_schema()
     try:
@@ -694,6 +2492,17 @@ async def _generate_artifact(
             json_schema=schema,
         )
         artifact = schema_model.model_validate(raw)
+    except RuntimeError as error:
+        raise StructuredArtifactGenerationError(
+            _structured_model_failure_message(
+                prompt_name=prompt_name,
+                schema_name=schema_model.__name__,
+                system_prompt=prompts.system,
+                user_prompt=user_prompt,
+                payload_json=payload_json,
+                cause=error,
+            )
+        ) from error
     except (ValidationError, ValueError, TypeError) as error:
         raise StructuredArtifactGenerationError(
             f"{schema_model.__name__} local structured output failed validation: {error}"
@@ -726,6 +2535,43 @@ def _load_prompt_pair(prompts_root: Path, prompt_name: str) -> PromptPair:
     return PromptPair(
         system=system_path.read_text(encoding="utf-8"),
         user=user_path.read_text(encoding="utf-8"),
+    )
+
+
+def _structured_model_failure_message(
+    *,
+    prompt_name: str,
+    schema_name: str,
+    system_prompt: str,
+    user_prompt: str,
+    payload_json: str,
+    cause: RuntimeError,
+) -> str:
+    """Return non-PHI prompt diagnostics for model-provider failures.
+
+    Acceptance criteria:
+        1. Determinism: Same inputs return the same diagnostic string.
+        2. No mutation: Do not mutate prompt or payload values.
+        3. Observability: Include prompt name, schema name, and prompt sizes.
+        4. Privacy: Do not include prompt text, payload text, or schema JSON.
+
+    Args:
+        prompt_name: Structured-output prompt identifier.
+        schema_name: Pydantic schema name requested from vLLM.
+        system_prompt: System prompt text.
+        user_prompt: User prompt text.
+        payload_json: Prompt payload JSON text.
+        cause: Model-provider runtime failure.
+
+    Returns:
+        Diagnostic error message safe for API/log surfacing.
+    """
+    return (
+        f"{schema_name} structured output failed for prompt {prompt_name!r}: "
+        f"system_prompt_chars={len(system_prompt)}, "
+        f"user_prompt_chars={len(user_prompt)}, "
+        f"payload_json_chars={len(payload_json)}, "
+        f"cause={type(cause).__name__}: {cause}"
     )
 
 
@@ -814,15 +2660,108 @@ def _require_retrieved_source_chunks(
     return source_chunks
 
 
+def _cap_retrieved_chunks_for_prompt(
+    retrieved_chunks: Sequence[RetrievedDocumentChunk],
+) -> list[RetrievedDocumentChunk]:
+    """Return the deterministic retrieved-chunk subset sent to the model.
+
+    Acceptance criteria:
+        1. Determinism: Same retrieved chunks produce the same ordered subset.
+        2. No mutation: Do not mutate caller-owned chunk records.
+        3. Prompt bound: Return at most `_MAX_PROMPT_RETRIEVED_CHUNKS`.
+        4. Ranking: Prefer higher retrieval scores, then earlier pages, then
+           stable chunk identifiers.
+
+    Args:
+        retrieved_chunks: Source chunks returned by retrieval.
+
+    Returns:
+        Capped retrieved chunks for report-extraction prompting.
+    """
+    ranked = sorted(retrieved_chunks, key=_retrieved_chunk_prompt_rank)
+    return ranked[:_MAX_PROMPT_RETRIEVED_CHUNKS]
+
+
+def _retrieved_chunk_prompt_rank(
+    item: RetrievedDocumentChunk,
+) -> tuple[float, int, int, str]:
+    return (
+        -_retrieved_chunk_score(item),
+        item.chunk.page_start,
+        item.chunk.page_end,
+        item.chunk.chunk_id.casefold(),
+    )
+
+
+def _retrieved_chunk_score(item: RetrievedDocumentChunk) -> float:
+    """Return a sortable retrieval score, with missing scores ranked lowest.
+
+    Acceptance criteria:
+        1. Determinism: Same retrieved chunk returns the same score.
+        2. No mutation: Do not mutate the retrieved chunk.
+        3. Validation: Missing scores are treated as lower priority.
+        4. Compatibility: String and numeric scores are accepted.
+
+    Args:
+        item: Retrieved document chunk.
+
+    Returns:
+        Floating-point score for deterministic prompt ranking.
+    """
+    if item.score is None:
+        return float("-inf")
+    return float(item.score)
+
+
+def _retrieved_chunk_truncation_summary(
+    source_chunks: Sequence[RetrievedDocumentChunk],
+    prompt_chunks: Sequence[RetrievedDocumentChunk],
+) -> dict[str, object]:
+    """Return prompt truncation metadata for report-extraction chunks.
+
+    Acceptance criteria:
+        1. Determinism: Same source and prompt chunks return the same summary.
+        2. No mutation: Do not mutate caller-owned retrieved chunks.
+        3. Transparency: Preserve original and retained counts.
+        4. Grounding: Identify retained chunk IDs for source review.
+
+    Args:
+        source_chunks: All retrieved source chunks.
+        prompt_chunks: Chunks retained for the prompt.
+
+    Returns:
+        JSON-serializable truncation summary.
+    """
+    return {
+        "original_chunks": len(source_chunks),
+        "kept_chunks": len(prompt_chunks),
+        "max_kept_chunks": _MAX_PROMPT_RETRIEVED_CHUNKS,
+        "max_source_text_chars": _MAX_PROMPT_SOURCE_TEXT_CHARS,
+        "kept_chunk_ids": [item.chunk.chunk_id for item in prompt_chunks],
+        "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
 def _retrieved_chunk_prompt_payload(item: RetrievedDocumentChunk) -> dict[str, object]:
-    """Return source-grounding payload for one retrieved chunk."""
+    """Return source-grounding payload for one retrieved chunk.
+
+    Acceptance criteria:
+        1. Determinism: Same chunk returns the same payload.
+        2. No mutation: Do not mutate the retrieved chunk.
+        3. Prompt bound: Source text is capped for vLLM context safety.
+        4. Grounding: Preserve source IDs, page range, section, method, and
+           score.
+    """
     return {
         "chunk_id": item.chunk.chunk_id,
         "page_start": item.chunk.page_start,
         "page_end": item.chunk.page_end,
         "section": item.chunk.section,
         "chunk_type": item.chunk.chunk_type,
-        "source_text": item.chunk.source_text,
+        "source_text": truncate_text(
+            item.chunk.source_text,
+            _MAX_PROMPT_SOURCE_TEXT_CHARS,
+        ),
         "retrieval_method": item.retrieval_method,
         "score": item.score,
     }

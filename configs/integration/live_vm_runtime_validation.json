@@ -189,6 +189,10 @@
         ".git",
         "remote model-provider configuration is not allowed for Medea",
         "local_chat_completion_patched",
+        "data_available",
+        "database_parseable",
+        "MedeaDB",
+        "OptimusKG cache",
         "Medea bounded reasoning failed",
         "local vLLM chat completion failed",
         "VLLM_BASE_URL host is not in"
@@ -197,6 +201,7 @@
       "next_actions": [
         "Run `make vendor-repos` on a networked VM to clone or fast-forward pull real Git repositories.",
         "Run `make vendor-status` and confirm every MIMS repo reports OK.",
+        "Run `make mims-data` and `make mims-data-status` to provision and validate MedeaDB and OptimusKG data.",
         "Do not use zip-extracted vendor folders for production/demo validation.",
         "Inspect service logs for optimuskg-service, tooluniverse-service, and medea-service.",
         "Run `curl -fsS http://localhost:8093/runtime-contract` to validate Medea local-vLLM routing and patching."

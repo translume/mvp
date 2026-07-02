@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -10,9 +11,13 @@ from optimuskg_service.main import context as optimuskg_context
 from optimuskg_service.main import ContextRequest
 from tooluniverse_service.main import workflows as tooluniverse_workflows
 from tooluniverse_service.main import WorkflowRequest
-from medea_service.main import reason as medea_reason
-from medea_service.main import runtime_contract as medea_runtime_contract
-from medea_service.main import ReasonRequest
+from medea_service.main import (
+    DepMapCorrelationRequest,
+    ReasonRequest,
+    database_depmap_correlation,
+    reason as medea_reason,
+    runtime_contract as medea_runtime_contract,
+)
 from translume_schemas.entities import NormalizedEntity, NormalizedEntitySet
 from translume_schemas.evidence import EvidenceContextBundle
 from translume_schemas.extraction import MolecularFinding, ReportExtractionOutput
@@ -23,6 +28,7 @@ from translume_schemas.medea import MedeaReasoningArtifact
 def _write_fake_optimuskg_repo(tmp_path: Path):
     """Create a tiny real OptimusKG-shaped package with parquet graph data."""
     import json
+
     pl = pytest.importorskip("polars")
 
     repo = tmp_path / "OptimusKG"
@@ -119,7 +125,9 @@ def _entities() -> NormalizedEntitySet:
 def _write_package(root: Path, package: str, files: dict[str, str]) -> None:
     package_dir = root / package
     package_dir.mkdir(parents=True)
-    (package_dir / "__init__.py").write_text(files.get("__init__.py", ""), encoding="utf-8")
+    (package_dir / "__init__.py").write_text(
+        files.get("__init__.py", ""), encoding="utf-8"
+    )
     for name, text in files.items():
         if name == "__init__.py":
             continue
@@ -165,7 +173,9 @@ async def test_optimuskg_service_rejects_missing_real_parquet_data(
     )
     monkeypatch.setenv("OPTIMUSKG_VENDOR_DIR", str(repo))
     with pytest.raises(Exception, match="OptimusKG parquet files are unavailable"):
-        await optimuskg_context(ContextRequest(entities=_entities().model_dump(mode="json")))
+        await optimuskg_context(
+            ContextRequest(entities=_entities().model_dump(mode="json"))
+        )
 
 
 @pytest.mark.asyncio
@@ -219,7 +229,7 @@ class ToolUniverse:
                         "variant_context",
                         "trial_context_review",
                     ]
-                }
+                },
             }
         ),
         encoding="utf-8",
@@ -238,7 +248,10 @@ class ToolUniverse:
             ).model_dump(mode="json"),
         )
     )
-    assert response["artifacts"][0]["summary"] == "validated dedifferentiated chondrosarcoma"
+    assert (
+        response["artifacts"][0]["summary"]
+        == "validated dedifferentiated chondrosarcoma"
+    )
     assert response["artifacts"][0]["workflow"] == "target_context"
 
 
@@ -291,6 +304,7 @@ def literature_reasoning(query, literature_module):
     monkeypatch.setenv("MEDEA_VENDOR_DIR", str(repo))
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
     monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     context = EvidenceContextBundle(
         artifact_id="artifact_context",
@@ -331,10 +345,93 @@ def literature_reasoning(query, literature_module):
             weakened_hypotheses=[],
         ),
     )
-    artifact = await medea_reason(ReasonRequest(context=context.model_dump(mode="json")))
+    artifact = await medea_reason(
+        ReasonRequest(context=context.model_dump(mode="json"))
+    )
     assert artifact["reasoning_mode"] == "medea_literature_reasoning_local_vllm"
     assert artifact["requires_human_review"] is True
     assert "bounded reasoning" in artifact["summary"]
+
+
+@pytest.mark.asyncio
+async def test_medea_service_returns_unavailable_artifact_for_empty_reasoning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    _write_fake_medea_reasoning_repo(tmp_path / "Medea", "''")
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(tmp_path / "Medea"))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    artifact = await medea_reason(
+        ReasonRequest(context=_medea_context().model_dump(mode="json"))
+    )
+
+    assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
+    assert artifact["requires_human_review"] is True
+    assert artifact["supported_hypotheses"] == []
+    assert "Medea literature reasoning was unavailable" in artifact["summary"]
+    assert "medea_output_not_used_for_claim_support" in artifact["warnings"]
+
+
+@pytest.mark.asyncio
+async def test_medea_service_returns_unavailable_artifact_for_agent_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    _write_fake_medea_reasoning_repo(
+        tmp_path / "Medea",
+        "{'final': 'Action parameter missing or not match with the action'}",
+    )
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(tmp_path / "Medea"))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    artifact = await medea_reason(
+        ReasonRequest(context=_medea_context().model_dump(mode="json"))
+    )
+
+    assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
+    assert any(
+        warning.startswith("upstream_reason=Medea returned an unusable agent trace")
+        for warning in artifact["warnings"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_medea_service_returns_unavailable_artifact_for_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    _write_fake_medea_reasoning_repo(
+        tmp_path / "Medea",
+        "(__import__('time').sleep(0.05) or 'late reasoning')",
+    )
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(tmp_path / "Medea"))
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
+    monkeypatch.setenv("MIMS_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    started_at = time.monotonic()
+    artifact = await medea_reason(
+        ReasonRequest(context=_medea_context().model_dump(mode="json"))
+    )
+
+    assert time.monotonic() - started_at < 0.2
+    assert artifact["reasoning_mode"] == "medea_literature_reasoning_unavailable"
+    assert any(
+        warning.startswith("upstream_reason=Medea bounded reasoning timed out")
+        for warning in artifact["warnings"]
+    )
 
 
 def test_medea_runtime_contract_requires_local_routing(
@@ -376,6 +473,7 @@ def literature_reasoning(query, literature_module):
     monkeypatch.setenv("MEDEA_VENDOR_DIR", str(repo))
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
     monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "false")
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     payload = medea_runtime_contract()
@@ -415,3 +513,240 @@ def literature_reasoning(query, literature_module):
     monkeypatch.setenv("OPENROUTER_API_KEY", "real-remote-key")
     with pytest.raises(Exception, match="remote model-provider"):
         medea_runtime_contract()
+
+
+def _clear_medea_modules(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in tuple(sys.modules):
+        if name == "medea" or name.startswith("medea."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+
+
+def _write_fake_medea_reasoning_repo(repo: Path, result_expression: str) -> None:
+    _write_package(
+        repo,
+        "medea",
+        {
+            "__init__.py": f"""
+def chat_completion(*args, **kwargs):
+    return 'local'
+class LLMConfig:
+    def __init__(self, config):
+        self.config = config
+class AgentLLM:
+    def __init__(self, config, llm_name):
+        self.llm_name = llm_name
+class LiteratureSearch:
+    def __init__(self, model_name, verbose=False):
+        pass
+class PaperJudge:
+    def __init__(self, model_name, verbose=False):
+        pass
+class OpenScholarReasoning:
+    def __init__(self, tmp, llm_provider, verbose=False):
+        pass
+class LiteratureReasoning:
+    def __init__(self, llm, actions):
+        self.llm = llm
+        self.actions = actions
+        self.max_exec_steps = 20
+def literature_reasoning(query, literature_module):
+    assert literature_module.max_exec_steps == 6
+    return {result_expression}
+""",
+        },
+    )
+
+
+def _medea_context() -> EvidenceContextBundle:
+    return EvidenceContextBundle(
+        artifact_id="artifact_context_unavailable",
+        extraction=ReportExtractionOutput(
+            artifact_id="artifact_report_unavailable",
+            report_type="NGS",
+            disease="sarcoma",
+            molecular_findings=[
+                MolecularFinding(
+                    finding_id="finding_mtap_unavailable",
+                    gene="MTAP",
+                    alteration="loss",
+                    alteration_type="copy_number_loss",
+                    confidence=0.9,
+                )
+            ],
+            source_file_id="file_unavailable",
+        ),
+        graph_evidence=GraphEvidenceArtifact(
+            artifact_id="artifact_graph_unavailable",
+            source_entity_ids=[],
+            nodes=[],
+            edges=[],
+        ),
+        tool_outputs=[],
+        medea_reasoning=MedeaReasoningArtifact(
+            artifact_id="artifact_empty_unavailable",
+            reasoning_mode="not_yet_run",
+            summary="",
+            supported_hypotheses=[],
+            weakened_hypotheses=[],
+        ),
+    )
+
+
+def _write_complete_fake_medeadb(root: Path) -> Path:
+    medeadb = root / "MedeaDB"
+    relative_files = (
+        "depmap_24q2/corr_matrix.npy",
+        "depmap_24q2/p_val_matrix.npy",
+        "depmap_24q2/p_adj_matrix.npy",
+        "depmap_24q2/gene_idx_array.npy",
+        "depmap_24q2/gene_names.txt",
+        "pinnacle_embeds/pinnacle_protein_embed.pth",
+        "pinnacle_embeds/pinnacle_mg_embed.pth",
+        "pinnacle_embeds/ppi_embed_dict.pth",
+        "pinnacle_embeds/pinnacle_labels_dict.txt",
+        "compass/checkpoint/pretrainer.pt",
+        "compass/checkpoint/pft_leave_IMVigor210.pt",
+        "transcriptformer_embedding/embedding_store/example/example.npy",
+        "transcriptformer_embedding/embedding_store/example/metadata.json.gz",
+    )
+    for relative in relative_files:
+        path = medeadb / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+    return medeadb
+
+
+@pytest.mark.asyncio
+async def test_medea_service_combines_literature_reasoning_and_medeadb(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_medea_modules(monkeypatch)
+    repo = tmp_path / "Medea"
+    _write_package(
+        repo,
+        "medea",
+        {
+            "__init__.py": """
+LAST_QUERY = None
+def chat_completion(*args, **kwargs):
+    return 'local'
+class LLMConfig:
+    def __init__(self, config):
+        self.config = config
+class AgentLLM:
+    def __init__(self, config, llm_name):
+        self.llm_name = llm_name
+class LiteratureSearch:
+    def __init__(self, model_name, verbose=False):
+        pass
+class PaperJudge:
+    def __init__(self, model_name, verbose=False):
+        pass
+class OpenScholarReasoning:
+    def __init__(self, tmp, llm_provider, verbose=False):
+        pass
+class LiteratureReasoning:
+    def __init__(self, llm, actions):
+        self.llm = llm
+        self.actions = actions
+def literature_reasoning(query, literature_module):
+    global LAST_QUERY
+    LAST_QUERY = query
+    assert 'MedeaDB DepMap 24Q2 exploratory evidence' in query
+    assert 'MTAP/CDKN2A: r=0.7500' in query
+    return {'final': 'literature synthesis grounded in supplied database evidence'}
+""",
+            "tool_space/__init__.py": "",
+            "tool_space/depmap.py": """
+class GeneCorrelationLookup:
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
+        self.gene_to_idx = {'MTAP': 0, 'CDKN2A': 1, 'PRMT5': 2}
+        self.num_genes = 3
+        self.format = 'dense'
+    def get_correlation(self, gene_a, gene_b):
+        if gene_a not in self.gene_to_idx or gene_b not in self.gene_to_idx:
+            raise KeyError('missing gene')
+        return {
+            'correlation': 0.75,
+            'p_value': 0.001,
+            'adjusted_p_value': 0.01,
+        }
+    def find_similar_genes(self, gene, top_n, min_correlation, max_p_value):
+        return [
+            {'gene': 'PRMT5', 'correlation': 0.8, 'p_value': 0.0001}
+        ][:top_n]
+""",
+        },
+    )
+    medeadb = _write_complete_fake_medeadb(tmp_path)
+    monkeypatch.setenv("MEDEA_VENDOR_DIR", str(repo))
+    monkeypatch.setenv("MEDEADB_PATH", str(medeadb))
+    monkeypatch.setenv("MEDEA_REQUIRE_DATABASE", "true")
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "local-model")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    context = EvidenceContextBundle(
+        artifact_id="artifact_context_db",
+        extraction=ReportExtractionOutput(
+            artifact_id="artifact_report_db",
+            report_type="NGS",
+            disease="sarcoma",
+            molecular_findings=[
+                MolecularFinding(
+                    finding_id="finding_mtap",
+                    gene="MTAP",
+                    alteration="loss",
+                    alteration_type="copy_number_loss",
+                    confidence=0.9,
+                ),
+                MolecularFinding(
+                    finding_id="finding_cdkn2a",
+                    gene="CDKN2A",
+                    alteration="loss",
+                    alteration_type="copy_number_loss",
+                    confidence=0.9,
+                ),
+            ],
+            source_file_id="file_db",
+        ),
+        graph_evidence=GraphEvidenceArtifact(
+            artifact_id="artifact_graph_db",
+            source_entity_ids=[],
+            nodes=[],
+            edges=[],
+        ),
+        tool_outputs=[],
+        medea_reasoning=MedeaReasoningArtifact(
+            artifact_id="artifact_empty_db",
+            reasoning_mode="not_yet_run",
+            summary="",
+            supported_hypotheses=[],
+            weakened_hypotheses=[],
+        ),
+    )
+
+    artifact = await medea_reason(
+        ReasonRequest(context=context.model_dump(mode="json"))
+    )
+    assert artifact["reasoning_mode"] == (
+        "medea_literature_reasoning_with_medeadb_local_vllm"
+    )
+    assert "MTAP/CDKN2A: r=0.7500" in artifact["summary"]
+    assert "literature synthesis" in artifact["summary"]
+    assert "medeadb_depmap_pair_count=1" in artifact["warnings"]
+
+    contract = medea_runtime_contract()
+    assert contract["literature_reasoning_available"] is True
+    assert contract["database_available"] is True
+    assert contract["database_parseable"] is True
+    assert contract["database_gene_count"] == 3
+
+    correlation = database_depmap_correlation(
+        DepMapCorrelationRequest(gene_a="mtap", gene_b="cdkn2a")
+    )
+    assert correlation["source"] == "MedeaDB/depmap_24q2"
+    assert correlation["correlation"] == 0.75

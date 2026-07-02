@@ -20,7 +20,7 @@ services:
     environment:
       discovery.type: single-node
       plugins.security.disabled: "true"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: translume-dev-password-123!
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: Translume-dev-password-123!
     ports:
       - "9200:9200"
     healthcheck:
@@ -45,7 +45,7 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5).read()"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5).read()"]
       interval: 30s
       timeout: 10s
       retries: 60
@@ -67,7 +67,7 @@ services:
       --structured-outputs-config.backend=auto
       --limit-mm-per-prompt '{"image":1}'
     gpus:
-      - device_ids: ["0"]
+      - device_ids: ["1"]
         capabilities: ["gpu"]
     ports:
       - "8001:8000"
@@ -95,6 +95,12 @@ services:
       context: .
       dockerfile: docker/optimuskg-service.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
+    environment:
+      OPTIMUSKG_CACHE_DIR: /app/data/optimuskg_cache
+      OPTIMUSKG_USE_LCC: ${OPTIMUSKG_USE_LCC:-true}
+      OPTIMUSKG_FORCE_DOWNLOAD: ${OPTIMUSKG_FORCE_DOWNLOAD:-false}
+    volumes:
+      - "${OPTIMUSKG_CACHE_DIR:-./data/optimuskg_cache}:/app/data/optimuskg_cache"
     ports:
       - "8091:8091"
     healthcheck:
@@ -121,6 +127,13 @@ services:
       context: .
       dockerfile: docker/medea-service.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
+    environment:
+      MEDEADB_PATH: /app/data/medea_cache/MedeaDB
+      MEDEA_REQUIRE_DATABASE: ${MEDEA_REQUIRE_DATABASE:-true}
+      MEDEA_DB_MAX_GENE_PAIRS: ${MEDEA_DB_MAX_GENE_PAIRS:-10}
+      MEDEA_DB_SIMILAR_GENES_PER_SINGLE_GENE: ${MEDEA_DB_SIMILAR_GENES_PER_SINGLE_GENE:-3}
+    volumes:
+      - "${MEDEADB_PATH:-./data/medea_cache/MedeaDB}:/app/data/medea_cache/MedeaDB:ro"
     ports:
       - "8093:8093"
     depends_on:
@@ -138,6 +151,8 @@ services:
     env_file: ${TRANSLUME_ENV_FILE:-.env}
     ports:
       - "8080:8080"
+    volumes:
+      - "./third_party:/app/third_party:ro"
     depends_on:
       postgres:
         condition: service_healthy

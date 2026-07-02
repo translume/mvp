@@ -1,0 +1,13 @@
+.git/
+**/.git/
+
+# PRIME_DIRECTIVES runs inside Docker and requires MIMS vendor repos to remain
+# updateable Git clones, so keep only the upstream vendor .git metadata in the
+# image build context. The root project .git remains excluded.
+!third_party/upstream/**/.git/
+!third_party/upstream/**/.git/**
+.git/
+**/.git/
+
+!third_party/upstream/**/.git/
+!third_party/upstream/**/.git/**

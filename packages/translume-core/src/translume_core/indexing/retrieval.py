@@ -63,7 +63,7 @@ async def index_document_chunks_for_retrieval(
         document_chunk_to_opensearch_doc(chunk, retrieval_mode=scope.mode)
         for chunk in chunks
     ]
-    await vector_store.index(INDEX_DOCUMENT_CHUNKS, documents)
+    await vector_store.index(INDEX_DOCUMENT_CHUNKS, documents, refresh="wait_for")
     return ChunkIndexingResult(
         indexed_count=len(documents),
         retrieval_mode=scope.mode,

@@ -384,9 +384,9 @@ The production workflow now runs deterministic narrative containment after `Clin
 The production workflow now validates the generated clinical narrative before review-packet export. `ClinicalNarrativeCompilerOutput` must be contained by the structured artifacts in the bundle: report extraction, normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning, phenotype, matrix, Sankey, confirmatory tests, tumor-behavior model, claim cards, and provenance. Unsupported gene-like terms, therapy-like terms, alteration-like phrases, or unknown source artifact IDs fail loudly instead of being returned as a polished narrative. A passing narrative creates a `NarrativeContainmentReport` and containment provenance; a failing narrative records a workflow failure event and blocks export.
 
 
-### OptimusKG graph context
+### OptimusKG graph data contract
 
-Translume now requires OptimusKG graph context to come from the real OptimusKG Python client and its parquet graph tables. The production path does not read arbitrary CSV/JSON edge files as a substitute. Configure `OPTIMUSKG_CACHE_DIR`, `OPTIMUSKG_USE_LCC`, `OPTIMUSKG_MAX_EDGES`, and `OPTIMUSKG_FORCE_DOWNLOAD` as needed. Missing OptimusKG package/data fails loudly.
+Use `make optimuskg-data` to populate `data/optimuskg_cache` through the vendored OptimusKG client's `set_cache_dir()` and `get_file()` APIs. Do not download arbitrary similarly named files or add a CSV/JSON fallback. Runtime parsing remains in `translume_adapters.graph_providers.optimuskg_runtime`: it obtains the client-managed Parquet paths, parses node aliases from the `properties` JSON, filters the edge scan, and records the concrete source paths in graph evidence metadata. Compose mounts the host cache at `/app/data/optimuskg_cache`.
 
 
 ## ToolUniverse workflow coverage
@@ -394,9 +394,12 @@ Translume now requires OptimusKG graph context to come from the real OptimusKG P
 The default ToolUniverse workflow config includes `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. Each workflow maps to explicit ToolUniverse tool names and dynamic arguments derived from normalized entities and graph evidence. If your vendored ToolUniverse version changes tool names or parameters, update `configs/local/tooluniverse_workflows.json` and rerun `make validate-prime-directives`, `make vendor-status`, and `make test`; do not edit Translume core compiler code or the upstream ToolUniverse repo.
 
 
-## Medea local-vLLM runtime enforcement
+## Medea literature and database runtime enforcement
 
-Medea is now routed through Translume-owned service code that validates local model configuration, blocks remote model-provider credentials, and patches Medea LLM call sites from outside the vendored repository. The Harvard Medea source under `third_party/upstream/Medea` remains clean and updateable; Translume applies local-vLLM behavior through `services/medea-service` and adapter/service boundaries rather than editing Medea files. Runtime validation now checks `/runtime-contract` on the Medea service and requires local routing fields before the full-stack report workflow can proceed. This code path is unit-validated, but Docker/GPU/vLLM/Medea runtime still requires live VM execution.
+Do not collapse Medea into only one of its two roles. `services/medea-service` preserves the bounded literature-reasoning module and enriches it with database observations parsed from the mounted MedeaDB. The database boundary is `database_runtime.py`, which validates the full snapshot and opens upstream `medea.tool_space.depmap.GeneCorrelationLookup` over `MEDEADB_PATH/depmap_24q2`; it must not reimplement the matrix format. `make medea-data` downloads `mims-harvard/MedeaDB` to `data/medea_cache/MedeaDB`, and Compose mounts that root read-only at `/app/data/medea_cache/MedeaDB`. `/runtime-contract` must report both `literature_reasoning_available` and `database_parseable`, and the default required-database mode must fail explicitly when the snapshot is incomplete.
+
+Full path and endpoint details are in
+`docs/architecture/mims_data_runtime.md`.
 
 
 ## Evidence-derived tumor behavior validation

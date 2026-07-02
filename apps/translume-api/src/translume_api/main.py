@@ -100,7 +100,7 @@ async def process_report(
             providers=_workflow_providers(settings),
         )
     except Exception as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+        raise HTTPException(status_code=422, detail=_http_error_detail(error)) from error
     return packet.model_dump(mode="json")
 
 
@@ -118,7 +118,7 @@ async def get_validation_cards(session_id: str) -> dict[str, object]:
     try:
         packet = await store.fetch_review_packet_by_session_id(session_id)
     except Exception as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
     cards = validation_cards_from_packet(packet)
     return {
         "case_id": packet.case_id,
@@ -140,7 +140,7 @@ async def get_review_packet_export(session_id: str) -> dict[str, object]:
     try:
         packet = await store.fetch_review_packet_by_session_id(session_id)
     except Exception as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
     return packet.model_dump(mode="json")
 
 
@@ -187,7 +187,7 @@ async def validate_claim(
             vector_dimension=settings.vector_dimension,
         )
     except Exception as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+        raise HTTPException(status_code=422, detail=_http_error_detail(error)) from error
     return {
         "case_id": updated_packet.case_id,
         "session_id": updated_packet.session_id,
@@ -214,6 +214,27 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         prompts_root=settings.prompts_root,
         tool_workflows=settings.tool_workflows,
     )
+
+
+def _http_error_detail(error: Exception) -> str:
+    """Return a non-empty HTTP error detail for API exception boundaries.
+
+    Acceptance criteria:
+        1. Determinism: Same exception type and message return the same detail.
+        2. No mutation: Do not mutate the exception.
+        3. Observability: Include the exception type when the message is blank.
+        4. Safety: Preserve existing explicit error messages unchanged.
+
+    Args:
+        error: Exception caught by an API boundary.
+
+    Returns:
+        Non-empty detail string for `HTTPException`.
+    """
+    message = str(error).strip()
+    if message:
+        return message
+    return f"{type(error).__name__}: no error message"
 
 
 def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:

@@ -15,14 +15,22 @@ class RecordingVectorStore:
     def __init__(self, *, return_documents: bool = True) -> None:
         self.ensured: list[str] = []
         self.indexed: dict[str, list[dict[str, object]]] = {}
+        self.index_refreshes: list[str | None] = []
         self.search_queries: list[dict[str, object]] = []
         self.return_documents = return_documents
 
     async def ensure_index(self, index_name: str, body: dict[str, object]) -> None:
         self.ensured.append(index_name)
 
-    async def index(self, index_name: str, documents: list[dict[str, object]]) -> None:
+    async def index(
+        self,
+        index_name: str,
+        documents: list[dict[str, object]],
+        *,
+        refresh: str | None = None,
+    ) -> None:
         self.indexed.setdefault(index_name, []).extend(documents)
+        self.index_refreshes.append(refresh)
 
     async def search(self, index_name: str, query: dict[str, object]) -> list[dict[str, object]]:
         self.search_queries.append(query)
@@ -72,6 +80,7 @@ async def test_chunks_are_indexed_and_retrieved_before_artifacts() -> None:
     )
     assert result.indexed_count == 1
     assert INDEX_DOCUMENT_CHUNKS in store.ensured
+    assert store.index_refreshes == ["wait_for"]
     retrieved = await retrieve_indexed_document_chunks(
         vector_store=store,
         case_id="case1",

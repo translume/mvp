@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from translume_core.compiler.report_extraction import (
     generate_report_extraction_from_chunks,
 )
 from translume_core.compiler.structured_model_artifacts import (
+    _MAX_PROMPT_RETRIEVED_CHUNKS,
+    _MAX_PROMPT_SOURCE_TEXT_CHARS,
     StructuredArtifactGenerationError,
     generate_report_extraction_with_model,
 )
@@ -24,6 +27,11 @@ class RecordingReportExtractionModel:
     async def structured_completion(self, **kwargs: object) -> dict[str, object]:
         self.calls.append(dict(kwargs))
         return dict(self.payload)
+
+
+class FailingReportExtractionModel:
+    async def structured_completion(self, **_: object) -> dict[str, object]:
+        raise RuntimeError("vLLM error 400: maximum context length")
 
 
 def _planned_artifact_id(source_file_id: str) -> str:
@@ -122,6 +130,143 @@ async def test_report_extraction_source_aligns_findings_to_retrieved_chunks() ->
 
 
 @pytest.mark.asyncio
+async def test_report_extraction_caps_retrieved_chunks_in_prompt() -> None:
+    source_file_id = "source_file_1"
+    chunks = [
+        _chunk(
+            "GENOMIC VARIANTS\nMTAP copy-number loss detected. " * 40,
+            chunk_id=f"chunk_{index:02d}",
+        ).model_copy(update={"score": float(index)})
+        for index in range(_MAX_PROMPT_RETRIEVED_CHUNKS + 5)
+    ]
+    provider = RecordingReportExtractionModel(
+        {
+            "artifact_id": _planned_artifact_id(source_file_id),
+            "report_type": "NGS",
+            "source_file_id": source_file_id,
+            "needs_human_review": True,
+            "negative_findings": [],
+            "assay_limitations": [],
+            "molecular_findings": [],
+        }
+    )
+
+    result = await generate_report_extraction_with_model(
+        retrieved_chunks=chunks,
+        report_type="NGS",
+        source_file_id=source_file_id,
+        model_provider=provider,
+        model_name="local-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    payload = _payload_from_user_prompt(str(provider.calls[0]["user_prompt"]))
+    prompt_chunks = payload["retrieved_chunks"]
+
+    assert result.artifact.molecular_findings == []
+    assert len(prompt_chunks) == _MAX_PROMPT_RETRIEVED_CHUNKS
+    assert prompt_chunks[0]["chunk_id"] == "chunk_24"
+    assert prompt_chunks[-1]["chunk_id"] == "chunk_05"
+    assert payload["retrieval_truncation"]["original_chunks"] == len(chunks)
+    assert payload["retrieval_truncation"]["kept_chunks"] == len(prompt_chunks)
+
+
+@pytest.mark.asyncio
+async def test_report_extraction_ranks_missing_scores_last() -> None:
+    source_file_id = "source_file_1"
+    chunks = [
+        _chunk("GENOMIC VARIANTS\nLow score text.", chunk_id="chunk_low"),
+        _chunk("GENOMIC VARIANTS\nMissing score text.", chunk_id="chunk_missing")
+        .model_copy(update={"score": None}),
+        _chunk("GENOMIC VARIANTS\nHigh score text.", chunk_id="chunk_high")
+        .model_copy(update={"score": 5.0}),
+    ]
+    provider = RecordingReportExtractionModel(
+        {
+            "artifact_id": _planned_artifact_id(source_file_id),
+            "report_type": "NGS",
+            "source_file_id": source_file_id,
+            "needs_human_review": True,
+            "negative_findings": [],
+            "assay_limitations": [],
+            "molecular_findings": [],
+        }
+    )
+
+    await generate_report_extraction_with_model(
+        retrieved_chunks=chunks,
+        report_type="NGS",
+        source_file_id=source_file_id,
+        model_provider=provider,
+        model_name="local-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    payload = _payload_from_user_prompt(str(provider.calls[0]["user_prompt"]))
+
+    assert [
+        chunk["chunk_id"] for chunk in payload["retrieved_chunks"]
+    ] == ["chunk_high", "chunk_low", "chunk_missing"]
+
+
+@pytest.mark.asyncio
+async def test_report_extraction_truncates_retrieved_chunk_source_text() -> None:
+    source_file_id = "source_file_1"
+    provider = RecordingReportExtractionModel(
+        {
+            "artifact_id": _planned_artifact_id(source_file_id),
+            "report_type": "NGS",
+            "source_file_id": source_file_id,
+            "needs_human_review": True,
+            "negative_findings": [],
+            "assay_limitations": [],
+            "molecular_findings": [],
+        }
+    )
+
+    await generate_report_extraction_with_model(
+        retrieved_chunks=[_chunk("MTAP loss. " * 200)],
+        report_type="NGS",
+        source_file_id=source_file_id,
+        model_provider=provider,
+        model_name="local-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    payload = _payload_from_user_prompt(str(provider.calls[0]["user_prompt"]))
+    source_text = payload["retrieved_chunks"][0]["source_text"]
+
+    assert len(source_text) > _MAX_PROMPT_SOURCE_TEXT_CHARS
+    assert "[truncated" in source_text
+
+
+@pytest.mark.asyncio
+async def test_report_extraction_model_error_includes_prompt_diagnostics() -> None:
+    source_file_id = "source_file_1"
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="ReportExtractionOutput structured output failed for prompt",
+    ) as error_info:
+        await generate_report_extraction_with_model(
+            retrieved_chunks=[_chunk("GENOMIC VARIANTS\nMTAP loss detected.")],
+            report_type="NGS",
+            source_file_id=source_file_id,
+            model_provider=FailingReportExtractionModel(),
+            model_name="local-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+    message = str(error_info.value)
+    assert "prompt 'report_extraction'" in message
+    assert "system_prompt_chars=" in message
+    assert "user_prompt_chars=" in message
+    assert "payload_json_chars=" in message
+    assert "maximum context length" in message
+
+
+@pytest.mark.asyncio
 async def test_report_extraction_downgrades_unsupported_model_findings() -> None:
     source_file_id = "source_file_1"
     chunk = _chunk("GENOMIC VARIANTS\nMTAP copy-number loss detected.")
@@ -169,3 +314,12 @@ def test_legacy_deterministic_report_extraction_fails_loudly() -> None:
             report_type="NGS",
             source_file_id="source_file_1",
         )
+
+
+def _payload_from_user_prompt(user_prompt: str) -> dict[str, object]:
+    marker = "Payload JSON:\n"
+    payload_json = user_prompt.split(marker, maxsplit=1)[1]
+    payload = json.loads(payload_json)
+    if not isinstance(payload, dict):
+        raise TypeError("prompt payload should be a JSON object")
+    return payload

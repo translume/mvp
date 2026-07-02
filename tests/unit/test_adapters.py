@@ -206,6 +206,51 @@ async def test_tooluniverse_provider_executes_real_configured_runtime(tmp_path, 
 
 
 @pytest.mark.asyncio
+async def test_tooluniverse_provider_skips_workflow_with_missing_context(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "tooluniverse", raising=False)
+    repo = _write_fake_tooluniverse_repo(tmp_path)
+    config_path = tmp_path / "tooluniverse_workflows.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "required_workflows": ["target_context"],
+                "workflows": {
+                    "target_context": {
+                        "required_context": ["first_gene", "first_disease"],
+                        "steps": [
+                            {
+                                "tool_name": "OpenTargets_get_evidence_by_datasource",
+                                "required_context": ["first_gene", "first_disease"],
+                                "arguments": {
+                                    "gene_symbol": "$first_gene",
+                                    "disease_name": "$first_disease",
+                                },
+                            }
+                        ],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider = ToolUniverseProvider(repo, config_path)
+
+    outputs = await provider.run_workflows(
+        workflows=["target_context"],
+        entities=_entities(),
+        graph=GraphEvidenceArtifact(artifact_id="g", source_entity_ids=[], nodes=[], edges=[]),
+    )
+
+    assert outputs[0].workflow == "target_context"
+    assert outputs[0].evidence_items[0]["status"] == "skipped_missing_context"
+    assert outputs[0].evidence_items[0]["missing_context"] == "first_disease"
+    assert outputs[0].warnings == ["missing_required_context:first_disease"]
+
+
+@pytest.mark.asyncio
 async def test_medea_provider_reads_bounded_reasoning_artifact(tmp_path) -> None:
     reasoning = tmp_path / "reasoning.json"
     reasoning.write_text(

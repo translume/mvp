@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,6 +8,8 @@ import pytest
 
 from translume_core.compiler.structured_model_artifacts import (
     StructuredArtifactGenerationError,
+    generate_claim_evidence_with_model,
+    generate_mechanism_sankey_with_model,
     generate_tumor_behavior_model_with_model,
 )
 from translume_schemas.confirmatory import ConfirmatoryTest, ConfirmatoryTestingOutput
@@ -19,6 +21,7 @@ from translume_schemas.medea import MedeaReasoningArtifact
 from translume_schemas.phenotype import BiologicalAxis, MolecularPhenotypeOutput
 from translume_schemas.sankey import MechanismSankeyOutput, SankeyLink, SankeyNode
 from translume_schemas.tools import ToolRunArtifact
+from translume_schemas.tumor_behavior import STATE_LABELS
 
 
 class TumorBehaviorModelProvider:
@@ -43,6 +46,48 @@ class TumorBehaviorModelProvider:
     ) -> dict[str, object]:
         self.schema_names.append(schema_name)
         payload = dict(self.output)
+        payload["artifact_id"] = _planned_artifact_id(user_prompt)
+        return payload
+
+
+class RaisingModelProvider:
+    """Test-only provider that raises a configured runtime failure."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        self.schema_names: list[str] = []
+
+    async def structured_completion(
+        self,
+        *,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema_name: str,
+        json_schema: dict[str, object],
+    ) -> dict[str, object]:
+        self.schema_names.append(schema_name)
+        raise RuntimeError(self.message)
+
+
+class SankeyModelProvider:
+    """Test-only provider that returns a configured Sankey artifact."""
+
+    def __init__(self, output: dict[str, object]) -> None:
+        self.output = output
+        self.schema_names: list[str] = []
+
+    async def structured_completion(
+        self,
+        *,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema_name: str,
+        json_schema: dict[str, object],
+    ) -> dict[str, object]:
+        self.schema_names.append(schema_name)
+        payload = deepcopy(self.output)
         payload["artifact_id"] = _planned_artifact_id(user_prompt)
         return payload
 
@@ -223,6 +268,157 @@ def _valid_output() -> dict[str, object]:
     }
 
 
+def _valid_sankey_output() -> dict[str, object]:
+    return {
+        "nodes": [
+            {
+                "node_id": "node_finding",
+                "label": "MTAP loss",
+                "kind": "finding",
+                "evidence_class": "patient_specific_finding",
+            },
+            {
+                "node_id": "node_mechanism",
+                "label": "PRMT5 context",
+                "kind": "mechanism",
+                "evidence_class": "model_derived_hypothesis",
+            },
+        ],
+        "links": [
+            {
+                "source_node_id": "node_finding",
+                "target_node_id": "node_mechanism",
+                "value": 1.0,
+                "claim_class": "evidence_path_requires_review",
+                "validation_required": True,
+                "source_artifact_ids": ["artifact_extraction"],
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_timeout_uses_deterministic_fallback() -> None:
+    provider = RaisingModelProvider(
+        "Local vLLM request timed out: "
+        "http://vllm-clinical:8000/v1/chat/completions: "
+        "ReadTimeout after 240 seconds"
+    )
+    context = _context()
+    phenotype = _phenotype()
+    matrix = _matrix()
+    result = await generate_mechanism_sankey_with_model(
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert provider.schema_names == ["MechanismSankeyOutput"]
+    assert result.artifact.artifact_id == result.provenance.artifact_id
+    assert result.provenance.generation_status == "deterministic_fallback"
+    assert result.provenance.model_name == "mechanism_sankey_deterministic_fallback"
+    assert result.artifact.nodes
+    assert result.artifact.links
+    node_ids = {node.node_id for node in result.artifact.nodes}
+    assert all(
+        link.source_node_id in node_ids and link.target_node_id in node_ids
+        for link in result.artifact.links
+    )
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_non_timeout_error_still_raises() -> None:
+    provider = RaisingModelProvider("vLLM error 500: overloaded")
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="MechanismSankeyOutput structured output failed",
+    ):
+        await generate_mechanism_sankey_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            model_provider=provider,
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_deduplicates_identical_nodes() -> None:
+    output = _valid_sankey_output()
+    output["nodes"].append(dict(output["nodes"][0]))
+    original = deepcopy(output)
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=SankeyModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert output == original
+    assert [node.node_id for node in result.artifact.nodes] == [
+        "node_finding",
+        "node_mechanism",
+    ]
+    assert result.artifact.links[0].source_node_id == "node_finding"
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_rejects_conflicting_duplicate_node_id() -> None:
+    output = _valid_sankey_output()
+    output["nodes"].append(
+        {
+            "node_id": "node_finding",
+            "label": "Conflicting label",
+            "kind": "finding",
+            "evidence_class": "patient_specific_finding",
+        }
+    )
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="duplicate node_id has conflicting content",
+    ):
+        await generate_mechanism_sankey_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            model_provider=SankeyModelProvider(output),
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_still_rejects_missing_link_node() -> None:
+    output = _valid_sankey_output()
+    output["links"][0]["target_node_id"] = "node_missing"
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="link references a missing node",
+    ):
+        await generate_mechanism_sankey_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            model_provider=SankeyModelProvider(output),
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+
 @pytest.mark.asyncio
 async def test_tumor_behavior_accepts_case_derived_model(tmp_path: Path) -> None:
     provider = TumorBehaviorModelProvider(_valid_output())
@@ -238,7 +434,314 @@ async def test_tumor_behavior_accepts_case_derived_model(tmp_path: Path) -> None
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     assert result.artifact.state_evidence[0].graph_support == ["edge_mtap_prmt5"]
+    assert result.artifact.state_evidence[0].evidence_class == (
+        "model_derived_hypothesis"
+    )
     assert provider.schema_names == ["TumorBehaviorModelOutput"]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_normalizes_generated_validation_status() -> None:
+    output = _valid_output()
+    output["transition_hypotheses"][0]["validation_status"] = "validated"
+    output["transition_hypotheses"][0]["hypothesis_generating"] = False
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    transition = result.artifact.transition_hypotheses[0]
+    assert transition.validation_status == "needs_review"
+    assert transition.hypothesis_generating is True
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_marks_all_states_validation_needed() -> None:
+    output = _valid_output()
+    output["state_evidence"] = [
+        {
+            "state_label": state_label,
+            "supporting_findings": ["finding_mtap"],
+            "graph_support": ["edge_mtap_prmt5"],
+            "tool_support": ["artifact_tool_literature_validation"],
+            "medea_support": ["artifact_medea"],
+            "evidence_class": "model_derived_hypothesis",
+            "uncertainty": "State evidence requires human review.",
+            "validation_needed": False,
+        }
+        for state_label in STATE_LABELS
+    ]
+    original = deepcopy(output)
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert [state.state_label for state in result.artifact.state_evidence] == (
+        STATE_LABELS
+    )
+    assert all(
+        state.validation_needed is True
+        for state in result.artifact.state_evidence
+    )
+    assert all(
+        state.evidence_class == "model_derived_hypothesis"
+        for state in result.artifact.state_evidence
+    )
+    assert output == original
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_still_rejects_unsupported_ids_after_review_normalization() -> None:
+    output = _valid_output()
+    output["state_evidence"][0]["validation_needed"] = False
+    output["state_evidence"][0]["graph_support"] = ["edge_not_from_case"]
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="state_evidence\\[stress_adapted_survival\\].graph_support",
+    ):
+        await generate_tumor_behavior_model_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            sankey=_sankey(),
+            confirmatory=_confirmatory(),
+            model_provider=TumorBehaviorModelProvider(output),
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_marks_empty_support_state_as_missing() -> None:
+    output = _valid_output()
+    output["state_evidence"][0]["supporting_findings"] = []
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["state_evidence"][0]["validation_needed"] = False
+    original = deepcopy(output)
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    state = result.artifact.state_evidence[0]
+    assert state.supporting_findings == []
+    assert state.graph_support == []
+    assert state.tool_support == []
+    assert state.medea_support == []
+    assert state.evidence_class == "missing_speculative_evidence"
+    assert state.validation_needed is True
+    assert output == original
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_accepts_confirmatory_test_support() -> None:
+    output = _valid_output()
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+        "test_mtap",
+    ]
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert "test_mtap" in result.artifact.transition_hypotheses[0].supporting_artifacts
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_counts_generated_ids_as_mims_support() -> None:
+    output = _valid_output()
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["transition_hypotheses"][0]["supporting_artifacts"] = ["test_mtap"]
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=TumorBehaviorModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert result.artifact.transition_hypotheses[0].supporting_artifacts == [
+        "test_mtap"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_removes_self_support_when_valid_support_remains() -> None:
+    output = _valid_output()
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_self_placeholder",
+        "artifact_medea",
+    ]
+
+    class SelfReferencingProvider(TumorBehaviorModelProvider):
+        async def structured_completion(
+            self,
+            *,
+            model_name: str,
+            system_prompt: str,
+            user_prompt: str,
+            schema_name: str,
+            json_schema: dict[str, object],
+        ) -> dict[str, object]:
+            payload = await super().structured_completion(
+                model_name=model_name,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                schema_name=schema_name,
+                json_schema=json_schema,
+            )
+            self_id = str(payload["artifact_id"])
+            payload["transition_hypotheses"][0]["supporting_artifacts"] = [
+                "artifact_graph",
+                self_id,
+                "artifact_tool_literature_validation",
+                "artifact_medea",
+            ]
+            return payload
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=SelfReferencingProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    support = result.artifact.transition_hypotheses[0].supporting_artifacts
+    assert result.artifact.artifact_id not in support
+    assert support == [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_rejects_self_support_without_real_support() -> None:
+    output = _valid_output()
+
+    class SelfOnlyProvider(TumorBehaviorModelProvider):
+        async def structured_completion(
+            self,
+            *,
+            model_name: str,
+            system_prompt: str,
+            user_prompt: str,
+            schema_name: str,
+            json_schema: dict[str, object],
+        ) -> dict[str, object]:
+            payload = await super().structured_completion(
+                model_name=model_name,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                schema_name=schema_name,
+                json_schema=json_schema,
+            )
+            payload["transition_hypotheses"][0]["supporting_artifacts"] = [
+                str(payload["artifact_id"])
+            ]
+            return payload
+
+    with pytest.raises(StructuredArtifactGenerationError, match="missing supporting_artifacts"):
+        await generate_tumor_behavior_model_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            sankey=_sankey(),
+            confirmatory=_confirmatory(),
+            model_provider=SelfOnlyProvider(output),
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_claim_evidence_normalizes_generated_validation_status() -> None:
+    provider = TumorBehaviorModelProvider(
+        {
+            "claims": [
+                {
+                    "claim_id": "claim_mtap_review",
+                    "claim": "MTAP loss supports only a reviewable hypothesis.",
+                    "claim_class": "model_derived_hypothesis",
+                    "source_artifact_ids": ["artifact_context"],
+                    "evidence_source": "report_graph_tool_medea_context",
+                    "relevance": "Connects MTAP loss to review workflow.",
+                    "limitations": "Requires human validation.",
+                    "validation_status": "approved",
+                }
+            ]
+        }
+    )
+    tumor_provider = TumorBehaviorModelProvider(_valid_output())
+    tumor_behavior = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=tumor_provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    result = await generate_claim_evidence_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        tumor_behavior=tumor_behavior.artifact,
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    assert result.artifact.claims[0].validation_status == "needs_review"
 
 
 @pytest.mark.asyncio
