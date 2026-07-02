@@ -11,6 +11,9 @@ from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ValidationError
 
+from translume_core.compiler.mechanism_sankey import (
+    generate_mechanism_sankey_from_context,
+)
 from translume_core.provenance.provenance import build_artifact_provenance
 from translume_core.safety.language import validate_safety_language
 from translume_schemas.claims import ClaimEvidenceOutput
@@ -34,6 +37,15 @@ _BANNED_CLINICAL_PHRASES = [
     "best treatment",
     "will respond",
 ]
+_VAGUE_NARRATIVE_ALTERATION = re.compile(
+    r"\b(?P<prefix>"
+    r"the|this|that|a|an|any|identified|detected|observed|noted|"
+    r"reported|described"
+    r")\s+"
+    r"(?P<term>mutation|variant|amplification|deletion|fusion|"
+    r"overexpression|underexpression|rearrangement|splicing)\b",
+    re.IGNORECASE,
+)
 _MAX_PROMPT_FINDINGS = 20
 _MAX_PROMPT_GRAPH_NODES = 25
 _MAX_PROMPT_GRAPH_EDGES = 50
@@ -56,16 +68,16 @@ _MAX_PROMPT_TUMOR_STATES = 10
 _MAX_PROMPT_TRANSITIONS = 10
 _MAX_PROMPT_CLAIMS = 20
 _MAX_PROMPT_SUPPORT_IDS = 30
-_MAX_PROMPT_SANKEY_INPUT_FINDINGS = 10
-_MAX_PROMPT_SANKEY_INPUT_GRAPH_NODES = 10
-_MAX_PROMPT_SANKEY_INPUT_GRAPH_EDGES = 16
-_MAX_PROMPT_SANKEY_INPUT_TOOL_OUTPUTS = 4
+_MAX_PROMPT_SANKEY_INPUT_FINDINGS = 6
+_MAX_PROMPT_SANKEY_INPUT_GRAPH_NODES = 8
+_MAX_PROMPT_SANKEY_INPUT_GRAPH_EDGES = 10
+_MAX_PROMPT_SANKEY_INPUT_TOOL_OUTPUTS = 2
 _MAX_PROMPT_SANKEY_INPUT_TOOL_EVIDENCE_ITEMS = 1
-_MAX_PROMPT_SANKEY_INPUT_HYPOTHESES = 6
-_MAX_PROMPT_SANKEY_INPUT_AXES = 4
-_MAX_PROMPT_SANKEY_INPUT_MATRIX_ROWS = 3
-_MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS = 180
-_MAX_PROMPT_SANKEY_INPUT_SUMMARY_CHARS = 300
+_MAX_PROMPT_SANKEY_INPUT_HYPOTHESES = 4
+_MAX_PROMPT_SANKEY_INPUT_AXES = 3
+_MAX_PROMPT_SANKEY_INPUT_MATRIX_ROWS = 2
+_MAX_PROMPT_SANKEY_INPUT_TEXT_CHARS = 120
+_MAX_PROMPT_SANKEY_INPUT_SUMMARY_CHARS = 200
 _PROMPT_CONTEXT_CAP_NOTICE = (
     "Context is relevance-capped for prompt length. Missing graph nodes, "
     "edges, tool rows, or reasoning items must not be interpreted as absent "
@@ -254,32 +266,206 @@ async def generate_mechanism_sankey_with_model(
     compact_context = compact_evidence_context_for_mechanism_sankey_prompt(
         context
     )
-    result = await _generate_artifact(
-        prompt_name="mechanism_sankey",
-        schema_model=MechanismSankeyOutput,
-        planned_artifact_id=artifact_id,
-        payload={
-            "evidence_context": compact_context,
-            "molecular_phenotype": compact_phenotype_for_sankey_prompt(
-                phenotype
-            ),
-            "molecular_fit_matrix": compact_matrix_for_sankey_prompt(matrix),
-        },
-        source_artifact_ids=[*_context_source_ids(context), phenotype.artifact_id, matrix.artifact_id],
-        source_chunk_ids=_context_source_chunk_ids(context),
-        source_file_id=context.extraction.source_file_id,
-        model_provider=model_provider,
-        model_name=model_name,
-        prompts_root=prompts_root,
-        created_at=created_at,
+    source_artifact_ids = [
+        *_context_source_ids(context),
+        phenotype.artifact_id,
+        matrix.artifact_id,
+    ]
+    try:
+        result = await _generate_artifact(
+            prompt_name="mechanism_sankey",
+            schema_model=MechanismSankeyOutput,
+            planned_artifact_id=artifact_id,
+            payload={
+                "evidence_context": compact_context,
+                "molecular_phenotype": compact_phenotype_for_sankey_prompt(
+                    phenotype
+                ),
+                "molecular_fit_matrix": compact_matrix_for_sankey_prompt(
+                    matrix
+                ),
+            },
+            source_artifact_ids=source_artifact_ids,
+            source_chunk_ids=_context_source_chunk_ids(context),
+            source_file_id=context.extraction.source_file_id,
+            model_provider=model_provider,
+            model_name=model_name,
+            prompts_root=prompts_root,
+            created_at=created_at,
+        )
+    except StructuredArtifactGenerationError as error:
+        if not _is_structured_output_timeout(error):
+            raise
+        result = _generate_mechanism_sankey_timeout_fallback(
+            context=context,
+            phenotype=phenotype,
+            matrix=matrix,
+            planned_artifact_id=artifact_id,
+            source_artifact_ids=source_artifact_ids,
+            source_chunk_ids=_context_source_chunk_ids(context),
+            created_at=created_at,
+        )
+    normalized_artifact = _normalize_and_validate_mechanism_sankey(
+        result.artifact
     )
-    node_ids = {node.node_id for node in result.artifact.nodes}
-    for link in result.artifact.links:
-        if link.source_node_id not in node_ids or link.target_node_id not in node_ids:
+    return StructuredArtifactResult(
+        artifact=normalized_artifact,
+        provenance=result.provenance,
+    )
+
+
+def _generate_mechanism_sankey_timeout_fallback(
+    *,
+    context: EvidenceContextBundle,
+    phenotype: MolecularPhenotypeOutput,
+    matrix: TherapyEvidenceMatrixOutput,
+    planned_artifact_id: str,
+    source_artifact_ids: Sequence[str],
+    source_chunk_ids: Sequence[str],
+    created_at: datetime,
+) -> StructuredArtifactResult[MechanismSankeyOutput]:
+    """Return deterministic Sankey output after a model timeout.
+
+    Acceptance criteria:
+        1. Determinism: Same context, phenotype, matrix, and timestamp return
+           equivalent artifact and provenance values.
+        2. No mutation: Do not mutate caller-owned schema models or ID lists.
+        3. Scope: Use this only for timeout handling by the caller.
+        4. Auditability: Mark provenance as `deterministic_fallback`.
+        5. Contract: The returned artifact ID matches the planned artifact ID.
+
+    Args:
+        context: Combined evidence context.
+        phenotype: Molecular phenotype artifact.
+        matrix: Molecular-fit matrix artifact.
+        planned_artifact_id: Artifact ID reserved for this workflow stage.
+        source_artifact_ids: Source artifacts used by provenance.
+        source_chunk_ids: Source chunks used by provenance.
+        created_at: Timestamp for provenance.
+
+    Returns:
+        Deterministic Sankey result with fallback provenance.
+    """
+    fallback = generate_mechanism_sankey_from_context(
+        context,
+        phenotype,
+        matrix,
+    ).model_copy(update={"artifact_id": planned_artifact_id})
+    _validate_safety(fallback.model_dump_json())
+    provenance = build_artifact_provenance(
+        artifact_type="MechanismSankeyOutput",
+        schema_name="MechanismSankeyOutput",
+        model_name="mechanism_sankey_deterministic_fallback",
+        prompt_text=None,
+        schema_json=MechanismSankeyOutput.model_json_schema(),
+        source_artifact_ids=list(source_artifact_ids),
+        source_chunk_ids=list(source_chunk_ids),
+        created_at=created_at,
+        source_file_id=context.extraction.source_file_id,
+        generation_status="deterministic_fallback",
+        artifact_id=planned_artifact_id,
+    )
+    return StructuredArtifactResult(artifact=fallback, provenance=provenance)
+
+
+def _is_structured_output_timeout(
+    error: StructuredArtifactGenerationError,
+) -> bool:
+    """Return whether a structured-output failure came from a timeout.
+
+    Acceptance criteria:
+        1. Determinism: Same exception chain returns the same boolean.
+        2. No mutation: Do not mutate exception objects.
+        3. Narrowness: Match timeout wording from provider errors only.
+        4. Safety: Non-timeout provider and validation errors return `False`.
+
+    Args:
+        error: Structured artifact generation failure.
+
+    Returns:
+        `True` when the error or chained cause carries timeout wording.
+    """
+    messages = [
+        str(item)
+        for item in (error, error.__cause__, error.__context__)
+        if item is not None
+    ]
+    return any(
+        "timed out" in message.casefold()
+        or "readtimeout" in message.casefold()
+        for message in messages
+    )
+
+
+def _normalize_and_validate_mechanism_sankey(
+    sankey: MechanismSankeyOutput,
+) -> MechanismSankeyOutput:
+    """Return Sankey output with unique nodes and valid links.
+
+    Acceptance criteria:
+        1. Determinism: Same Sankey artifact always produces equivalent output.
+        2. No mutation: Do not mutate nodes or links.
+        3. Deduplication: Exact duplicate node records are collapsed.
+        4. Validation: Conflicting duplicate node IDs raise
+           `StructuredArtifactGenerationError`.
+        5. Validation: Links must reference existing unique node IDs.
+
+    Args:
+        sankey: Mechanism Sankey artifact to normalize and validate.
+
+    Returns:
+        A copied Sankey artifact with unique nodes.
+
+    Raises:
+        StructuredArtifactGenerationError: If duplicate node IDs conflict or
+            any link references a missing node ID.
+    """
+    nodes = []
+    node_fingerprints: dict[str, tuple[str, str, str]] = {}
+    for node in sankey.nodes:
+        fingerprint = (node.label, node.kind, node.evidence_class)
+        existing = node_fingerprints.get(node.node_id)
+        if existing is None:
+            node_fingerprints[node.node_id] = fingerprint
+            nodes.append(node)
+            continue
+        if existing != fingerprint:
+            raise StructuredArtifactGenerationError(
+                "MechanismSankeyOutput duplicate node_id has conflicting "
+                f"content: {node.node_id}"
+            )
+    normalized = sankey.model_copy(update={"nodes": nodes})
+    _validate_mechanism_sankey_links(normalized)
+    return normalized
+
+
+def _validate_mechanism_sankey_links(
+    sankey: MechanismSankeyOutput,
+) -> None:
+    """Fail when a Sankey link references a missing node.
+
+    Acceptance criteria:
+        1. Determinism: Same Sankey artifact always produces the same result.
+        2. No mutation: Do not mutate nodes or links.
+        3. Validation: Raise `StructuredArtifactGenerationError` for missing
+           source or target nodes.
+
+    Args:
+        sankey: Mechanism Sankey artifact to validate.
+
+    Raises:
+        StructuredArtifactGenerationError: If any link references a missing
+            node ID.
+    """
+    node_ids = {node.node_id for node in sankey.nodes}
+    for link in sankey.links:
+        if (
+            link.source_node_id not in node_ids
+            or link.target_node_id not in node_ids
+        ):
             raise StructuredArtifactGenerationError(
                 "MechanismSankeyOutput link references a missing node"
             )
-    return result
 
 
 async def generate_confirmatory_testing_with_model(
@@ -363,8 +549,8 @@ async def generate_tumor_behavior_model_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
-    normalized_artifact = _normalize_tumor_behavior_validation_statuses(
-        result.artifact
+    normalized_artifact = _normalize_tumor_behavior_transition_support(
+        _normalize_tumor_behavior_review_fields(result.artifact)
     )
     _validate_tumor_behavior_is_case_derived(
         normalized_artifact,
@@ -763,7 +949,7 @@ async def generate_clinical_narrative_with_model(
     source_ids = _bundle_source_ids(bundle)
     artifact_id = _artifact_id(bundle.session_id, "ClinicalNarrativeCompilerOutput")
     compact_bundle = compact_clinical_artifact_bundle_for_prompt(bundle)
-    return await _generate_artifact(
+    result = await _generate_artifact(
         prompt_name="clinical_narrative",
         schema_model=ClinicalNarrativeCompilerOutput,
         planned_artifact_id=artifact_id,
@@ -775,6 +961,10 @@ async def generate_clinical_narrative_with_model(
         model_name=model_name,
         prompts_root=prompts_root,
         created_at=created_at,
+    )
+    return StructuredArtifactResult(
+        artifact=_normalize_clinical_narrative_fragments(result.artifact),
+        provenance=result.provenance,
     )
 
 
@@ -805,29 +995,94 @@ def _normalize_validation_status_for_review(_value: object) -> str:
     return "needs_review"
 
 
-def _normalize_tumor_behavior_validation_statuses(
+def _normalize_tumor_behavior_review_fields(
     tumor_behavior: TumorBehaviorModelOutput,
 ) -> TumorBehaviorModelOutput:
-    """Return tumor behavior output with generated statuses reviewable.
+    """Return tumor behavior output with workflow review gates normalized.
 
     Acceptance criteria:
         1. Determinism: Same tumor behavior input returns equivalent output.
-        2. No mutation: The input model and nested transitions are not mutated.
-        3. Scope: Only transition validation_status values are normalized.
-        4. Reviewability: All generated transitions use `needs_review`.
+        2. No mutation: The input model and nested records are not mutated.
+        3. Evidence integrity: Do not synthesize supporting evidence IDs or
+           biological claims.
+        4. Missing evidence: Empty-support states are marked as
+           `missing_speculative_evidence`.
+        5. Reviewability: All generated states are marked validation-needed.
+        6. Hypothesis control: All generated transitions remain
+           hypothesis-generating and `needs_review`.
 
     Args:
         tumor_behavior: Model-generated tumor behavior artifact.
 
     Returns:
-        A copied artifact whose transition statuses are reviewable.
+        A copied artifact whose reviewability fields follow workflow policy.
+    """
+    states = [
+        state.model_copy(
+            update={
+                "evidence_class": (
+                    "missing_speculative_evidence"
+                    if not (
+                        state.supporting_findings
+                        or state.graph_support
+                        or state.tool_support
+                        or state.medea_support
+                    )
+                    else state.evidence_class
+                ),
+                "validation_needed": True,
+            }
+        )
+        for state in tumor_behavior.state_evidence
+    ]
+    transitions = [
+        transition.model_copy(
+            update={
+                "hypothesis_generating": True,
+                "validation_status": _normalize_validation_status_for_review(
+                    transition.validation_status
+                ),
+            }
+        )
+        for transition in tumor_behavior.transition_hypotheses
+    ]
+    return tumor_behavior.model_copy(
+        update={
+            "state_evidence": states,
+            "transition_hypotheses": transitions,
+        }
+    )
+
+
+def _normalize_tumor_behavior_transition_support(
+    tumor_behavior: TumorBehaviorModelOutput,
+) -> TumorBehaviorModelOutput:
+    """Return tumor behavior output without self-referential support IDs.
+
+    Acceptance criteria:
+        1. Determinism: Same tumor behavior input returns equivalent output.
+        2. No mutation: The input model and nested transitions are not mutated.
+        3. Evidence integrity: Do not add or substitute supporting artifacts.
+        4. Scope: Remove only the tumor behavior artifact's own ID from
+           transition support.
+        5. Validation: Transitions with no remaining support still fail later
+           validation as missing support.
+
+    Args:
+        tumor_behavior: Model-generated tumor behavior artifact.
+
+    Returns:
+        A copied artifact whose transitions do not cite the artifact itself as
+        support.
     """
     transitions = [
         transition.model_copy(
             update={
-                "validation_status": _normalize_validation_status_for_review(
-                    transition.validation_status
-                )
+                "supporting_artifacts": [
+                    artifact_id
+                    for artifact_id in transition.supporting_artifacts
+                    if artifact_id != tumor_behavior.artifact_id
+                ]
             }
         )
         for transition in tumor_behavior.transition_hypotheses
@@ -863,6 +1118,42 @@ def _normalize_claim_validation_statuses(
         for claim in artifact.claims
     ]
     return artifact.model_copy(update={"claims": claims})
+
+
+def _normalize_clinical_narrative_fragments(
+    narrative: ClinicalNarrativeCompilerOutput,
+) -> ClinicalNarrativeCompilerOutput:
+    """Return narrative markdown with vague alteration fragments neutralized.
+
+    Acceptance criteria:
+        1. Determinism: Same narrative input returns equivalent output.
+        2. No mutation: The input narrative is not mutated.
+        3. Evidence integrity: Do not add genes, alterations, or source IDs.
+        4. Scope: Only vague determiner-led or modifier-led alteration
+           fragments are normalized.
+        5. Reviewability: Replacement wording remains non-specific and
+           clinician-reviewable.
+
+    Args:
+        narrative: Model-generated clinical narrative artifact.
+
+    Returns:
+        A copied narrative whose markdown avoids unsupported fragments such as
+        `the mutation`, `This amplification`, and `identified variant`.
+    """
+    markdown = _VAGUE_NARRATIVE_ALTERATION.sub(
+        _neutral_narrative_fragment,
+        narrative.markdown,
+    )
+    return narrative.model_copy(update={"markdown": markdown})
+
+
+def _neutral_narrative_fragment(match: re.Match[str]) -> str:
+    replacement = "report finding"
+    prefix = match.group("prefix")
+    if prefix and prefix[0].isupper():
+        return replacement.capitalize()
+    return replacement
 
 
 def truncate_text(value: str | None, max_chars: int) -> str | None:

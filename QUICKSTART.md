@@ -250,7 +250,7 @@ http://localhost:7860
 For a remote VM, create a tunnel from your local machine:
 
 ```bash
-ssh -L 7860:localhost:7860 -L 8080:localhost:8080 user@your-vm
+ssh -L 7860:localhost:7860 -L 8080:localhost:8080 ubuntu@ec2-34-202-237-191.compute-1.amazonaws.com
 ```
 
 Then open:

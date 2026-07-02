@@ -171,7 +171,7 @@ def test_mechanism_sankey_prompt_payload_uses_tighter_caps() -> None:
     )
     assert len(phenotype_payload["axes"]) == _MAX_PROMPT_SANKEY_INPUT_AXES
     assert len(matrix_payload["rows"]) == _MAX_PROMPT_SANKEY_INPUT_MATRIX_ROWS
-    assert len(json.dumps(payload)) < 16000
+    assert len(json.dumps(payload)) < 12000
 
 
 def test_clinical_bundle_compactor_caps_generated_artifacts_and_claims() -> None:

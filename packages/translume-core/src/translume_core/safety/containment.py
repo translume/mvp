@@ -104,6 +104,22 @@ _ALLOWED_CONTEXT_TERMS = {
     "tumor",
     "validation",
 }
+_VAGUE_ALTERATION_ANCHORS = {
+    "a",
+    "an",
+    "any",
+    "described",
+    "detected",
+    "identified",
+    "noted",
+    "observed",
+    "reported",
+    "that",
+    "the",
+    "these",
+    "this",
+    "those",
+}
 
 
 class NarrativeContainmentError(ValueError):
@@ -271,8 +287,34 @@ def _candidate_terms(text: str) -> list[tuple[str, str, str]]:
         candidates.extend(
             (term, "alteration_or_signal_phrase", sentence)
             for term in _ALTERATION_LIKE.findall(sentence)
+            if _alteration_phrase_is_specific(term)
         )
     return list(dict.fromkeys(candidates))
+
+
+def _alteration_phrase_is_specific(term: str) -> bool:
+    """Return whether an alteration-like phrase has a grounded anchor.
+
+    Acceptance criteria:
+        1. Determinism: Same term returns the same result.
+        2. No mutation: Caller-owned values are not mutated.
+        3. Specificity: Gene-like, biomarker-like, or assay-like alteration
+           phrases remain containment candidates.
+        4. Fragment handling: Determiner-led or modifier-led fragments such as
+           `the mutation`, `This amplification`, and `identified variant` are
+           not treated as specific molecular claims.
+
+    Args:
+        term: Candidate alteration phrase matched from narrative text.
+
+    Returns:
+        True when the phrase should be checked against source artifacts.
+    """
+    tokens = _TOKEN.findall(term)
+    if not tokens:
+        return False
+    anchor = _normalize_term(tokens[0])
+    return anchor not in _VAGUE_ALTERATION_ANCHORS
 
 
 def _term_is_allowed(
