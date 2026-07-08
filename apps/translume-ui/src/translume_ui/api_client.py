@@ -22,7 +22,7 @@ class TranslumeAPIClientConfig:
 
     base_url: str
     request_timeout_seconds: float = 120.0
-    process_timeout_seconds: float = 900.0
+    process_timeout_seconds: float = 3600.0
 
     def normalized_base_url(self) -> str:
         value = self.base_url.strip().rstrip("/")

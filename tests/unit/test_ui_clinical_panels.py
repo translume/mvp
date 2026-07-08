@@ -13,7 +13,7 @@ from translume_ui.api_client import (
     write_persisted_decision_brief,
     write_persisted_review_packet,
 )
-from translume_ui.app import build_app
+from translume_ui.app import build_api_client, build_app
 from translume_ui.panels import (
     ClinicalPanelRenderError,
     build_clinical_panel_data,
@@ -626,6 +626,28 @@ def test_api_client_fetches_focused_decision_brief_endpoint(
     fetched = client.fetch_decision_brief(" session-ui ")
     assert fetched.artifact_id == "artifact-decision-brief"
     assert fetched.ranked_treatment_options[0].clinical_use == "trial_option"
+
+
+def test_build_api_client_uses_one_hour_process_timeout_by_default() -> None:
+    client = build_api_client(
+        {
+            "TRANSLUME_API_BASE_URL": "http://translume-api:8080",
+        }
+    )
+
+    assert client._config.request_timeout_seconds == 120.0
+    assert client._config.process_timeout_seconds == 3600.0
+
+
+def test_build_api_client_allows_process_timeout_override() -> None:
+    client = build_api_client(
+        {
+            "TRANSLUME_API_BASE_URL": "http://translume-api:8080",
+            "TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS": "42",
+        }
+    )
+
+    assert client._config.process_timeout_seconds == 42.0
 
 
 def test_download_persisted_decision_brief_uses_focused_endpoint(

@@ -181,6 +181,7 @@ services:
       - TRANSLUME_API_BASE_URL=http://translume-api:8080
       - TRANSLUME_UI_HOST=0.0.0.0
       - TRANSLUME_UI_PORT=7860
+      - TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS=3600
     ports:
       - "7860:7860"
     depends_on:
