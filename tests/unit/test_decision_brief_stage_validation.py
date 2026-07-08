@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from datetime import datetime, timezone
+from pathlib import Path
+
 import pytest
 
 from translume_core.compiler.decision_brief import (
     DecisionBriefStageOutputs,
     enforce_patient_population_alignment_and_evidence_labels,
+    generate_treatment_options_stage_with_model,
     require_decision_brief_matches_stage_outputs,
     require_decision_brief_rows_carry_evidence_or_unresolved,
     require_decision_stage_outputs_evidence_grounded,
@@ -13,7 +18,9 @@ from translume_core.compiler.decision_brief import (
 from translume_schemas.evidence import EvidenceContextBundle
 from translume_schemas.extraction import MolecularFinding, ReportExtractionOutput
 from translume_schemas.graph import GraphEvidenceArtifact
+from translume_schemas.matrix import MolecularFitRow, TherapyEvidenceMatrixOutput
 from translume_schemas.medea import MedeaReasoningArtifact
+from translume_schemas.phenotype import BiologicalAxis, MolecularPhenotypeOutput
 from translume_schemas.tools import ToolRunArtifact
 
 from translume_core.compiler.structured_model_artifacts import (
@@ -46,6 +53,31 @@ from translume_schemas.decision_brief import (
 
 _SOURCE_IDS = ["artifact_report", "artifact_graph"]
 _CHUNK_IDS = ["chunk_1"]
+
+
+class SequencedDecisionBriefProvider:
+    """Test provider that returns one configured output per model call."""
+
+    def __init__(self, outputs: list[dict[str, object]]) -> None:
+        self.outputs = outputs
+        self.schema_names: list[str] = []
+        self.user_prompts: list[str] = []
+
+    async def structured_completion(
+        self,
+        *,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema_name: str,
+        json_schema: dict[str, object],
+    ) -> dict[str, object]:
+        self.schema_names.append(schema_name)
+        self.user_prompts.append(user_prompt)
+        output_index = min(len(self.schema_names), len(self.outputs)) - 1
+        payload = deepcopy(self.outputs[output_index])
+        payload["artifact_id"] = _planned_artifact_id(user_prompt)
+        return payload
 
 
 def test_decision_stage_outputs_pass_when_evidence_grounded() -> None:
@@ -216,6 +248,87 @@ def test_decision_stage_outputs_fail_without_row_evidence_or_unresolved() -> Non
         match="source_artifact_ids or unresolved_evidence",
     ):
         require_decision_stage_outputs_evidence_grounded(**stages)
+
+
+@pytest.mark.asyncio
+async def test_treatment_options_fills_empty_required_before_use_tests() -> None:
+    output = _treatment_options_output(required_before_use_tests=[])
+    original = deepcopy(output)
+    provider = SequencedDecisionBriefProvider([output])
+
+    result = await generate_treatment_options_stage_with_model(
+        context=_minimal_context_missing_population_fit(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        actionable_biology=_stage_outputs()["actionable_biology"],
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert provider.schema_names == ["RankedTreatmentOptionsOutput"]
+    before_use_tests = result.ranked_treatment_options[0].required_before_use_tests
+    assert before_use_tests[0] == "confirm MTAP status"
+    assert "Confirm MTAP locus or protein status." in before_use_tests
+    assert output == original
+
+
+@pytest.mark.asyncio
+async def test_treatment_options_uses_conservative_fallback_for_empty_tests() -> None:
+    provider = SequencedDecisionBriefProvider(
+        [_treatment_options_output(required_before_use_tests=[])]
+    )
+    matrix = _matrix().model_copy(update={"rows": []})
+    actionable_biology = _stage_outputs()["actionable_biology"].model_copy(
+        update={"actionable_biology": []}
+    )
+
+    result = await generate_treatment_options_stage_with_model(
+        context=_minimal_context_missing_population_fit(),
+        phenotype=_phenotype(),
+        matrix=matrix,
+        actionable_biology=actionable_biology,
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert provider.schema_names == ["RankedTreatmentOptionsOutput"]
+    assert result.ranked_treatment_options[0].required_before_use_tests == [
+        "Clinician/pathology review of source report findings and treatment "
+        "eligibility before use."
+    ]
+
+
+@pytest.mark.asyncio
+async def test_treatment_options_unrelated_validation_error_is_not_repaired() -> None:
+    provider = SequencedDecisionBriefProvider(
+        [
+            _treatment_options_output(
+                required_before_use_tests=["confirm MTAP status"],
+                therapy_name_or_class="",
+            )
+        ]
+    )
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="therapy_name_or_class must not be empty",
+    ):
+        await generate_treatment_options_stage_with_model(
+            context=_minimal_context_missing_population_fit(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            actionable_biology=_stage_outputs()["actionable_biology"],
+            model_provider=provider,
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+    assert provider.schema_names == ["RankedTreatmentOptionsOutput"]
 
 
 def test_decision_brief_rows_require_evidence_or_unresolved() -> None:
@@ -528,6 +641,80 @@ def _stage_outputs() -> dict[str, object]:
             ),
         ),
     }
+
+
+def _phenotype() -> MolecularPhenotypeOutput:
+    return MolecularPhenotypeOutput(
+        artifact_id="artifact_phenotype",
+        axes=[
+            BiologicalAxis(
+                axis_id="axis_mtap",
+                label="MTAP methylation dependency review axis",
+                supporting_finding_ids=["finding_mtap"],
+                evidence_class="model_derived_hypothesis",
+                uncertainty="Requires validation before clinical interpretation.",
+                validation_needed=True,
+            )
+        ],
+    )
+
+
+def _matrix() -> TherapyEvidenceMatrixOutput:
+    return TherapyEvidenceMatrixOutput(
+        artifact_id="artifact_matrix",
+        rows=[
+            MolecularFitRow(
+                rank=1,
+                molecular_fit="MTAP PRMT5 review context",
+                fit_label="reviewable_molecular_fit",
+                why_from_omics="MTAP copy-number loss is present in the report.",
+                evidence_basis="source finding with graph support",
+                limitations="Requires human validation.",
+                required_validation="Confirm MTAP locus or protein status.",
+                clinical_use="trial_option",
+                therapy_class="methylation dependency context",
+                matched_biomarkers=["MTAP"],
+                resistance_risks=["Bypass context requires review."],
+                required_before_use_tests=["confirm MTAP status"],
+                confidence="needs_review",
+                evidence_level="source-backed hypothesis requiring review",
+            )
+        ],
+    )
+
+
+def _treatment_options_output(
+    *,
+    required_before_use_tests: list[str],
+    therapy_name_or_class: str = "MTAP-loss clinical trial category",
+) -> dict[str, object]:
+    return {
+        "ranked_treatment_options": [
+            {
+                "rank": 1,
+                "therapy_name_or_class": therapy_name_or_class,
+                "clinical_use": "trial_option",
+                "therapy_class": "methylation dependency context",
+                "matched_biomarkers": ["MTAP"],
+                "why_it_fits": "The uploaded report includes MTAP loss.",
+                "evidence_level": "source-backed hypothesis requiring review",
+                "resistance_risks": ["bypass signaling"],
+                "required_before_use_tests": required_before_use_tests,
+                "limitations": ["No final therapy selection is made."],
+                "source_artifact_ids": ["artifact_extraction"],
+                "unresolved_evidence": [],
+                "confidence": "needs_review",
+            }
+        ],
+        "unresolved_evidence": [],
+    }
+
+
+def _planned_artifact_id(user_prompt: str) -> str:
+    marker = "The artifact_id must be exactly:\n"
+    if marker not in user_prompt:
+        raise AssertionError("planned artifact marker missing from prompt")
+    return user_prompt.split(marker, 1)[1].split("\n", 1)[0].strip()
 
 
 def _question(

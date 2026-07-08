@@ -105,6 +105,31 @@ _MAX_PROMPT_CLAIM_INPUT_TUMOR_STATES = 3
 _MAX_PROMPT_CLAIM_INPUT_TRANSITIONS = 2
 _MAX_PROMPT_CLAIM_INPUT_TEXT_CHARS = 120
 _MAX_PROMPT_CLAIM_INPUT_SUMMARY_CHARS = 300
+_MAX_PROMPT_TUMOR_INPUT_FINDINGS = 8
+_MAX_PROMPT_TUMOR_INPUT_GRAPH_NODES = 8
+_MAX_PROMPT_TUMOR_INPUT_GRAPH_EDGES = 10
+_MAX_PROMPT_TUMOR_INPUT_TOOL_OUTPUTS = 3
+_MAX_PROMPT_TUMOR_INPUT_TOOL_EVIDENCE_ITEMS = 1
+_MAX_PROMPT_TUMOR_INPUT_HYPOTHESES = 4
+_MAX_PROMPT_TUMOR_INPUT_AXES = 4
+_MAX_PROMPT_TUMOR_INPUT_MATRIX_ROWS = 4
+_MAX_PROMPT_TUMOR_INPUT_SANKEY_NODES = 10
+_MAX_PROMPT_TUMOR_INPUT_SANKEY_LINKS = 10
+_MAX_PROMPT_TUMOR_INPUT_CONFIRMATORY_TESTS = 4
+_MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS = 140
+_MAX_PROMPT_TUMOR_INPUT_SUMMARY_CHARS = 360
+_MAX_PROMPT_NARRATIVE_FINDINGS = 6
+_MAX_PROMPT_NARRATIVE_AXES = 3
+_MAX_PROMPT_NARRATIVE_MATRIX_ROWS = 2
+_MAX_PROMPT_NARRATIVE_SANKEY_NODES = 6
+_MAX_PROMPT_NARRATIVE_SANKEY_LINKS = 6
+_MAX_PROMPT_NARRATIVE_CONFIRMATORY_TESTS = 2
+_MAX_PROMPT_NARRATIVE_TUMOR_STATES = 2
+_MAX_PROMPT_NARRATIVE_TRANSITIONS = 2
+_MAX_PROMPT_NARRATIVE_DECISION_ROWS = 1
+_MAX_PROMPT_NARRATIVE_CLAIMS = 3
+_MAX_PROMPT_NARRATIVE_TEXT_CHARS = 80
+_MAX_PROMPT_NARRATIVE_SUMMARY_CHARS = 220
 _PROMPT_CONTEXT_CAP_NOTICE = (
     "Context is relevance-capped for prompt length. Missing graph nodes, "
     "edges, tool rows, or reasoning items must not be interpreted as absent "
@@ -638,16 +663,13 @@ async def generate_tumor_behavior_model_with_model(
 ) -> StructuredArtifactResult[TumorBehaviorModelOutput]:
     """Generate TumorBehaviorModelOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "TumorBehaviorModelOutput")
-    compact_context = compact_evidence_context_for_prompt(context)
-    payload = {
-        "evidence_context": compact_context,
-        "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
-        "molecular_fit_matrix": compact_matrix_for_prompt(matrix),
-        "mechanism_sankey": compact_sankey_for_prompt(sankey),
-        "confirmatory_testing": compact_confirmatory_for_prompt(
-            confirmatory
-        ),
-    }
+    payload = compact_tumor_behavior_inputs_for_prompt(
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        sankey=sankey,
+        confirmatory=confirmatory,
+    )
     source_artifact_ids = [
         *_context_source_ids(context),
         phenotype.artifact_id,
@@ -1245,7 +1267,7 @@ async def generate_clinical_narrative_with_model(
     """Generate ClinicalNarrativeCompilerOutput through local vLLM structured output."""
     source_ids = _bundle_source_ids(bundle)
     artifact_id = _artifact_id(bundle.session_id, "ClinicalNarrativeCompilerOutput")
-    compact_bundle = compact_clinical_artifact_bundle_for_prompt(bundle)
+    compact_bundle = compact_clinical_narrative_bundle_for_prompt(bundle)
     result = await _generate_artifact(
         prompt_name="clinical_narrative",
         schema_model=ClinicalNarrativeCompilerOutput,
@@ -1701,6 +1723,102 @@ def compact_evidence_context_for_claim_evidence_prompt(
     }
 
 
+def compact_evidence_context_for_tumor_behavior_prompt(
+    context: EvidenceContextBundle,
+) -> dict[str, object]:
+    """Return a tight evidence-context payload for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same compact payload.
+        2. No mutation: The input context is not mutated.
+        3. Provenance: Artifact, finding, source chunk, graph, tool, and Medea
+           IDs remain present for tumor-state and transition grounding.
+        4. Boundedness: Source text, graph context, tool evidence rows, and
+           Medea reasoning use tumor-behavior prompt caps.
+        5. Safety: Truncation metadata states that omitted context is not
+           evidence of biological absence.
+
+    Args:
+        context: Full evidence context bundle.
+
+    Returns:
+        JSON-serializable evidence context tuned for tumor behavior generation.
+    """
+    compact = compact_evidence_context_for_prompt(context)
+    extraction = dict(compact["extraction"])
+    extraction.update(
+        {
+            "molecular_findings": [
+                _compact_tumor_input_finding(finding)
+                for finding in extraction["molecular_findings"][
+                    :_MAX_PROMPT_TUMOR_INPUT_FINDINGS
+                ]
+            ],
+            "negative_findings": _compact_tumor_input_texts(
+                extraction.get("negative_findings", [])
+            ),
+            "assay_limitations": _compact_tumor_input_texts(
+                extraction.get("assay_limitations", [])
+            ),
+        }
+    )
+    return {
+        "artifact_id": compact["artifact_id"],
+        "extraction": extraction,
+        "graph_evidence": _compact_tumor_input_graph(
+            compact["graph_evidence"]
+        ),
+        "tool_outputs": [
+            _compact_tumor_input_tool(tool)
+            for tool in compact["tool_outputs"][
+                :_MAX_PROMPT_TUMOR_INPUT_TOOL_OUTPUTS
+            ]
+        ],
+        "medea_reasoning": _compact_tumor_input_medea(
+            compact["medea_reasoning"]
+        ),
+        "missing_evidence": _compact_tumor_input_texts(
+            compact.get("missing_evidence", [])
+        ),
+        "conflicting_evidence": _compact_tumor_input_texts(
+            compact.get("conflicting_evidence", [])
+        ),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_evidence_context_for_clinical_narrative_prompt(
+    context: EvidenceContextBundle,
+) -> dict[str, object]:
+    """Return evidence-context header for clinical narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same compact payload.
+        2. No mutation: The input context is not mutated.
+        3. Provenance: Evidence-context, extraction, graph, tool, and Medea
+           artifact IDs remain present.
+        4. Boundedness: Detailed evidence is omitted because extraction and
+           generated artifacts are supplied elsewhere in the narrative bundle.
+    """
+    return {
+        "artifact_id": context.artifact_id,
+        "extraction_artifact_id": context.extraction.artifact_id,
+        "graph_artifact_id": context.graph_evidence.artifact_id,
+        "tool_artifact_ids": [
+            tool.artifact_id
+            for tool in context.tool_outputs[:_MAX_PROMPT_NARRATIVE_DECISION_ROWS]
+        ],
+        "medea_artifact_id": context.medea_reasoning.artifact_id,
+        "missing_evidence": _compact_narrative_texts(
+            context.missing_evidence
+        ),
+        "conflicting_evidence": _compact_narrative_texts(
+            context.conflicting_evidence
+        ),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
 def compact_evidence_context_for_mechanism_sankey_prompt(
     context: EvidenceContextBundle,
 ) -> dict[str, object]:
@@ -2076,6 +2194,89 @@ def compact_clinical_artifact_bundle_for_prompt(
     }
 
 
+def compact_clinical_narrative_bundle_for_prompt(
+    bundle: ClinicalArtifactBundle,
+) -> dict[str, object]:
+    """Return a tight clinical bundle for narrative generation.
+
+    Acceptance criteria:
+        1. Determinism: Same bundle returns the same compact payload.
+        2. No mutation: The input bundle and nested artifacts are not mutated.
+        3. Provenance: Source artifact IDs, source chunk IDs, finding IDs, and
+           claim IDs remain available for narrative grounding.
+        4. Boundedness: Nested artifacts, decision-brief rows, claims, and free
+           text use clinical-narrative-specific prompt caps.
+        5. Safety: Truncation metadata states that omitted context is not
+           evidence of biological absence.
+
+    Args:
+        bundle: Full clinical artifact bundle.
+
+    Returns:
+        JSON-serializable compact bundle for the narrative prompt.
+    """
+    return {
+        "case_id": bundle.case_id,
+        "session_id": bundle.session_id,
+        "extraction": _compact_extraction_for_clinical_narrative_prompt(
+            bundle.extraction
+        ),
+        "entities": None,
+        "evidence_context": (
+            compact_evidence_context_for_clinical_narrative_prompt(
+                bundle.evidence_context
+            )
+            if bundle.evidence_context is not None
+            else None
+        ),
+        "phenotype": (
+            compact_phenotype_for_clinical_narrative_prompt(bundle.phenotype)
+            if bundle.phenotype is not None
+            else None
+        ),
+        "matrix": (
+            compact_matrix_for_clinical_narrative_prompt(bundle.matrix)
+            if bundle.matrix is not None
+            else None
+        ),
+        "sankey": (
+            compact_sankey_for_clinical_narrative_prompt(bundle.sankey)
+            if bundle.sankey is not None
+            else None
+        ),
+        "confirmatory": (
+            compact_confirmatory_for_clinical_narrative_prompt(
+                bundle.confirmatory
+            )
+            if bundle.confirmatory is not None
+            else None
+        ),
+        "tumor_behavior": (
+            compact_tumor_behavior_for_clinical_narrative_prompt(
+                bundle.tumor_behavior
+            )
+            if bundle.tumor_behavior is not None
+            else None
+        ),
+        "decision_brief": (
+            compact_decision_brief_for_clinical_narrative_prompt(
+                bundle.decision_brief
+            )
+            if bundle.decision_brief is not None
+            else None
+        ),
+        "claims": compact_claims_for_clinical_narrative_prompt(bundle.claims),
+        "source_artifact_ids": _bundle_source_ids(bundle),
+        "source_chunk_ids": _bundle_source_chunk_ids(bundle),
+        "truncation": {
+            "narrative_claim_cap": _MAX_PROMPT_NARRATIVE_CLAIMS,
+            "narrative_row_cap": _MAX_PROMPT_NARRATIVE_DECISION_ROWS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
 def compact_claim_evidence_inputs_for_prompt(
     *,
     context: EvidenceContextBundle,
@@ -2123,6 +2324,54 @@ def compact_claim_evidence_inputs_for_prompt(
         ),
         "tumor_behavior_model": compact_tumor_behavior_for_claim_evidence_prompt(
             tumor_behavior
+        ),
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_tumor_behavior_inputs_for_prompt(
+    *,
+    context: EvidenceContextBundle,
+    phenotype: MolecularPhenotypeOutput,
+    matrix: TherapyEvidenceMatrixOutput,
+    sankey: MechanismSankeyOutput,
+    confirmatory: ConfirmatoryTestingOutput,
+) -> dict[str, object]:
+    """Return compact inputs for tumor-behavior generation.
+
+    Acceptance criteria:
+        1. Determinism: Same source artifacts return the same payload.
+        2. No mutation: Input artifacts are not mutated.
+        3. Provenance: IDs needed for state and transition support remain
+           available to the model and downstream validation.
+        4. Boundedness: Nested evidence, generated artifacts, and free text use
+           tumor-behavior-specific prompt caps.
+        5. Safety: Truncation metadata states that omitted context is not
+           evidence of biological absence.
+
+    Args:
+        context: Current evidence context bundle.
+        phenotype: Current molecular phenotype artifact.
+        matrix: Current molecular-fit matrix artifact.
+        sankey: Current mechanism Sankey artifact.
+        confirmatory: Current confirmatory testing artifact.
+
+    Returns:
+        JSON-serializable payload for the tumor-behavior structured-output call.
+    """
+    return {
+        "evidence_context": compact_evidence_context_for_tumor_behavior_prompt(
+            context
+        ),
+        "molecular_phenotype": compact_phenotype_for_tumor_behavior_prompt(
+            phenotype
+        ),
+        "molecular_fit_matrix": compact_matrix_for_tumor_behavior_prompt(
+            matrix
+        ),
+        "mechanism_sankey": compact_sankey_for_tumor_behavior_prompt(sankey),
+        "confirmatory_testing": compact_confirmatory_for_tumor_behavior_prompt(
+            confirmatory
         ),
         "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
     }
@@ -2247,6 +2496,86 @@ def compact_phenotype_for_claim_evidence_prompt(
             "original_axes": compact["truncation"]["original_axes"],
             "kept_axes": len(axes),
             "axis_cap": _MAX_PROMPT_CLAIM_INPUT_AXES,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_phenotype_for_tumor_behavior_prompt(
+    phenotype: MolecularPhenotypeOutput,
+) -> dict[str, object]:
+    """Return phenotype payload tuned for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same phenotype returns the same payload.
+        2. No mutation: The phenotype model is not mutated.
+        3. Provenance: Kept axes retain axis IDs and supporting finding IDs.
+        4. Boundedness: Axis count and free text use tumor-behavior caps.
+    """
+    compact = compact_phenotype_for_prompt(phenotype)
+    axes = [
+        {
+            **axis,
+            "label": truncate_text(
+                str(axis.get("label", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "uncertainty": truncate_text(
+                str(axis.get("uncertainty", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+        }
+        for axis in compact["axes"][:_MAX_PROMPT_TUMOR_INPUT_AXES]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "axes": axes,
+        "limitations": _compact_tumor_input_texts(
+            compact.get("limitations", [])
+        ),
+        "truncation": {
+            "original_axes": compact["truncation"]["original_axes"],
+            "kept_axes": len(axes),
+            "axis_cap": _MAX_PROMPT_TUMOR_INPUT_AXES,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_phenotype_for_clinical_narrative_prompt(
+    phenotype: MolecularPhenotypeOutput,
+) -> dict[str, object]:
+    """Return phenotype payload tuned for clinical narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same phenotype returns the same payload.
+        2. No mutation: The phenotype model is not mutated.
+        3. Provenance: Kept axes retain axis IDs and supporting finding IDs.
+        4. Boundedness: Axis count and free text use narrative caps.
+    """
+    compact = compact_phenotype_for_prompt(phenotype)
+    axes = [
+        {
+            **axis,
+            "label": truncate_text(
+                str(axis.get("label", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "uncertainty": truncate_text(
+                str(axis.get("uncertainty", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+        }
+        for axis in compact["axes"][:_MAX_PROMPT_NARRATIVE_AXES]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "axes": axes,
+        "limitations": _compact_narrative_texts(compact.get("limitations", [])),
+        "truncation": {
+            "original_axes": compact["truncation"]["original_axes"],
+            "kept_axes": len(axes),
+            "axis_cap": _MAX_PROMPT_NARRATIVE_AXES,
             "notice": _PROMPT_CONTEXT_CAP_NOTICE,
         },
     }
@@ -2439,6 +2768,140 @@ def compact_matrix_for_claim_evidence_prompt(
     }
 
 
+def compact_matrix_for_tumor_behavior_prompt(
+    matrix: TherapyEvidenceMatrixOutput,
+) -> dict[str, object]:
+    """Return matrix payload tuned for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Row order is preserved.
+        2. No mutation: The matrix model is not mutated.
+        3. Provenance: Matrix artifact ID and row context are retained.
+        4. Boundedness: Row count and free text use tumor-behavior caps.
+    """
+    compact = compact_matrix_for_prompt(matrix)
+    rows = [
+        {
+            **row,
+            "molecular_fit": truncate_text(
+                str(row.get("molecular_fit", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "why_from_omics": truncate_text(
+                str(row.get("why_from_omics", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "evidence_basis": truncate_text(
+                str(row.get("evidence_basis", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "limitations": truncate_text(
+                str(row.get("limitations", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "required_validation": truncate_text(
+                str(row.get("required_validation", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "therapy_class": truncate_text(
+                str(row.get("therapy_class", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "matched_biomarkers": _compact_tumor_input_texts(
+                row.get("matched_biomarkers", [])
+            ),
+            "resistance_risks": _compact_tumor_input_texts(
+                row.get("resistance_risks", [])
+            ),
+            "required_before_use_tests": _compact_tumor_input_texts(
+                row.get("required_before_use_tests", [])
+            ),
+            "evidence_level": truncate_text(
+                str(row.get("evidence_level", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+        }
+        for row in compact["rows"][:_MAX_PROMPT_TUMOR_INPUT_MATRIX_ROWS]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "rows": rows,
+        "truncation": {
+            "original_rows": compact["truncation"]["original_rows"],
+            "kept_rows": len(rows),
+            "row_cap": _MAX_PROMPT_TUMOR_INPUT_MATRIX_ROWS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_matrix_for_clinical_narrative_prompt(
+    matrix: TherapyEvidenceMatrixOutput,
+) -> dict[str, object]:
+    """Return matrix payload tuned for clinical narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Row order is preserved.
+        2. No mutation: The matrix model is not mutated.
+        3. Provenance: Matrix artifact ID and row context are retained.
+        4. Boundedness: Row count and free text use narrative caps.
+    """
+    compact = compact_matrix_for_prompt(matrix)
+    rows = [
+        {
+            **row,
+            "molecular_fit": truncate_text(
+                str(row.get("molecular_fit", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "why_from_omics": truncate_text(
+                str(row.get("why_from_omics", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "evidence_basis": truncate_text(
+                str(row.get("evidence_basis", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "limitations": truncate_text(
+                str(row.get("limitations", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "required_validation": truncate_text(
+                str(row.get("required_validation", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "therapy_class": truncate_text(
+                str(row.get("therapy_class", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "matched_biomarkers": _compact_narrative_texts(
+                row.get("matched_biomarkers", [])
+            ),
+            "resistance_risks": _compact_narrative_texts(
+                row.get("resistance_risks", [])
+            ),
+            "required_before_use_tests": _compact_narrative_texts(
+                row.get("required_before_use_tests", [])
+            ),
+            "evidence_level": truncate_text(
+                str(row.get("evidence_level", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+        }
+        for row in compact["rows"][:_MAX_PROMPT_NARRATIVE_MATRIX_ROWS]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "rows": rows,
+        "truncation": {
+            "original_rows": compact["truncation"]["original_rows"],
+            "kept_rows": len(rows),
+            "row_cap": _MAX_PROMPT_NARRATIVE_MATRIX_ROWS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
 def compact_sankey_for_prompt(
     sankey: MechanismSankeyOutput,
 ) -> dict[str, object]:
@@ -2542,6 +3005,96 @@ def compact_sankey_for_claim_evidence_prompt(
             "kept_links": len(links),
             "node_cap": _MAX_PROMPT_CLAIM_INPUT_SANKEY_NODES,
             "link_cap": _MAX_PROMPT_CLAIM_INPUT_SANKEY_LINKS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_sankey_for_tumor_behavior_prompt(
+    sankey: MechanismSankeyOutput,
+) -> dict[str, object]:
+    """Return Sankey payload tuned for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Node and link order are preserved.
+        2. No mutation: The Sankey model is not mutated.
+        3. Provenance: Kept links retain source artifact IDs.
+        4. Boundedness: Node and link counts use tumor-behavior caps.
+    """
+    compact = compact_sankey_for_prompt(sankey)
+    nodes = [
+        {
+            **node,
+            "label": truncate_text(
+                str(node.get("label", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+        }
+        for node in compact["nodes"][:_MAX_PROMPT_TUMOR_INPUT_SANKEY_NODES]
+    ]
+    kept_node_ids = {str(node.get("node_id", "")) for node in nodes}
+    links = [
+        link
+        for link in compact["links"]
+        if str(link.get("source_node_id", "")) in kept_node_ids
+        or str(link.get("target_node_id", "")) in kept_node_ids
+    ][:_MAX_PROMPT_TUMOR_INPUT_SANKEY_LINKS]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "nodes": nodes,
+        "links": links,
+        "truncation": {
+            "original_nodes": compact["truncation"]["original_nodes"],
+            "kept_nodes": len(nodes),
+            "original_links": compact["truncation"]["original_links"],
+            "kept_links": len(links),
+            "node_cap": _MAX_PROMPT_TUMOR_INPUT_SANKEY_NODES,
+            "link_cap": _MAX_PROMPT_TUMOR_INPUT_SANKEY_LINKS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_sankey_for_clinical_narrative_prompt(
+    sankey: MechanismSankeyOutput,
+) -> dict[str, object]:
+    """Return Sankey payload tuned for clinical narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Node and link order are preserved.
+        2. No mutation: The Sankey model is not mutated.
+        3. Provenance: Kept links retain source artifact IDs.
+        4. Boundedness: Node and link counts use narrative caps.
+    """
+    compact = compact_sankey_for_prompt(sankey)
+    nodes = [
+        {
+            **node,
+            "label": truncate_text(
+                str(node.get("label", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+        }
+        for node in compact["nodes"][:_MAX_PROMPT_NARRATIVE_SANKEY_NODES]
+    ]
+    kept_node_ids = {str(node.get("node_id", "")) for node in nodes}
+    links = [
+        link
+        for link in compact["links"]
+        if str(link.get("source_node_id", "")) in kept_node_ids
+        or str(link.get("target_node_id", "")) in kept_node_ids
+    ][:_MAX_PROMPT_NARRATIVE_SANKEY_LINKS]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "nodes": nodes,
+        "links": links,
+        "truncation": {
+            "original_nodes": compact["truncation"]["original_nodes"],
+            "kept_nodes": len(nodes),
+            "original_links": compact["truncation"]["original_links"],
+            "kept_links": len(links),
+            "node_cap": _MAX_PROMPT_NARRATIVE_SANKEY_NODES,
+            "link_cap": _MAX_PROMPT_NARRATIVE_SANKEY_LINKS,
             "notice": _PROMPT_CONTEXT_CAP_NOTICE,
         },
     }
@@ -2653,6 +3206,114 @@ def compact_confirmatory_for_claim_evidence_prompt(
             "original_tests": compact["truncation"]["original_tests"],
             "kept_tests": len(tests),
             "test_cap": _MAX_PROMPT_CLAIM_INPUT_CONFIRMATORY_TESTS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_confirmatory_for_tumor_behavior_prompt(
+    confirmatory: ConfirmatoryTestingOutput,
+) -> dict[str, object]:
+    """Return confirmatory-testing payload tuned for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Test order is preserved.
+        2. No mutation: The confirmatory-testing model is not mutated.
+        3. Provenance: Test IDs and source claim IDs are retained.
+        4. Boundedness: Test count and free text use tumor-behavior caps.
+    """
+    compact = compact_confirmatory_for_prompt(confirmatory)
+    tests = [
+        {
+            **test,
+            "question": truncate_text(
+                str(test.get("question", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "why_it_matters": truncate_text(
+                str(test.get("why_it_matters", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "positive_interpretation": truncate_text(
+                str(test.get("positive_interpretation", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "negative_interpretation": truncate_text(
+                str(test.get("negative_interpretation", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+            "evidence_gap": truncate_text(
+                str(test.get("evidence_gap", "")),
+                _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+            ),
+        }
+        for test in compact["tests"][:_MAX_PROMPT_TUMOR_INPUT_CONFIRMATORY_TESTS]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "tests": tests,
+        "must_not_assume": _compact_tumor_input_texts(
+            compact.get("must_not_assume", [])
+        ),
+        "truncation": {
+            "original_tests": compact["truncation"]["original_tests"],
+            "kept_tests": len(tests),
+            "test_cap": _MAX_PROMPT_TUMOR_INPUT_CONFIRMATORY_TESTS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def compact_confirmatory_for_clinical_narrative_prompt(
+    confirmatory: ConfirmatoryTestingOutput,
+) -> dict[str, object]:
+    """Return confirmatory-testing payload tuned for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Test order is preserved.
+        2. No mutation: The confirmatory-testing model is not mutated.
+        3. Provenance: Test IDs and source claim IDs are retained.
+        4. Boundedness: Test count and free text use narrative caps.
+    """
+    compact = compact_confirmatory_for_prompt(confirmatory)
+    tests = [
+        {
+            **test,
+            "question": truncate_text(
+                str(test.get("question", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "why_it_matters": truncate_text(
+                str(test.get("why_it_matters", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "positive_interpretation": truncate_text(
+                str(test.get("positive_interpretation", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "negative_interpretation": truncate_text(
+                str(test.get("negative_interpretation", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "evidence_gap": truncate_text(
+                str(test.get("evidence_gap", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+        }
+        for test in compact["tests"][
+            :_MAX_PROMPT_NARRATIVE_CONFIRMATORY_TESTS
+        ]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "tests": tests,
+        "must_not_assume": _compact_narrative_texts(
+            compact.get("must_not_assume", [])
+        ),
+        "truncation": {
+            "original_tests": compact["truncation"]["original_tests"],
+            "kept_tests": len(tests),
+            "test_cap": _MAX_PROMPT_NARRATIVE_CONFIRMATORY_TESTS,
             "notice": _PROMPT_CONTEXT_CAP_NOTICE,
         },
     }
@@ -2792,6 +3453,66 @@ def compact_tumor_behavior_for_claim_evidence_prompt(
     }
 
 
+def compact_tumor_behavior_for_clinical_narrative_prompt(
+    tumor_behavior: TumorBehaviorModelOutput,
+) -> dict[str, object]:
+    """Return tumor-behavior payload tuned for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: State and transition order are preserved.
+        2. No mutation: The tumor-behavior model is not mutated.
+        3. Provenance: Support IDs for kept states and transitions are kept.
+        4. Boundedness: State, transition, and free-text payloads use
+           narrative caps.
+    """
+    compact = compact_tumor_behavior_for_prompt(tumor_behavior)
+    states = [
+        {
+            **state,
+            "uncertainty": truncate_text(
+                str(state.get("uncertainty", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+        }
+        for state in compact["state_evidence"][
+            :_MAX_PROMPT_NARRATIVE_TUMOR_STATES
+        ]
+    ]
+    transitions = [
+        {
+            **transition,
+            "rationale": truncate_text(
+                str(transition.get("rationale", "")),
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+        }
+        for transition in compact["transition_hypotheses"][
+            :_MAX_PROMPT_NARRATIVE_TRANSITIONS
+        ]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "state_evidence": states,
+        "transition_hypotheses": transitions,
+        "limitations": _compact_narrative_texts(
+            compact.get("limitations", [])
+        ),
+        "truncation": {
+            "original_state_evidence": compact["truncation"][
+                "original_state_evidence"
+            ],
+            "kept_state_evidence": len(states),
+            "original_transition_hypotheses": compact["truncation"][
+                "original_transition_hypotheses"
+            ],
+            "kept_transition_hypotheses": len(transitions),
+            "state_cap": _MAX_PROMPT_NARRATIVE_TUMOR_STATES,
+            "transition_cap": _MAX_PROMPT_NARRATIVE_TRANSITIONS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
 def compact_decision_brief_for_prompt(
     brief: OncologistDecisionBrief,
 ) -> dict[str, object]:
@@ -2863,6 +3584,110 @@ def compact_decision_brief_for_prompt(
     }
 
 
+def compact_decision_brief_for_clinical_narrative_prompt(
+    brief: OncologistDecisionBrief,
+) -> dict[str, object]:
+    """Return decision brief payload tuned for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same brief returns the same compact payload.
+        2. No mutation: The decision brief is not mutated.
+        3. Provenance: Source artifact IDs and source chunk IDs are retained.
+        4. Boundedness: Decision rows and nested free text use narrative caps.
+    """
+    return {
+        "artifact_id": brief.artifact_id,
+        "clinical_decision_summary": truncate_text(
+            brief.clinical_decision_summary,
+            _MAX_PROMPT_NARRATIVE_SUMMARY_CHARS,
+        ),
+        "current_tumor_state": _compact_narrative_mapping(
+            brief.current_tumor_state.model_dump(mode="json")
+        ),
+        "actionable_biology": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.actionable_biology[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "ranked_treatment_options": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.ranked_treatment_options[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "treatment_pressure_map": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.treatment_pressure_map[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "resistance_forecast": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.resistance_forecast[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "biomarker_watch_list": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.biomarker_watch_list[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "retesting_triggers": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.retesting_triggers[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "next_test_recommendations": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.next_test_recommendations[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "translational_assessment": (
+            _compact_narrative_mapping(
+                brief.translational_assessment.model_dump(mode="json")
+            )
+            if brief.translational_assessment is not None
+            else None
+        ),
+        "therapy_escape_sankey_paths": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.therapy_escape_sankey_paths[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "evidence_sentence_map": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.evidence_sentence_map[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "evidence_limitations": [
+            _compact_narrative_mapping(item.model_dump(mode="json"))
+            for item in brief.evidence_limitations[
+                :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+            ]
+        ],
+        "source_artifact_ids": _compact_id_list(brief.source_artifact_ids),
+        "source_chunk_ids": _compact_id_list(brief.source_chunk_ids),
+        "validation_status": brief.validation_status,
+        "truncation": {
+            "actionable_biology": len(brief.actionable_biology),
+            "ranked_treatment_options": len(brief.ranked_treatment_options),
+            "treatment_pressure_map": len(brief.treatment_pressure_map),
+            "resistance_forecast": len(brief.resistance_forecast),
+            "biomarker_watch_list": len(brief.biomarker_watch_list),
+            "retesting_triggers": len(brief.retesting_triggers),
+            "next_test_recommendations": len(brief.next_test_recommendations),
+            "row_cap": _MAX_PROMPT_NARRATIVE_DECISION_ROWS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
 def compact_claims_for_prompt(
     claims: Sequence[ClaimEvidenceOutput],
 ) -> list[dict[str, object]]:
@@ -2916,6 +3741,47 @@ def compact_claims_for_prompt(
     ]
 
 
+def compact_claims_for_clinical_narrative_prompt(
+    claims: Sequence[ClaimEvidenceOutput],
+) -> list[dict[str, object]]:
+    """Return claim-evidence payloads tuned for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Claim order is preserved.
+        2. No mutation: Claim models are not mutated.
+        3. Provenance: Claim IDs and source artifact IDs are retained.
+        4. Boundedness: Claim count and free text use narrative caps.
+    """
+    kept_claims = claims[:_MAX_PROMPT_NARRATIVE_CLAIMS]
+    return [
+        {
+            "claim_id": claim.claim_id,
+            "claim": truncate_text(
+                claim.claim,
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "claim_class": claim.claim_class,
+            "source_artifact_ids": _compact_id_list(
+                claim.source_artifact_ids
+            ),
+            "evidence_source": truncate_text(
+                claim.evidence_source,
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "relevance": truncate_text(
+                claim.relevance,
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "limitations": truncate_text(
+                claim.limitations,
+                _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+            ),
+            "validation_status": claim.validation_status,
+        }
+        for claim in kept_claims
+    ]
+
+
 def _compact_extraction_for_prompt(
     extraction: ReportExtractionOutput,
 ) -> dict[str, object]:
@@ -2938,6 +3804,80 @@ def _compact_extraction_for_prompt(
             "original_molecular_findings": len(extraction.molecular_findings),
             "kept_molecular_findings": len(findings),
         },
+    }
+
+
+def _compact_extraction_for_clinical_narrative_prompt(
+    extraction: ReportExtractionOutput,
+) -> dict[str, object]:
+    """Return extraction payload tuned for clinical narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Finding order is preserved.
+        2. No mutation: The extraction model is not mutated.
+        3. Provenance: Finding IDs, source chunk IDs, and source file ID are
+           retained.
+        4. Boundedness: Finding count and free text use narrative caps.
+    """
+    findings = [
+        _compact_narrative_finding(finding)
+        for finding in extraction.molecular_findings[
+            :_MAX_PROMPT_NARRATIVE_FINDINGS
+        ]
+    ]
+    return {
+        "artifact_id": extraction.artifact_id,
+        "report_type": extraction.report_type,
+        "disease": truncate_text(
+            extraction.disease,
+            _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+        ),
+        "specimen": truncate_text(
+            extraction.specimen,
+            _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+        ),
+        "tumor_percentage": truncate_text(
+            extraction.tumor_percentage,
+            _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+        ),
+        "molecular_findings": findings,
+        "negative_findings": _compact_narrative_texts(
+            extraction.negative_findings
+        ),
+        "assay_limitations": _compact_narrative_texts(
+            extraction.assay_limitations
+        ),
+        "source_file_id": extraction.source_file_id,
+        "needs_human_review": extraction.needs_human_review,
+        "truncation": {
+            "original_molecular_findings": len(extraction.molecular_findings),
+            "kept_molecular_findings": len(findings),
+            "finding_cap": _MAX_PROMPT_NARRATIVE_FINDINGS,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def _compact_narrative_finding(
+    finding: MolecularFinding,
+) -> dict[str, object]:
+    return {
+        "finding_id": finding.finding_id,
+        "gene": finding.gene,
+        "alteration": truncate_text(
+            finding.alteration,
+            _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+        ),
+        "alteration_type": finding.alteration_type,
+        "source_page": finding.source_page,
+        "source_text": truncate_text(
+            finding.source_text,
+            _MAX_PROMPT_NARRATIVE_TEXT_CHARS,
+        ),
+        "source_chunk_id": finding.source_chunk_id,
+        "confidence": finding.confidence,
+        "needs_human_review": finding.needs_human_review,
+        "research_use_only": finding.research_use_only,
     }
 
 
@@ -3601,6 +4541,333 @@ def _compact_claim_input_texts(
         item
         for item in (
             truncate_text(str(value), _MAX_PROMPT_CLAIM_INPUT_TEXT_CHARS)
+            for value in values[:max_items]
+        )
+        if item
+    ]
+
+
+def _compact_tumor_input_finding(
+    finding: Mapping[str, object],
+) -> dict[str, object]:
+    """Return a bounded finding payload for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same finding mapping returns the same payload.
+        2. No mutation: Do not mutate caller-owned mappings.
+        3. Provenance: Preserve finding ID, source chunk ID, and source page.
+        4. Boundedness: Source text uses the tumor-behavior prompt text cap.
+    """
+    return {
+        **finding,
+        "source_text": truncate_text(
+            str(finding.get("source_text", "")),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        ),
+    }
+
+
+def _compact_tumor_input_graph(graph: object) -> dict[str, object]:
+    """Return graph evidence capped for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Preserves the incoming ranked graph order.
+        2. No mutation: Do not mutate caller-owned mappings.
+        3. Provenance: Preserve graph, node, edge, and subgraph IDs.
+        4. Boundedness: Node, edge, subgraph, warning, and missing-entity
+           payloads are capped for tumor behavior generation.
+    """
+    if not isinstance(graph, Mapping):
+        return {}
+    nodes = _mapping_sequence(graph.get("nodes", []))[
+        :_MAX_PROMPT_TUMOR_INPUT_GRAPH_NODES
+    ]
+    edges = _mapping_sequence(graph.get("edges", []))[
+        :_MAX_PROMPT_TUMOR_INPUT_GRAPH_EDGES
+    ]
+    truncation = dict(graph.get("truncation", {}))
+    truncation.update(
+        {
+            "tumor_behavior_kept_nodes": len(nodes),
+            "tumor_behavior_kept_edges": len(edges),
+            "tumor_behavior_node_cap": _MAX_PROMPT_TUMOR_INPUT_GRAPH_NODES,
+            "tumor_behavior_edge_cap": _MAX_PROMPT_TUMOR_INPUT_GRAPH_EDGES,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        }
+    )
+    return {
+        "artifact_id": graph.get("artifact_id"),
+        "source_entity_ids": _compact_id_list(
+            _string_sequence(graph.get("source_entity_ids", []))
+        ),
+        "retrieval_modes": _compact_id_list(
+            _string_sequence(graph.get("retrieval_modes", [])),
+            max_items=_MAX_PROMPT_TUMOR_INPUT_TOOL_OUTPUTS,
+        ),
+        "nodes": [_compact_tumor_input_graph_node(node) for node in nodes],
+        "edges": [_compact_tumor_input_graph_edge(edge) for edge in edges],
+        "subgraphs": [
+            _compact_tumor_input_subgraph(subgraph)
+            for subgraph in _mapping_sequence(graph.get("subgraphs", []))[
+                :_MAX_PROMPT_TUMOR_INPUT_TOOL_OUTPUTS
+            ]
+        ],
+        "missing_entities": _compact_tumor_input_texts(
+            graph.get("missing_entities", [])
+        ),
+        "warnings": _compact_tumor_input_texts(graph.get("warnings", [])),
+        "truncation": truncation,
+    }
+
+
+def _compact_tumor_input_graph_node(
+    node: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "node_id": str(node.get("node_id", "")),
+        "label": truncate_text(
+            str(node.get("label", "")),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        ),
+        "kind": truncate_text(
+            str(node.get("kind", "")),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        ),
+        "source": truncate_text(
+            str(node.get("source", "")),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        ),
+    }
+
+
+def _compact_tumor_input_graph_edge(
+    edge: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "edge_id": str(edge.get("edge_id", "")),
+        "source_node_id": str(edge.get("source_node_id", "")),
+        "target_node_id": str(edge.get("target_node_id", "")),
+        "relation_type": truncate_text(
+            str(edge.get("relation_type", "")),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        ),
+        "source": truncate_text(
+            str(edge.get("source", "")),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        ),
+    }
+
+
+def _compact_tumor_input_subgraph(
+    subgraph: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "retrieval_mode": str(subgraph.get("retrieval_mode", "")),
+        "query_terms": _compact_tumor_input_texts(
+            subgraph.get("query_terms", [])
+        ),
+        "node_ids": _compact_id_list(
+            _string_sequence(subgraph.get("node_ids", [])),
+            max_items=_MAX_PROMPT_TUMOR_INPUT_GRAPH_NODES,
+        ),
+        "edge_ids": _compact_id_list(
+            _string_sequence(subgraph.get("edge_ids", [])),
+            max_items=_MAX_PROMPT_TUMOR_INPUT_GRAPH_EDGES,
+        ),
+        "warnings": _compact_tumor_input_texts(subgraph.get("warnings", [])),
+    }
+
+
+def _compact_tumor_input_tool(
+    tool: Mapping[str, object],
+) -> dict[str, object]:
+    """Return a tight ToolUniverse payload for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same tool mapping returns the same payload.
+        2. No mutation: Do not mutate caller-owned mappings.
+        3. Provenance: Preserve artifact ID, workflow, and input entity IDs.
+        4. Boundedness: Summary text and evidence rows are tightly capped.
+    """
+    evidence_items = _mapping_sequence(tool.get("evidence_items", []))
+    return {
+        "artifact_id": tool.get("artifact_id"),
+        "workflow": tool.get("workflow"),
+        "input_entity_ids": _compact_id_list(
+            _string_sequence(tool.get("input_entity_ids", [])),
+        ),
+        "summary": truncate_text(
+            str(tool.get("summary", "")),
+            _MAX_PROMPT_TUMOR_INPUT_SUMMARY_CHARS,
+        ),
+        "evidence_items": [
+            _compact_tumor_input_evidence_item(item)
+            for item in evidence_items[
+                :_MAX_PROMPT_TUMOR_INPUT_TOOL_EVIDENCE_ITEMS
+            ]
+        ],
+        "warnings": _compact_tumor_input_texts(tool.get("warnings", [])),
+        "requires_human_review": tool.get("requires_human_review", True),
+        "truncation": {
+            "original_evidence_items": len(evidence_items),
+            "kept_evidence_items": min(
+                len(evidence_items),
+                _MAX_PROMPT_TUMOR_INPUT_TOOL_EVIDENCE_ITEMS,
+            ),
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        },
+    }
+
+
+def _compact_tumor_input_evidence_item(
+    item: Mapping[str, object],
+) -> dict[str, str]:
+    return {
+        str(key): truncate_text(
+            str(value),
+            _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS,
+        )
+        or ""
+        for key, value in list(item.items())[:_MAX_PROMPT_EVIDENCE_ITEM_FIELDS]
+    }
+
+
+def _compact_tumor_input_medea(medea: object) -> dict[str, object]:
+    """Return Medea reasoning capped for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Hypothesis order is preserved.
+        2. No mutation: Do not mutate caller-owned mappings.
+        3. Provenance: Preserve artifact ID and reasoning mode.
+        4. Boundedness: Summary and hypothesis lists use tumor-behavior caps.
+    """
+    if not isinstance(medea, Mapping):
+        return {}
+    supported = _string_sequence(medea.get("supported_hypotheses", []))
+    weakened = _string_sequence(medea.get("weakened_hypotheses", []))
+    truncation = dict(medea.get("truncation", {}))
+    truncation.update(
+        {
+            "tumor_behavior_kept_supported_hypotheses": min(
+                len(supported),
+                _MAX_PROMPT_TUMOR_INPUT_HYPOTHESES,
+            ),
+            "tumor_behavior_kept_weakened_hypotheses": min(
+                len(weakened),
+                _MAX_PROMPT_TUMOR_INPUT_HYPOTHESES,
+            ),
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        }
+    )
+    return {
+        "artifact_id": medea.get("artifact_id"),
+        "reasoning_mode": medea.get("reasoning_mode"),
+        "decision_support_role": medea.get(
+            "decision_support_role",
+            "hypothesis_support_only",
+        ),
+        "downstream_uses": _compact_tumor_input_texts(
+            medea.get("downstream_uses", [])
+        ),
+        "summary": truncate_text(
+            str(medea.get("summary", "")),
+            _MAX_PROMPT_TUMOR_INPUT_SUMMARY_CHARS,
+        ),
+        "supported_hypotheses": _compact_tumor_input_texts(
+            supported,
+            max_items=_MAX_PROMPT_TUMOR_INPUT_HYPOTHESES,
+        ),
+        "weakened_hypotheses": _compact_tumor_input_texts(
+            weakened,
+            max_items=_MAX_PROMPT_TUMOR_INPUT_HYPOTHESES,
+        ),
+        "warnings": _compact_tumor_input_texts(medea.get("warnings", [])),
+        "requires_human_review": medea.get("requires_human_review", True),
+        "truncation": truncation,
+    }
+
+
+def _compact_tumor_input_texts(
+    values: object,
+    max_items: int = _MAX_PROMPT_TUMOR_INPUT_HYPOTHESES,
+) -> list[str]:
+    """Return text values capped for tumor behavior prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same input sequence returns the same output list.
+        2. No mutation: Caller-owned sequences are not mutated.
+        3. Validation: Non-string values are stringified explicitly.
+        4. Boundedness: Item count and character count use tumor caps.
+    """
+    if not isinstance(values, Sequence) or isinstance(values, str):
+        return []
+    return [
+        item
+        for item in (
+            truncate_text(str(value), _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS)
+            for value in values[:max_items]
+        )
+        if item
+    ]
+
+
+def _compact_narrative_mapping(
+    value: Mapping[str, object],
+) -> dict[str, object]:
+    """Return a recursively bounded mapping for narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Mapping insertion order is preserved.
+        2. No mutation: Caller-owned mappings and nested values are not mutated.
+        3. Provenance: IDs are retained while text values are capped.
+        4. Boundedness: Nested lists and dictionaries use narrative caps.
+    """
+    return {
+        str(key): _compact_narrative_value(item)
+        for key, item in value.items()
+    }
+
+
+def _compact_narrative_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return _compact_narrative_mapping(value)
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        if all(isinstance(item, Mapping) for item in value):
+            return [
+                _compact_narrative_mapping(item)
+                for item in _mapping_sequence(value)[
+                    :_MAX_PROMPT_NARRATIVE_DECISION_ROWS
+                ]
+            ]
+        if all(isinstance(item, str) for item in value):
+            return _compact_narrative_texts(value)
+        return [
+            _compact_narrative_value(item)
+            for item in list(value)[:_MAX_PROMPT_NARRATIVE_DECISION_ROWS]
+        ]
+    if isinstance(value, str):
+        return truncate_text(value, _MAX_PROMPT_NARRATIVE_TEXT_CHARS)
+    return value
+
+
+def _compact_narrative_texts(
+    values: object,
+    max_items: int = _MAX_PROMPT_NARRATIVE_DECISION_ROWS,
+) -> list[str]:
+    """Return text values capped for clinical narrative prompts.
+
+    Acceptance criteria:
+        1. Determinism: Same input sequence returns the same output list.
+        2. No mutation: Caller-owned sequences are not mutated.
+        3. Validation: Non-string values are stringified explicitly.
+        4. Boundedness: Item count and character count use narrative caps.
+    """
+    if not isinstance(values, Sequence) or isinstance(values, str):
+        return []
+    return [
+        item
+        for item in (
+            truncate_text(str(value), _MAX_PROMPT_NARRATIVE_TEXT_CHARS)
             for value in values[:max_items]
         )
         if item

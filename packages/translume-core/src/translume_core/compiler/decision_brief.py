@@ -482,27 +482,30 @@ async def generate_treatment_options_stage_with_model(
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
 ) -> RankedTreatmentOptionsOutput:
     """Generate the ranked treatment options prompt stage."""
+    planned_artifact_id = _artifact_id(
+        context.artifact_id,
+        "RankedTreatmentOptionsOutput",
+    )
+    payload = build_treatment_options_prompt_packet(
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        actionable_biology=actionable_biology,
+    )
+    source_artifact_ids = [
+        *_context_source_ids(context),
+        phenotype.artifact_id,
+        matrix.artifact_id,
+        actionable_biology.artifact_id,
+    ]
     result = await _generate_decision_stage_artifact(
         stage_name="ranked_treatment_options",
         latency_budgets=latency_budgets,
         prompt_name="ranked_treatment_options",
         schema_model=RankedTreatmentOptionsOutput,
-        planned_artifact_id=_artifact_id(
-            context.artifact_id,
-            "RankedTreatmentOptionsOutput",
-        ),
-        payload=build_treatment_options_prompt_packet(
-            context=context,
-            phenotype=phenotype,
-            matrix=matrix,
-            actionable_biology=actionable_biology,
-        ),
-        source_artifact_ids=[
-            *_context_source_ids(context),
-            phenotype.artifact_id,
-            matrix.artifact_id,
-            actionable_biology.artifact_id,
-        ],
+        planned_artifact_id=planned_artifact_id,
+        payload=payload,
+        source_artifact_ids=source_artifact_ids,
         source_chunk_ids=_context_source_chunk_ids(context),
         source_file_id=context.extraction.source_file_id,
         model_provider=model_provider,
@@ -510,7 +513,43 @@ async def generate_treatment_options_stage_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
-    return result.artifact
+    normalized_artifact = _normalize_ranked_treatment_before_use_tests(
+        result.artifact,
+        matrix=matrix,
+        actionable_biology=actionable_biology,
+    )
+    try:
+        _validate_ranked_treatment_options_output(normalized_artifact)
+    except StructuredArtifactGenerationError as error:
+        if not _is_empty_required_before_use_tests_error(error):
+            raise
+        result = await _generate_decision_stage_artifact(
+            stage_name="ranked_treatment_options",
+            latency_budgets=latency_budgets,
+            prompt_name="ranked_treatment_options",
+            schema_model=RankedTreatmentOptionsOutput,
+            planned_artifact_id=planned_artifact_id,
+            payload=_ranked_treatment_options_repair_payload(
+                payload,
+                error=error,
+                matrix=matrix,
+                actionable_biology=actionable_biology,
+            ),
+            source_artifact_ids=source_artifact_ids,
+            source_chunk_ids=_context_source_chunk_ids(context),
+            source_file_id=context.extraction.source_file_id,
+            model_provider=model_provider,
+            model_name=model_name,
+            prompts_root=prompts_root,
+            created_at=created_at,
+        )
+        normalized_artifact = _normalize_ranked_treatment_before_use_tests(
+            result.artifact,
+            matrix=matrix,
+            actionable_biology=actionable_biology,
+        )
+        _validate_ranked_treatment_options_output(normalized_artifact)
+    return normalized_artifact
 
 
 async def generate_treatment_pressure_stage_with_model(
@@ -2611,6 +2650,247 @@ def _require_safe_output(serialized_output: str, artifact_name: str) -> None:
         raise StructuredArtifactGenerationError(
             f"{artifact_name} contains unsupported certainty language: {error}"
         ) from error
+
+
+def _validate_ranked_treatment_options_output(
+    treatment_options: RankedTreatmentOptionsOutput,
+) -> None:
+    """Validate ranked treatment options before dependent stages run.
+
+    Acceptance criteria:
+        1. Determinism: Same treatment-options artifact always validates or
+           raises the same error.
+        2. No mutation: The artifact and nested rows are not mutated.
+        3. Safety: Every populated treatment row must include evidence or
+           unresolved evidence, required text fields, before-use tests, and
+           limitations.
+        4. Scope: This mirrors the ranked-treatment subsection of staged
+           decision-brief validation without validating unrelated stages.
+
+    Args:
+        treatment_options: Ranked treatment options stage output.
+
+    Raises:
+        StructuredArtifactGenerationError: If the stage output is incomplete or
+            contains unsupported certainty language.
+    """
+    _require_stage_artifact_id(
+        treatment_options.artifact_id,
+        "RankedTreatmentOptionsOutput",
+    )
+    _require_safe_output(
+        treatment_options.model_dump_json(),
+        "RankedTreatmentOptionsOutput",
+    )
+    _require_row_group_or_unresolved(
+        treatment_options.ranked_treatment_options,
+        treatment_options.unresolved_evidence,
+        "RankedTreatmentOptionsOutput.ranked_treatment_options",
+    )
+    for index, item in enumerate(treatment_options.ranked_treatment_options):
+        prefix = f"RankedTreatmentOptionsOutput.ranked_treatment_options[{index}]"
+        _require_evidence_or_unresolved(
+            item.source_artifact_ids,
+            item.unresolved_evidence,
+            f"{prefix}.source_artifact_ids",
+        )
+        _require_text(item.therapy_name_or_class, f"{prefix}.therapy_name_or_class")
+        _require_text(item.therapy_class, f"{prefix}.therapy_class")
+        _require_text(item.why_it_fits, f"{prefix}.why_it_fits")
+        _require_text(item.evidence_level, f"{prefix}.evidence_level")
+        _require_text_list(
+            item.required_before_use_tests,
+            f"{prefix}.required_before_use_tests",
+        )
+        _require_text_list(item.limitations, f"{prefix}.limitations")
+
+
+def _normalize_ranked_treatment_before_use_tests(
+    treatment_options: RankedTreatmentOptionsOutput,
+    *,
+    matrix: TherapyEvidenceMatrixOutput,
+    actionable_biology: ActionableBiologyOutput,
+) -> RankedTreatmentOptionsOutput:
+    """Return ranked treatment options with required tests populated.
+
+    Acceptance criteria:
+        1. Determinism: Same treatment options, matrix, and actionable biology
+           return equivalent normalized output.
+        2. No mutation: The stage artifact and source artifacts are not mutated.
+        3. Scope: Only empty `required_before_use_tests` lists are populated.
+        4. Safety: Candidate tests come from source-derived validation text or a
+           conservative clinician/pathology review requirement.
+
+    Args:
+        treatment_options: Model-generated ranked treatment options.
+        matrix: Molecular-fit matrix with validation requirements.
+        actionable_biology: Actionable biology stage with uncertainty text.
+
+    Returns:
+        A copied ranked-treatment artifact with before-use tests populated.
+    """
+    fallback_tests = _ranked_treatment_before_use_candidates(
+        matrix=matrix,
+        actionable_biology=actionable_biology,
+    )
+    rows = [
+        item
+        if any(value.strip() for value in item.required_before_use_tests)
+        else item.model_copy(update={"required_before_use_tests": fallback_tests})
+        for item in treatment_options.ranked_treatment_options
+    ]
+    return treatment_options.model_copy(update={"ranked_treatment_options": rows})
+
+
+def _is_empty_required_before_use_tests_error(
+    error: BaseException,
+) -> bool:
+    """Return whether a treatment-option validation error is repairable.
+
+    Acceptance criteria:
+        1. Determinism: Same exception message returns the same boolean.
+        2. Scope: Match only empty `required_before_use_tests` failures for
+           ranked treatment options.
+        3. No mutation: Does not mutate exception state.
+    """
+    return (
+        "RankedTreatmentOptionsOutput.ranked_treatment_options["
+        in str(error)
+        and ".required_before_use_tests must not be empty" in str(error)
+    )
+
+
+def _ranked_treatment_options_repair_payload(
+    payload: Mapping[str, object],
+    *,
+    error: BaseException,
+    matrix: TherapyEvidenceMatrixOutput,
+    actionable_biology: ActionableBiologyOutput,
+) -> dict[str, object]:
+    """Return treatment-options payload with before-use-test repair guidance.
+
+    Acceptance criteria:
+        1. Determinism: Same payload, error, matrix, and biology artifact return
+           the same repair payload.
+        2. No mutation: The original payload mapping and source artifacts are
+           not mutated.
+        3. Scope: Adds only repair instructions and candidate validation text.
+        4. Safety: Requires non-empty before-use tests without adding treatment
+           recommendations, probabilities, or unsupported certainty.
+
+    Args:
+        payload: Original ranked-treatment prompt payload.
+        error: Validation error from the first ranked-treatment output.
+        matrix: Molecular-fit matrix that may contain before-use tests.
+        actionable_biology: Actionable biology stage output for validation
+            context.
+
+    Returns:
+        Prompt payload with a bounded repair instruction.
+    """
+    return {
+        **dict(payload),
+        "repair_instruction": {
+            "previous_validation_error": str(error),
+            "repair_scope": (
+                "Revise only ranked_treatment_options rows whose "
+                "required_before_use_tests list is empty. Each populated "
+                "treatment option must include at least one before-use test or "
+                "validation requirement derived from allowed_before_use_tests. "
+                "If no specific biomarker test applies, use a conservative "
+                "clinician/pathology review requirement from the allowed list. "
+                "Do not add new therapy recommendations, probabilities, or "
+                "deterministic response claims."
+            ),
+            "allowed_before_use_tests": _ranked_treatment_before_use_candidates(
+                matrix=matrix,
+                actionable_biology=actionable_biology,
+            ),
+        },
+    }
+
+
+def _ranked_treatment_before_use_candidates(
+    *,
+    matrix: TherapyEvidenceMatrixOutput,
+    actionable_biology: ActionableBiologyOutput,
+) -> list[str]:
+    """Return bounded before-use-test candidates for treatment repair.
+
+    Acceptance criteria:
+        1. Determinism: Candidate order follows matrix rows, actionable biology
+           rows, then conservative fallback text.
+        2. No mutation: Input artifacts are not mutated.
+        3. Boundedness: Empty strings are removed, duplicates are collapsed,
+           and text is capped for prompt size.
+        4. Safety: Always includes a conservative clinician-review fallback.
+
+    Args:
+        matrix: Molecular-fit matrix that may name required tests.
+        actionable_biology: Actionable biology output that may name validation
+            uncertainty.
+
+    Returns:
+        Non-empty candidate before-use-test strings for repair prompts.
+    """
+    candidates: list[str] = []
+    for row in matrix.rows:
+        candidates.extend(row.required_before_use_tests)
+        if row.required_validation.strip():
+            candidates.append(row.required_validation)
+    for item in actionable_biology.actionable_biology:
+        if item.uncertainty.strip():
+            candidates.append(item.uncertainty)
+    candidates.append(
+        "Clinician/pathology review of source report findings and treatment "
+        "eligibility before use."
+    )
+    return _dedupe_nonempty_texts(candidates, max_items=12, max_chars=220)
+
+
+def _dedupe_nonempty_texts(
+    values: Sequence[str],
+    *,
+    max_items: int,
+    max_chars: int,
+) -> list[str]:
+    """Return bounded unique non-empty text values.
+
+    Acceptance criteria:
+        1. Determinism: First occurrence order is preserved.
+        2. No mutation: The caller-owned sequence is not mutated.
+        3. Validation: Invalid bounds raise `ValueError`.
+        4. Boundedness: Empty values are removed and kept values are truncated.
+
+    Args:
+        values: Candidate text values.
+        max_items: Maximum number of values to return.
+        max_chars: Maximum characters retained per value.
+
+    Returns:
+        Unique, stripped, bounded text values.
+
+    Raises:
+        ValueError: If either bound is less than one.
+    """
+    if max_items < 1:
+        raise ValueError("max_items must be positive")
+    if max_chars < 1:
+        raise ValueError("max_chars must be positive")
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        stripped = value.strip()
+        if not stripped:
+            continue
+        key = stripped.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(stripped[:max_chars])
+        if len(result) >= max_items:
+            break
+    return result
 
 
 def _require_stage_artifact_id(artifact_id: str, stage_name: str) -> None:
