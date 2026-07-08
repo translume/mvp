@@ -127,6 +127,24 @@ def test_narrative_containment_rejects_unsupported_gene_and_drug_terms() -> None
         require_narrative_fact_containment(narrative, bundle)
 
 
+def test_narrative_containment_allows_eid_audit_abbreviation() -> None:
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown=(
+            "EID references are audit labels for evidence IDs, not new "
+            "biomedical findings."
+        ),
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only; no certain response, cure, survival benefit, or deterministic outcome is claimed.",
+    )
+
+    report = require_narrative_fact_containment(narrative, bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
+
+
 def test_narrative_containment_ignores_vague_alteration_fragments() -> None:
     bundle = _containment_bundle()
     narrative = ClinicalNarrativeCompilerOutput(

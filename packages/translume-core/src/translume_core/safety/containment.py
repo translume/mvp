@@ -33,6 +33,7 @@ _ALLOWED_UPPERCASE_TERMS = {
     "CNV",
     "CT",
     "DNA",
+    "EID",
     "FHIR",
     "FISH",
     "GPU",
