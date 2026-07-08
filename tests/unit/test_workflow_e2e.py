@@ -137,7 +137,12 @@ class RecordingVectorStore:
     async def ensure_index(self, index_name: str, body: dict[str, object]) -> None:
         self.ensured.append(index_name)
 
-    async def index(self, index_name: str, documents: list[dict[str, object]]) -> None:
+    async def index(
+        self,
+        index_name: str,
+        documents: list[dict[str, object]],
+        **_kwargs: object,
+    ) -> None:
         self.indexed.setdefault(index_name, []).extend(documents)
 
     async def search(self, index_name: str, query: dict[str, object]) -> list[dict[str, object]]:
@@ -292,9 +297,15 @@ class FakeStructuredModelProvider:
                         "fit_label": "reviewable_molecular_fit",
                         "why_from_omics": "Report findings and evidence context identify a reviewable molecular axis.",
                         "evidence_basis": "patient_specific_finding_with_graph_tool_medea_context",
-                        "limitations": "Requires clinician validation and is not treatment-directing.",
+                        "limitations": "Requires clinician validation before clinical interpretation.",
                         "required_validation": "Confirm source finding and pathway relevance before clinical interpretation.",
-                        "not_a_recommendation": True,
+                        "clinical_use": "insufficient_evidence",
+                        "therapy_class": "tumor behavior review context",
+                        "matched_biomarkers": ["MTAP", "CDKN2A"],
+                        "resistance_risks": ["Bypass signaling requires monitoring if pathway pressure is considered."],
+                        "required_before_use_tests": ["Confirm source finding and pathway relevance."],
+                        "confidence": "needs_review",
+                        "evidence_level": "source-backed hypothesis requiring review",
                     }
                 ],
             }
@@ -363,14 +374,193 @@ class FakeStructuredModelProvider:
                     {
                         "from_state": "proliferative",
                         "to_state": "stress_adapted_survival",
-                        "rationale": "CDKN2A and MTAP evidence with ToolUniverse and Medea review supports only a hypothesis-generating stress-survival transition requiring validation.",
+                        "rationale": "CDKN2A and MTAP evidence with ToolUniverse and Medea review supports a hypothesis-generating bypass signaling risk that requires validation.",
                         "supporting_artifacts": support_artifacts,
                         "confidence_label": "needs_review",
                         "validation_status": "needs_review",
                         "hypothesis_generating": True,
                     }
                 ],
-                "limitations": ["No transition probability, treatment recommendation, or outcome prediction is generated."],
+                "limitations": ["No transition probability or deterministic outcome prediction is generated."],
+            }
+        if schema_name == "CurrentTumorStateOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "current_tumor_state": {
+                    "dominant_drivers": ["MTAP copy-number loss", "CDKN2A copy-number loss"],
+                    "active_pathways": ["cell-cycle checkpoint context", "methylation dependency context"],
+                    "co_drivers": ["CDKN2B copy-number loss"],
+                    "actionable_alterations": ["MTAP copy-number loss"],
+                    "resistance_or_uncertain_alterations": ["LYN copy-number gain"],
+                    "immune_and_repair_context": ["CHEK2 DNA damage response context"],
+                    "missing_data": ["protein confirmation", "longitudinal resistance sample"],
+                    "source_artifact_ids": source_ids,
+                    "confidence": "needs_review",
+                },
+                "unresolved_evidence": ["RNA expression signals require review."],
+            }
+        if schema_name == "ActionableBiologyOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "actionable_biology": [
+                    {
+                        "biology": "methylation dependency context",
+                        "alteration_or_marker": "MTAP copy-number loss",
+                        "actionability": "trial_option",
+                        "evidence_level": "source-backed hypothesis requiring review",
+                        "rationale": "MTAP loss appears in the uploaded report and is connected to ToolUniverse and graph context.",
+                        "uncertainty": "Clinical use requires clinician validation and relevant confirmatory testing.",
+                        "source_artifact_ids": source_ids,
+                        "confidence": "needs_review",
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "RankedTreatmentOptionsOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "ranked_treatment_options": [
+                    {
+                        "rank": 1,
+                        "therapy_name_or_class": "MTAP-loss clinical trial category",
+                        "clinical_use": "trial_option",
+                        "therapy_class": "methylation dependency context",
+                        "matched_biomarkers": ["MTAP"],
+                        "why_it_fits": "The uploaded report includes MTAP loss and the evidence bundle supports review of this biology.",
+                        "evidence_level": "source-backed hypothesis requiring review",
+                        "resistance_risks": ["bypass signaling", "resistant subclone expansion"],
+                        "required_before_use_tests": ["confirm MTAP status", "review trial eligibility"],
+                        "limitations": ["No final therapy selection is made by this system."],
+                        "source_artifact_ids": source_ids,
+                        "confidence": "needs_review",
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "TreatmentPressureMapOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "treatment_pressure_map": [
+                    {
+                        "therapy_name_or_class": "MTAP-loss clinical trial category",
+                        "target_or_pathway": "methylation dependency context",
+                        "why_it_fits": "The pathway maps to source-backed MTAP loss and evidence context.",
+                        "selective_pressure": "Pathway-directed pressure could select for bypass signaling or resistant subclones.",
+                        "likely_escape_routes": ["bypass signaling", "resistant subclone expansion"],
+                        "biomarkers_to_watch": ["MTAP", "CDKN2A", "LYN"],
+                        "evidence_basis": source_ids,
+                        "source_artifact_ids": source_ids,
+                        "confidence": "needs_review",
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "ResistanceForecastOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "resistance_forecast": [
+                    {
+                        "escape_route": "bypass_signaling",
+                        "description": "Monitor for bypass signaling if pathway-directed pressure is considered.",
+                        "associated_treatment_pressure": "methylation dependency pressure",
+                        "supporting_evidence": source_ids,
+                        "biomarkers_to_monitor": ["LYN", "MTAP", "CDKN2A"],
+                        "source_artifact_ids": source_ids,
+                        "confidence": "needs_review",
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "BiomarkerWatchListOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "biomarker_watch_list": [
+                    {
+                        "biomarker": "MTAP",
+                        "alteration_type": "copy_number_loss",
+                        "why_watch": "It anchors the current treatment-pressure hypothesis.",
+                        "associated_treatment_pressure": "methylation dependency pressure",
+                        "preferred_test": "tissue_NGS",
+                        "trigger": "progression, mixed response, or before switching systemic therapy",
+                        "priority": "high",
+                        "source_artifact_ids": source_ids,
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "RetestingTriggersOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "retesting_triggers": [
+                    {
+                        "clinical_event": "radiographic progression",
+                        "recommended_test": "tissue_NGS",
+                        "rationale": "Progression can reveal clonal evolution, bypass signaling, or transformation.",
+                        "what_result_changes": "A new driver, CNV, fusion, or transformation signal changes next-line review.",
+                        "urgency": "high",
+                        "source_artifact_ids": source_ids,
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "NextTestRecommendationsOutput":
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "next_test_recommendations": [
+                    {
+                        "test_type": "tissue_NGS",
+                        "timing": "at progression or before the next systemic therapy decision",
+                        "rationale": "Tissue NGS can evaluate CNV evolution, resistance markers, and transformation context.",
+                        "biomarkers_or_questions": ["MTAP", "CDKN2A", "LYN", "new fusions"],
+                        "result_that_would_change_management": "A new actionable alteration or transformation signal changes the review path.",
+                        "limitations": ["ctDNA can be considered when tissue is not feasible."],
+                        "source_artifact_ids": source_ids,
+                        "priority": "high",
+                    }
+                ],
+                "unresolved_evidence": [],
+            }
+        if schema_name == "OncologistDecisionBrief":
+            payload = _payload_json_from_prompt(user_prompt)
+            current = payload["current_state_stage"]["current_tumor_state"]
+            actionable = payload["actionable_biology_stage"]["actionable_biology"]
+            options = payload["ranked_treatment_options_stage"]["ranked_treatment_options"]
+            pressure = payload["treatment_pressure_stage"]["treatment_pressure_map"]
+            forecast = payload["resistance_forecast_stage"]["resistance_forecast"]
+            watch = payload["biomarker_watch_stage"]["biomarker_watch_list"]
+            triggers = payload["retesting_trigger_stage"]["retesting_triggers"]
+            next_tests = payload["next_test_stage"]["next_test_recommendations"]
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            return {
+                "artifact_id": artifact_id,
+                "clinical_decision_summary": "MTAP and CDKN2A loss define a reviewable tumor behavior signal. The strongest current action is clinician review of trial-category treatment logic, resistance monitoring, and tissue NGS timing at progression.",
+                "current_tumor_state": current,
+                "actionable_biology": actionable,
+                "ranked_treatment_options": options,
+                "treatment_pressure_map": pressure,
+                "resistance_forecast": forecast,
+                "biomarker_watch_list": watch,
+                "retesting_triggers": triggers,
+                "next_test_recommendations": next_tests,
+                "evidence_limitations": [
+                    {
+                        "limitation": "The test fixture has no longitudinal progression sample.",
+                        "impact": "Resistance paths remain risk-ranked watch items.",
+                        "needed_resolution": "Repeat molecular profiling at a clinical trigger.",
+                        "source_artifact_ids": source_ids,
+                    }
+                ],
+                "source_artifact_ids": source_ids,
+                "source_chunk_ids": payload.get("source_chunk_ids", []),
+                "validation_status": "needs_review",
             }
         if schema_name == "ClaimEvidenceListOutput":
             return {
@@ -383,7 +573,7 @@ class FakeStructuredModelProvider:
                         "source_artifact_ids": _artifact_source_ids_from_prompt(user_prompt),
                         "evidence_source": "report_graph_tool_medea_context",
                         "relevance": "Connects molecular findings to disease-behavior review.",
-                        "limitations": "Requires clinician validation and is not treatment-directing.",
+                        "limitations": "Requires clinician validation before use.",
                         "validation_status": "needs_review",
                     }
                 ],
@@ -391,9 +581,9 @@ class FakeStructuredModelProvider:
         if schema_name == "ClinicalNarrativeCompilerOutput":
             return {
                 "artifact_id": artifact_id,
-                "markdown": "# Translume Review Packet\n\nThis report generated source-backed molecular findings, evidence-context artifacts, and tumor-behavior hypotheses for clinician review. This is not a treatment recommendation.",
+                "markdown": "# Translume Tumor Behavior Intelligence Brief\n\nThe decision brief summarizes source-backed tumor biology, treatment-pressure logic, resistance watch items, and re-testing triggers for clinician review.",
                 "source_artifact_ids": _artifact_source_ids_from_prompt(user_prompt),
-                "safety_note": "Research support only; not a diagnosis or treatment recommendation.",
+                "safety_note": "Clinician decision support only; no certain response, cure, survival benefit, or deterministic outcome is claimed.",
             }
         raise AssertionError(f"Unexpected schema: {schema_name}")
 
@@ -490,6 +680,12 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     tooluniverse_repo = _write_fake_tooluniverse_repo(tmp_path)
     tooluniverse_config = _write_tooluniverse_workflow_config(tmp_path, tool_workflows)
@@ -528,6 +724,7 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
             require_mims=True,
             require_docling=False,
             vllm_model="test-local-vllm-model",
+            tool_workflows=tuple(tool_workflows),
         ),
         providers=providers,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
@@ -536,10 +733,13 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
     assert {"CHEK2", "CDKN2A", "CDKN2B", "LYN", "MTAP", "AKT2"} <= genes
     assert packet.bundle.evidence_context is not None
     assert packet.bundle.evidence_context.graph_evidence.edges
-    assert len(packet.bundle.evidence_context.tool_outputs) == 5
+    assert len(packet.bundle.evidence_context.tool_outputs) == len(tool_workflows)
     assert packet.bundle.tumor_behavior is not None
     assert packet.bundle.confirmatory is not None
     assert packet.bundle.sankey is not None
+    assert packet.bundle.decision_brief is not None
+    assert packet.bundle.decision_brief.ranked_treatment_options
+    assert packet.bundle.decision_brief.retesting_triggers
     assert packet.bundle.claims
     assert packet.bundle.narrative is not None
     assert packet.bundle.narrative_containment is not None
@@ -560,7 +760,8 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
         }
     assert provenance_by_id[packet.bundle.extraction.artifact_id].source_chunk_ids
     assert all(claim.claim_id in provenance_by_id for claim in packet.bundle.claims)
-    assert "not a treatment recommendation" in packet.bundle.narrative.markdown.lower()
+    assert "Tumor Behavior Intelligence Brief" in packet.bundle.narrative.markdown
+    assert "certain response" in packet.bundle.narrative.safety_note
     assert model_provider.schema_calls == [
         "ReportExtractionOutput",
         "MolecularPhenotypeOutput",
@@ -568,6 +769,14 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
         "MechanismSankeyOutput",
         "ConfirmatoryTestingOutput",
         "TumorBehaviorModelOutput",
+        "CurrentTumorStateOutput",
+        "ActionableBiologyOutput",
+        "RankedTreatmentOptionsOutput",
+        "TreatmentPressureMapOutput",
+        "ResistanceForecastOutput",
+        "BiomarkerWatchListOutput",
+        "RetestingTriggersOutput",
+        "NextTestRecommendationsOutput",
         "ClaimEvidenceListOutput",
         "ClinicalNarrativeCompilerOutput",
     ]

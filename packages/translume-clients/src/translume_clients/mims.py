@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import httpx
 
 from translume_schemas.entities import NormalizedEntitySet
 from translume_schemas.evidence import EvidenceContextBundle
-from translume_schemas.graph import GraphEvidenceArtifact
+from translume_schemas.graph import GraphEvidenceArtifact, GraphRetrievalMode
 from translume_schemas.medea import MedeaReasoningArtifact
 from translume_schemas.tools import ToolRunArtifact
 
@@ -114,6 +115,7 @@ class OptimusKGServiceClient:
     async def retrieve_context(
         self,
         entities: NormalizedEntitySet,
+        retrieval_modes: Sequence[GraphRetrievalMode] | None = None,
     ) -> GraphEvidenceArtifact:
         """Retrieve graph context from the OptimusKG service.
 
@@ -132,7 +134,10 @@ class OptimusKGServiceClient:
         data = await _post_json(
             self._config,
             "/context",
-            {"entities": entities.model_dump(mode="json")},
+            {
+                "entities": entities.model_dump(mode="json"),
+                "retrieval_modes": list(retrieval_modes or []),
+            },
         )
         return GraphEvidenceArtifact.model_validate(data)
 

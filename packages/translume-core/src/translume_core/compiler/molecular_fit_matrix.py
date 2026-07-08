@@ -11,15 +11,16 @@ def generate_molecular_fit_matrix_from_context(
     context: EvidenceContextBundle,
     phenotype: MolecularPhenotypeOutput,
 ) -> TherapyEvidenceMatrixOutput:
-    """Build molecular-fit rows for expert review without recommendations.
+    """Build molecular-fit decision-support rows for expert review.
 
     Acceptance criteria:
         1. Every row has rank.
         2. Every row has why_from_omics.
         3. Every row has evidence_basis and limitations.
-        4. Every conditional row has required_validation.
-        5. `not_a_recommendation` is true for every row.
-        6. No unsafe treatment language is generated.
+        4. Every row has required_validation and before-use testing context.
+        5. Every row carries a clinical_use category instead of a blanket
+           not-a-recommendation flag.
+        6. No unsupported certainty language is generated.
         7. Molecular-fit labels are derived from phenotype axes rather than
            gene-specific hardcoded mappings.
 
@@ -48,7 +49,16 @@ def generate_molecular_fit_matrix_from_context(
                     "Confirm the source finding and any pathway/protein-level "
                     "relevance before clinical interpretation."
                 ),
-                not_a_recommendation=True,
+                clinical_use="insufficient_evidence",
+                therapy_class="requires_oncology_review",
+                matched_biomarkers=list(axis.supporting_finding_ids),
+                resistance_risks=[],
+                required_before_use_tests=[
+                    "Confirm report finding validity and clinical actionability",
+                    "Review guideline, trial, and resistance evidence before use",
+                ],
+                confidence="needs_review",
+                evidence_level=axis.evidence_class,
             )
         )
     artifact_id = f"artifact_{uuid5(NAMESPACE_URL, f'{context.artifact_id}:matrix').hex[:16]}"

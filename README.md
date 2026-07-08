@@ -205,7 +205,7 @@ OPTIMUSKG_SERVICE_URL=http://optimuskg-service:8091
 TOOLUNIVERSE_SERVICE_URL=http://tooluniverse-service:8092
 MEDEA_SERVICE_URL=http://medea-service:8093
 MIMS_TIMEOUT_SECONDS=240
-TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review
+TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context,recent_therapy_agent_backfill_context
 ```
 
 The service containers load vendored Harvard repositories from:
@@ -249,7 +249,7 @@ Direct database status and pairwise correlation endpoints are available at
 download controls, and the distinction between the full provisioned snapshot
 and the DepMap resource currently used for automatic report enrichment.
 
-Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`.
+Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, `trial_context_review`, `therapy_context`, `resistance_mechanism_context`, `biomarker_retesting_context`, `guideline_context`, `clinical_trial_context`, `lineage_transformation_context`, and `recent_therapy_agent_backfill_context`.
 
 ## Human validation-card workflow
 

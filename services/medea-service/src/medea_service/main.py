@@ -503,15 +503,21 @@ def _query_from_context(
         else ""
     )
     return (
-        "Provide literature and omics reasoning support for reviewable tumor-behavior "
-        f"hypotheses in {disease}. Reported molecular findings: "
+        "Provide bounded literature and omics hypothesis support for treatment-pressure, "
+        "escape-route, biomarker-monitoring, lineage-transformation, and validation-gap "
+        f"review in {disease}. Reported molecular findings: "
         + "; ".join(findings)
         + ". Graph context terms: "
         + ", ".join(graph_terms)
         + ". ToolUniverse workflows available: "
         + ", ".join(tool_summaries)
         + database_context
-        + "\nDo not recommend treatment; identify support, uncertainty, and validation gaps."
+        + (
+            "\nDo not rank therapies, choose a final treatment, predict survival, "
+            "or state deterministic response. Identify plausible mechanisms, "
+            "support, uncertainty, weakened hypotheses, and validation gaps. "
+            "Output is hypothesis support only for downstream Translume synthesis."
+        )
     )
 
 
@@ -529,7 +535,8 @@ def _artifact_from_medea_result(
     _validate_reasoning_text(text)
     artifact_id = f"artifact_{uuid5(NAMESPACE_URL, context.artifact_id + ':medea_service').hex[:16]}"
     warnings = [
-        "medea_output_is_bounded_reasoning_support_not_clinical_truth",
+        "medea_output_is_bounded_hypothesis_support_not_clinical_truth",
+        "medea_downstream_use=resistance_escape_forecast,treatment_pressure_map,evidence_limitations",
         "medea_model_calls_routed_through_local_vllm",
         "patched_modules=" + ",".join(patched_modules),
         "local_model=" + routing.model_name,
@@ -571,6 +578,13 @@ def _artifact_from_medea_result(
         weakened_hypotheses=[],
         warnings=warnings,
         requires_human_review=True,
+        decision_support_role="hypothesis_support_only",
+        downstream_uses=[
+            "resistance_escape_forecast",
+            "treatment_pressure_map",
+            "biomarker_watch_list",
+            "evidence_limitations",
+        ],
     )
 
 
@@ -608,6 +622,7 @@ def _unavailable_medea_artifact(
     warnings = [
         "medea_literature_reasoning_unavailable",
         "medea_output_not_used_for_claim_support",
+        "medea_downstream_use=evidence_limitations_only_when_unavailable",
         "medea_model_calls_routed_through_local_vllm",
         "patched_modules=" + ",".join(patched_modules),
         "local_model=" + routing.model_name,
@@ -645,6 +660,13 @@ def _unavailable_medea_artifact(
         weakened_hypotheses=[],
         warnings=warnings,
         requires_human_review=True,
+        decision_support_role="hypothesis_support_only",
+        downstream_uses=[
+            "resistance_escape_forecast",
+            "treatment_pressure_map",
+            "biomarker_watch_list",
+            "evidence_limitations",
+        ],
     )
 
 

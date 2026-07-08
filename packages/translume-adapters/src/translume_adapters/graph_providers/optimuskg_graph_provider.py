@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from translume_adapters.errors import ProviderUnavailableError
@@ -9,7 +10,7 @@ from translume_adapters.graph_providers.optimuskg_runtime import (
     retrieve_optimuskg_graph_context,
 )
 from translume_schemas.entities import NormalizedEntitySet
-from translume_schemas.graph import GraphEvidenceArtifact
+from translume_schemas.graph import GraphEvidenceArtifact, GraphRetrievalMode
 
 
 class OptimusKGGraphProvider:
@@ -41,6 +42,7 @@ class OptimusKGGraphProvider:
     async def retrieve_context(
         self,
         entities: NormalizedEntitySet,
+        retrieval_modes: Sequence[GraphRetrievalMode] | None = None,
     ) -> GraphEvidenceArtifact:
         """Retrieve graph context through the real OptimusKG data path.
 
@@ -52,6 +54,10 @@ class OptimusKGGraphProvider:
             5. Graph relationships remain evidence inputs, not clinical claims.
         """
         try:
-            return retrieve_optimuskg_graph_context(entities, self._config)
+            return retrieve_optimuskg_graph_context(
+                entities,
+                self._config,
+                retrieval_modes=retrieval_modes,
+            )
         except OptimusKGRuntimeError as error:
             raise ProviderUnavailableError(str(error)) from error

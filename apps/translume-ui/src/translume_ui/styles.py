@@ -93,6 +93,39 @@ h1, h2, h3, h4, .prose h1, .prose h2, .prose h3 {
   border-radius: 0 10px 10px 0;
 }
 
+
+.translume-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px 0;
+}
+
+.translume-decision-card {
+  border: 1px solid var(--translume-line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #ffffff, var(--translume-soft));
+}
+
+.translume-decision-label {
+  display: block;
+  color: var(--translume-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.translume-decision-value {
+  display: block;
+  color: var(--translume-ink);
+  font-size: 0.94rem;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
 .translume-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -194,13 +227,13 @@ def header_html() -> str:
       <div class="translume-header-copy">
         <h1>Oncologist Cockpit</h1>
         <p>
-          Convert one oncology report into source-backed molecular findings,
-          evidence context, reviewable mechanism paths, confirmatory tests,
-          and case-derived tumor-behavior hypotheses.
+          Convert one oncology report into a source-backed tumor behavior
+          intelligence brief with treatment logic, escape risks, biomarker
+          monitoring, re-testing triggers, and next-test guidance.
         </p>
         <div class="translume-badges">
           <span class="translume-badge">Private local models</span>
-          <span class="translume-badge">Research support only</span>
+          <span class="translume-badge">Clinician decision support</span>
           <span class="translume-badge">Human validation required</span>
         </div>
       </div>

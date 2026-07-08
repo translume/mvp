@@ -130,7 +130,7 @@ async def test_report_extraction_source_aligns_findings_to_retrieved_chunks() ->
 
 
 @pytest.mark.asyncio
-async def test_report_extraction_caps_retrieved_chunks_in_prompt() -> None:
+async def test_report_extraction_batches_all_retrieved_chunks_in_page_order() -> None:
     source_file_id = "source_file_1"
     chunks = [
         _chunk(
@@ -164,15 +164,25 @@ async def test_report_extraction_caps_retrieved_chunks_in_prompt() -> None:
     prompt_chunks = payload["retrieved_chunks"]
 
     assert result.artifact.molecular_findings == []
+    assert len(provider.calls) == 2
     assert len(prompt_chunks) == _MAX_PROMPT_RETRIEVED_CHUNKS
-    assert prompt_chunks[0]["chunk_id"] == "chunk_24"
-    assert prompt_chunks[-1]["chunk_id"] == "chunk_05"
+    assert prompt_chunks[0]["chunk_id"] == "chunk_00"
+    assert prompt_chunks[-1]["chunk_id"] == "chunk_19"
+    second_payload = _payload_from_user_prompt(str(provider.calls[1]["user_prompt"]))
+    assert [item["chunk_id"] for item in second_payload["retrieved_chunks"]] == [
+        "chunk_20",
+        "chunk_21",
+        "chunk_22",
+        "chunk_23",
+        "chunk_24",
+    ]
+    assert payload["batch_context"]["total_batches"] == 2
     assert payload["retrieval_truncation"]["original_chunks"] == len(chunks)
     assert payload["retrieval_truncation"]["kept_chunks"] == len(prompt_chunks)
 
 
 @pytest.mark.asyncio
-async def test_report_extraction_ranks_missing_scores_last() -> None:
+async def test_report_extraction_uses_page_order_not_score_order() -> None:
     source_file_id = "source_file_1"
     chunks = [
         _chunk("GENOMIC VARIANTS\nLow score text.", chunk_id="chunk_low"),

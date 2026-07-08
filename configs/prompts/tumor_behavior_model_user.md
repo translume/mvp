@@ -7,6 +7,15 @@ Payload JSON:
 {payload_json}
 
 Use only these state labels when supported by evidence or explicit missing-evidence reasoning:
+- driver_dependency
+- bypass_signaling_risk
+- secondary_resistance_mutation_risk
+- copy_number_evolution_risk
+- fusion_rearrangement_risk
+- dna_repair_restoration_risk
+- immune_escape_risk
+- histologic_transformation_risk
+- resistant_subclone_expansion_risk
 - proliferative
 - stress_adapted_survival
 - plastic_dedifferentiated
@@ -21,7 +30,6 @@ Rules:
 - Every transition hypothesis must set hypothesis_generating to true and validation_status to "needs_review".
 - Transition supporting_artifacts must not cite the TumorBehaviorModelOutput artifact_id itself.
 - Transition rationales must mention case-derived evidence terms from the payload.
-- Do not generate transition probabilities.
-- Do not generate treatment recommendations.
-- Do not generate outcome predictions.
+- Use risk-ranked, monitor-for, treatment-pressure, and possible escape-route language.
+- Do not generate transition probabilities, exact response probabilities, survival predictions, cure claims, or deterministic outcomes.
 - If evidence does not support a transition, omit that transition or mark the missing evidence in limitations.

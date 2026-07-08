@@ -4,3 +4,10 @@ allowed_workflows:
   - target_context
   - variant_context
   - trial_context_review
+  - therapy_context
+  - resistance_mechanism_context
+  - biomarker_retesting_context
+  - guideline_context
+  - clinical_trial_context
+  - lineage_transformation_context
+  - recent_therapy_agent_backfill_context

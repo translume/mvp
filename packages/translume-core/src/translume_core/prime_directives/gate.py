@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -78,6 +77,12 @@ REQUIRED_TOOLUNIVERSE_WORKFLOWS: tuple[str, ...] = (
     "target_context",
     "variant_context",
     "trial_context_review",
+    "therapy_context",
+    "resistance_mechanism_context",
+    "biomarker_retesting_context",
+    "guideline_context",
+    "clinical_trial_context",
+    "lineage_transformation_context",
 )
 
 REMOTE_PROVIDER_SECRET_ENV: tuple[str, ...] = (
@@ -405,7 +410,7 @@ def validate_required_tool_workflows(
                     "governed workflow. Missing: " + ", ".join(missing_requested)
                 ),
                 next_actions=(
-                    "Set TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review.",
+                    "Set TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context,recent_therapy_agent_backfill_context.",
                     "Rerun `make validate-prime-directives`.",
                 ),
             )
@@ -463,7 +468,7 @@ def validate_required_tool_workflows(
                     + ", ".join(missing_configured)
                 ),
                 next_actions=(
-                    "Configure literature_validation, pathway_context, target_context, variant_context, and trial_context_review.",
+                    "Configure literature_validation, pathway_context, target_context, variant_context, trial_context_review, therapy_context, resistance_mechanism_context, biomarker_retesting_context, guideline_context, clinical_trial_context, lineage_transformation_context, and recent_therapy_agent_backfill_context.",
                     "Each workflow must map to real ToolUniverse tools and executable steps.",
                 ),
             )

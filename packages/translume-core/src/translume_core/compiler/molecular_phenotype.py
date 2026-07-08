@@ -17,7 +17,7 @@ def generate_molecular_phenotype_from_context(
         2. Graph/tool/Medea evidence may support but not replace report facts.
         3. Every axis has evidence class and uncertainty.
         4. Unsupported axes are marked hypothesis-generating.
-        5. No treatment recommendation is allowed.
+        5. Axes may support treatment logic but not unsupported certainty.
         6. No gene-specific clinical mapping is hardcoded in this function.
 
     Args:
@@ -51,7 +51,7 @@ def generate_molecular_phenotype_from_context(
         artifact_id=artifact_id,
         axes=axes,
         limitations=[
-            "Biological axes are review-support hypotheses, not treatment recommendations.",
+            "Biological axes require oncology review before treatment selection.",
             "Research-use-only expression findings require explicit validation before interpretation.",
         ],
     )

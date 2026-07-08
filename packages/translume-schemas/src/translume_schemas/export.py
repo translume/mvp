@@ -3,6 +3,7 @@ from __future__ import annotations
 from translume_schemas.base import TranslumeBaseModel
 from translume_schemas.claims import ClaimEvidenceOutput
 from translume_schemas.confirmatory import ConfirmatoryTestingOutput
+from translume_schemas.decision_brief import OncologistDecisionBrief
 from translume_schemas.document import DocumentChunk
 from translume_schemas.entities import NormalizedEntitySet
 from translume_schemas.evidence import EvidenceContextBundle
@@ -49,6 +50,7 @@ class ClinicalArtifactBundle(TranslumeBaseModel):
     sankey: MechanismSankeyOutput | None = None
     confirmatory: ConfirmatoryTestingOutput | None = None
     tumor_behavior: TumorBehaviorModelOutput | None = None
+    decision_brief: OncologistDecisionBrief | None = None
     claims: list[ClaimEvidenceOutput] = []
     narrative: ClinicalNarrativeCompilerOutput | None = None
     narrative_containment: NarrativeContainmentReport | None = None

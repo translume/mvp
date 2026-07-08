@@ -50,6 +50,31 @@ class TumorBehaviorModelProvider:
         return payload
 
 
+class SequencedTumorBehaviorModelProvider:
+    """Test provider that returns a configured output per model call."""
+
+    def __init__(self, outputs: list[dict[str, object]]) -> None:
+        self.outputs = outputs
+        self.schema_names: list[str] = []
+        self.user_prompts: list[str] = []
+
+    async def structured_completion(
+        self,
+        *,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema_name: str,
+        json_schema: dict[str, object],
+    ) -> dict[str, object]:
+        self.schema_names.append(schema_name)
+        self.user_prompts.append(user_prompt)
+        output_index = min(len(self.schema_names), len(self.outputs)) - 1
+        payload = deepcopy(self.outputs[output_index])
+        payload["artifact_id"] = _planned_artifact_id(user_prompt)
+        return payload
+
+
 class RaisingModelProvider:
     """Test-only provider that raises a configured runtime failure."""
 
@@ -195,7 +220,13 @@ def _matrix() -> TherapyEvidenceMatrixOutput:
                 evidence_basis="source finding with OptimusKG ToolUniverse Medea support",
                 limitations="Requires human validation.",
                 required_validation="Confirm MTAP locus or protein status.",
-                not_a_recommendation=True,
+                clinical_use="insufficient_evidence",
+                therapy_class="PRMT5 pathway context",
+                matched_biomarkers=["MTAP"],
+                resistance_risks=["Bypass methylation context requires review."],
+                required_before_use_tests=["Confirm MTAP locus or protein status."],
+                confidence="needs_review",
+                evidence_level="source-backed hypothesis requiring review",
             )
         ],
     )
@@ -264,7 +295,7 @@ def _valid_output() -> dict[str, object]:
                 "hypothesis_generating": True,
             }
         ],
-        "limitations": ["No transition probability, treatment recommendation, or outcome prediction is generated."],
+        "limitations": ["No transition probability or deterministic outcome prediction is generated."],
     }
 
 
@@ -763,6 +794,48 @@ async def test_tumor_behavior_rejects_unsupported_support_artifact() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tumor_behavior_repairs_unsupported_support_artifacts() -> None:
+    first_output = _valid_output()
+    first_output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_fake_a",
+        "artifact_fake_b",
+    ]
+    repaired_output = _valid_output()
+    repaired_output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+    ]
+    provider = SequencedTumorBehaviorModelProvider(
+        [first_output, repaired_output]
+    )
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.transition_hypotheses[0].supporting_artifacts == [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+    ]
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+    assert "allowed_supporting_artifact_ids" in provider.user_prompts[1]
+    assert "artifact_graph" in provider.user_prompts[1]
+
+
+@pytest.mark.asyncio
 async def test_tumor_behavior_rejects_generic_template_rationale() -> None:
     output = _valid_output()
     output["transition_hypotheses"][0]["rationale"] = "Structured findings and enrichment context suggest a reviewable adaptive hypothesis."
@@ -778,6 +851,46 @@ async def test_tumor_behavior_rejects_generic_template_rationale() -> None:
             prompts_root=Path("configs/prompts"),
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_repairs_generic_transition_rationale() -> None:
+    first_output = _valid_output()
+    first_output["transition_hypotheses"][0]["rationale"] = (
+        "Structured findings and enrichment context suggest a reviewable "
+        "adaptive hypothesis."
+    )
+    repaired_output = _valid_output()
+    repaired_output["transition_hypotheses"][0]["rationale"] = (
+        "MTAP loss and PRMT5 graph context support only a hypothesis-generating "
+        "transition for human review."
+    )
+    provider = SequencedTumorBehaviorModelProvider(
+        [first_output, repaired_output]
+    )
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    transition = result.artifact.transition_hypotheses[0]
+    assert transition.rationale == repaired_output["transition_hypotheses"][0][
+        "rationale"
+    ]
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+    assert "repair_instruction" in provider.user_prompts[1]
+    assert "allowed_case_terms" in provider.user_prompts[1]
 
 
 @pytest.mark.asyncio

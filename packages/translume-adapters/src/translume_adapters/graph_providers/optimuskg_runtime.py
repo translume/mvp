@@ -9,11 +9,69 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from translume_schemas.entities import NormalizedEntitySet
-from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode
+from translume_schemas.graph import (
+    GraphEdge,
+    GraphEvidenceArtifact,
+    GraphNode,
+    GraphRetrievalMode,
+    GraphSubgraphEvidence,
+)
 
 
 class OptimusKGRuntimeError(RuntimeError):
     """Raised when the real OptimusKG runtime cannot provide graph context."""
+
+
+DEFAULT_GRAPH_RETRIEVAL_MODES: tuple[GraphRetrievalMode, ...] = (
+    "general_context",
+)
+SUPPORTED_GRAPH_RETRIEVAL_MODES: tuple[GraphRetrievalMode, ...] = (
+    "general_context",
+    "therapy_pressure",
+    "resistance_path",
+    "drug_target_biomarker",
+    "biomarker_monitoring",
+)
+_MODE_KEYWORDS: dict[GraphRetrievalMode, tuple[str, ...]] = {
+    "general_context": (),
+    "therapy_pressure": (
+        "therapy",
+        "therapeutic",
+        "treatment",
+        "drug",
+        "target",
+        "inhibitor",
+        "sensitivity",
+        "response",
+    ),
+    "resistance_path": (
+        "resistance",
+        "resistant",
+        "escape",
+        "bypass",
+        "progression",
+        "transformation",
+        "amplification",
+    ),
+    "drug_target_biomarker": (
+        "drug",
+        "target",
+        "biomarker",
+        "variant",
+        "gene",
+        "clinical",
+        "evidence",
+    ),
+    "biomarker_monitoring": (
+        "biomarker",
+        "monitor",
+        "test",
+        "assay",
+        "diagnostic",
+        "ctdna",
+        "expression",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -38,6 +96,8 @@ class OptimusKGGraphConfig:
 def retrieve_optimuskg_graph_context(
     entities: NormalizedEntitySet,
     config: OptimusKGGraphConfig,
+    *,
+    retrieval_modes: Sequence[GraphRetrievalMode] | None = None,
 ) -> GraphEvidenceArtifact:
     """Retrieve graph evidence through OptimusKG's real parquet client path.
 
@@ -63,6 +123,7 @@ def retrieve_optimuskg_graph_context(
         nodes_path=nodes_path,
         edges_path=edges_path,
         config=config,
+        retrieval_modes=_normalize_retrieval_modes(retrieval_modes),
     )
 
 
@@ -149,6 +210,7 @@ def _graph_artifact_from_parquet(
     nodes_path: Path,
     edges_path: Path,
     config: OptimusKGGraphConfig,
+    retrieval_modes: tuple[GraphRetrievalMode, ...],
 ) -> GraphEvidenceArtifact:
     """Build graph evidence from OptimusKG node/edge parquet tables."""
     pl = _require_polars()
@@ -164,6 +226,13 @@ def _graph_artifact_from_parquet(
             edges=[],
             missing_entities=[entity.entity_id for entity in entities.entities],
             warnings=["no_optimuskg_nodes_matched_normalized_entities"],
+            retrieval_modes=list(retrieval_modes),
+            subgraphs=_subgraphs_from_graph(
+                modes=retrieval_modes,
+                nodes=[],
+                edges=[],
+                entity_terms=_entity_terms(entities),
+            ),
         )
     edges_df = _collect_matching_edges(
         edges_path=edges_path,
@@ -184,6 +253,19 @@ def _graph_artifact_from_parquet(
             edges=[],
             missing_entities=_missing_entity_ids(entities, nodes_df, matched_node_ids),
             warnings=["no_optimuskg_edges_matched_normalized_entities"],
+            retrieval_modes=list(retrieval_modes),
+            subgraphs=_subgraphs_from_graph(
+                modes=retrieval_modes,
+                nodes=_graph_nodes_from_node_ids(
+                    nodes_df,
+                    matched_node_ids,
+                    nodes_path,
+                    edges_path,
+                    config,
+                ),
+                edges=[],
+                entity_terms=_entity_terms(entities),
+            ),
         )
     endpoint_ids = _edge_endpoint_ids(edges_df)
     nodes = _graph_nodes_from_node_ids(
@@ -202,8 +284,184 @@ def _graph_artifact_from_parquet(
         edges=edges,
         missing_entities=_missing_entity_ids(entities, nodes_df, matched_node_ids),
         warnings=[] if edges else ["no_optimuskg_edges_after_node_matching"],
+        retrieval_modes=list(retrieval_modes),
+        subgraphs=_subgraphs_from_graph(
+            modes=retrieval_modes,
+            nodes=nodes,
+            edges=edges,
+            entity_terms=_entity_terms(entities),
+        ),
     )
 
+
+
+def _normalize_retrieval_modes(
+    retrieval_modes: Sequence[GraphRetrievalMode] | None,
+) -> tuple[GraphRetrievalMode, ...]:
+    """Return validated graph retrieval modes in deterministic order.
+
+    Acceptance criteria:
+        1. Defaults to `general_context` when no modes are requested.
+        2. Rejects unsupported modes instead of silently ignoring them.
+        3. Preserves first-seen order after de-duplication.
+        4. Does not mutate caller-owned sequences.
+
+    Args:
+        retrieval_modes: Optional requested graph retrieval modes.
+
+    Returns:
+        Validated retrieval modes.
+
+    Raises:
+        OptimusKGRuntimeError: If any mode is unsupported.
+    """
+    requested = tuple(retrieval_modes or DEFAULT_GRAPH_RETRIEVAL_MODES)
+    allowed = set(SUPPORTED_GRAPH_RETRIEVAL_MODES)
+    invalid = [str(mode) for mode in requested if mode not in allowed]
+    if invalid:
+        raise OptimusKGRuntimeError(
+            "unsupported OptimusKG retrieval modes: " + ", ".join(invalid)
+        )
+    deduped = list(dict.fromkeys(requested))
+    if not deduped:
+        return DEFAULT_GRAPH_RETRIEVAL_MODES
+    return tuple(deduped)
+
+
+def _subgraphs_from_graph(
+    *,
+    modes: Sequence[GraphRetrievalMode],
+    nodes: Sequence[GraphNode],
+    edges: Sequence[GraphEdge],
+    entity_terms: Sequence[str],
+) -> list[GraphSubgraphEvidence]:
+    """Build targeted subgraph metadata from already-retrieved OptimusKG edges.
+
+    Acceptance criteria:
+        1. Uses only returned OptimusKG nodes and edges.
+        2. Does not fabricate graph relationships for empty matches.
+        3. Produces one deterministic subgraph per requested retrieval mode.
+        4. Records warnings when a targeted mode has no matching edges.
+    """
+    labels_by_id = {node.node_id: node.label for node in nodes}
+    all_node_ids = sorted(labels_by_id)
+    all_edge_ids = sorted(edge.edge_id for edge in edges)
+    return [
+        _subgraph_for_mode(
+            mode=mode,
+            nodes=nodes,
+            edges=edges,
+            labels_by_id=labels_by_id,
+            all_node_ids=all_node_ids,
+            all_edge_ids=all_edge_ids,
+            entity_terms=entity_terms,
+        )
+        for mode in modes
+    ]
+
+
+def _subgraph_for_mode(
+    *,
+    mode: GraphRetrievalMode,
+    nodes: Sequence[GraphNode],
+    edges: Sequence[GraphEdge],
+    labels_by_id: dict[str, str],
+    all_node_ids: Sequence[str],
+    all_edge_ids: Sequence[str],
+    entity_terms: Sequence[str],
+) -> GraphSubgraphEvidence:
+    if mode == "general_context":
+        return GraphSubgraphEvidence(
+            retrieval_mode=mode,
+            query_terms=list(entity_terms),
+            node_ids=list(all_node_ids),
+            edge_ids=list(all_edge_ids),
+            warnings=[] if all_node_ids or all_edge_ids else ["empty_general_graph_context"],
+        )
+    matching_edges = [
+        edge
+        for edge in edges
+        if _edge_matches_mode(edge, labels_by_id, mode)
+    ]
+    matching_node_ids = sorted(
+        {
+            node_id
+            for edge in matching_edges
+            for node_id in (edge.source_node_id, edge.target_node_id)
+        }
+    )
+    query_terms = _subgraph_query_terms(
+        entity_terms=entity_terms,
+        nodes=nodes,
+        mode=mode,
+    )
+    return GraphSubgraphEvidence(
+        retrieval_mode=mode,
+        query_terms=query_terms,
+        node_ids=matching_node_ids,
+        edge_ids=sorted(edge.edge_id for edge in matching_edges),
+        warnings=[] if matching_edges else [f"no_edges_matched_{mode}"],
+    )
+
+
+def _edge_matches_mode(
+    edge: GraphEdge,
+    labels_by_id: dict[str, str],
+    mode: GraphRetrievalMode,
+) -> bool:
+    keywords = _MODE_KEYWORDS[mode]
+    if not keywords:
+        return True
+    text = " ".join(
+        [
+            edge.relation_type,
+            edge.source,
+            labels_by_id.get(edge.source_node_id, ""),
+            labels_by_id.get(edge.target_node_id, ""),
+            " ".join(edge.provenance.values()),
+        ]
+    ).casefold()
+    return any(keyword in text for keyword in keywords)
+
+
+def _subgraph_query_terms(
+    *,
+    entity_terms: Sequence[str],
+    nodes: Sequence[GraphNode],
+    mode: GraphRetrievalMode,
+) -> list[str]:
+    graph_terms = [
+        node.label
+        for node in nodes
+        if node.label.strip()
+        and any(keyword in _casefold(node.label) for keyword in _MODE_KEYWORDS[mode])
+    ]
+    return _unique_nonempty([*entity_terms, *graph_terms])[:12]
+
+
+def _entity_terms(entities: NormalizedEntitySet) -> list[str]:
+    return _unique_nonempty(
+        [
+            value
+            for entity in entities.entities
+            for value in (entity.normalized_label, entity.original_text)
+        ]
+    )
+
+
+def _unique_nonempty(values: Iterable[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
 
 def _require_polars() -> Any:
     try:

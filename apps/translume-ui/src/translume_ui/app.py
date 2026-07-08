@@ -15,6 +15,7 @@ from translume_ui.api_client import (
     TranslumeAPIClient,
     TranslumeAPIClientConfig,
     TranslumeUIAPIError,
+    write_persisted_decision_brief,
     write_persisted_review_packet,
 )
 from translume_ui.panels import (
@@ -220,6 +221,39 @@ def download_persisted_export(session_id: str) -> tuple[str | None, str]:
     )
 
 
+
+def download_persisted_decision_brief(session_id: str) -> tuple[str | None, str]:
+    """Fetch the focused persisted decision brief and expose it as JSON.
+
+    Acceptance criteria:
+        1. Requires a processed session ID.
+        2. Calls the dedicated decision-brief API endpoint.
+        3. Writes only the decision-brief artifact to the download file.
+        4. Does not reconstruct the brief from the full packet locally.
+    """
+    if not session_id.strip():
+        return None, _error_html("No processed decision brief session is available.")
+    try:
+        client = build_api_client(os.environ)
+        brief = client.fetch_decision_brief(session_id)
+        output_path = write_persisted_decision_brief(
+            brief,
+            export_root_from_environment(os.environ),
+        )
+    except (
+        OSError,
+        TranslumeUIAPIError,
+        TranslumeUIConfigError,
+        ValueError,
+    ) as error:
+        logger.exception("Persisted decision brief export could not be fetched")
+        return None, _error_html(str(error))
+    return (
+        str(output_path),
+        '<div class="translume-status">Persisted decision brief export is ready.</div>',
+    )
+
+
 def build_app() -> gr.Blocks:
     """Build the clinician-facing cockpit from live API-returned artifacts only."""
     with gr.Blocks(
@@ -246,7 +280,7 @@ def build_app() -> gr.Blocks:
                     label="Report type",
                 )
                 run = gr.Button(
-                    "Generate persisted review packet",
+                    "Generate Translume report",
                     variant="primary",
                 )
                 case_summary = gr.HTML(
@@ -256,7 +290,157 @@ def build_app() -> gr.Blocks:
             with gr.Column(scale=9):
                 with gr.Tabs():
                     with gr.Tab("Clinical review"):
-                        with gr.Accordion("1. Source-backed report findings", open=True):
+                        with gr.Accordion("1. Oncologist decision brief", open=True):
+                            decision_snapshot = gr.HTML(
+                                '<div class="translume-safety-note">No decision brief is loaded.</div>',
+                                label="Fast decision snapshot",
+                            )
+                            decision_summary = gr.Markdown("")
+                            translational_checks_table = gr.Dataframe(
+                                headers=[
+                                    "Question",
+                                    "Status",
+                                    "Answer",
+                                    "Evidence strength",
+                                    "Evidence labels",
+                                    "Validation needed",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Five translational checks",
+                            )
+                            evidence_sentence_table = gr.Dataframe(
+                                headers=[
+                                    "Evidence label",
+                                    "Evidence statement",
+                                    "Source excerpt",
+                                    "Why it matters",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Evidence sentence map",
+                            )
+                            actionable_biology_table = gr.Dataframe(
+                                headers=[
+                                    "Biology",
+                                    "Alteration / marker",
+                                    "Actionability",
+                                    "Evidence level",
+                                    "Rationale",
+                                    "Uncertainty",
+                                    "Confidence",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Treatable biology",
+                            )
+                            ranked_treatment_options_table = gr.Dataframe(
+                                headers=[
+                                    "Rank",
+                                    "Therapy",
+                                    "Clinical use",
+                                    "Class",
+                                    "Matched biomarkers",
+                                    "Why it fits",
+                                    "Evidence",
+                                    "Resistance risks",
+                                    "Required before-use tests",
+                                    "Limitations",
+                                    "Confidence",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Ranked treatment options",
+                            )
+                            treatment_pressure_table = gr.Dataframe(
+                                headers=[
+                                    "Therapy",
+                                    "Target / pathway",
+                                    "Why it fits",
+                                    "Selective pressure",
+                                    "Likely escape routes",
+                                    "Biomarkers to watch",
+                                    "Evidence basis",
+                                    "Confidence",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Treatment pressure map",
+                            )
+                            resistance_forecast_table = gr.Dataframe(
+                                headers=[
+                                    "Escape route",
+                                    "Description",
+                                    "Treatment pressure",
+                                    "Supporting evidence",
+                                    "Biomarkers",
+                                    "Confidence",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Resistance forecast",
+                            )
+                            biomarker_watch_table = gr.Dataframe(
+                                headers=[
+                                    "Priority",
+                                    "Biomarker",
+                                    "Alteration type",
+                                    "Why watch",
+                                    "Treatment pressure",
+                                    "Preferred test",
+                                    "Trigger",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Biomarker watch list",
+                            )
+                            retesting_triggers_table = gr.Dataframe(
+                                headers=[
+                                    "Urgency",
+                                    "Clinical event",
+                                    "Recommended test",
+                                    "Rationale",
+                                    "What result changes",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Re-testing triggers",
+                            )
+                            next_tests_table = gr.Dataframe(
+                                headers=[
+                                    "Priority",
+                                    "Test type",
+                                    "Timing",
+                                    "Rationale",
+                                    "Biomarkers / questions",
+                                    "Result that changes management",
+                                    "Limitations",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Next test recommendations",
+                            )
+                            decision_limitations_table = gr.Dataframe(
+                                headers=[
+                                    "Limitation",
+                                    "Impact",
+                                    "Needed resolution",
+                                ],
+                                interactive=False,
+                                wrap=True,
+                                label="Evidence limitations",
+                            )
+                            decision_export_button = gr.Button(
+                                "Fetch decision brief JSON",
+                                variant="secondary",
+                            )
+                            decision_export_file = gr.File(
+                                label="Decision brief JSON download",
+                                interactive=False,
+                            )
+                            decision_export_status = gr.HTML("")
+
+                        with gr.Accordion("2. Source-backed report findings", open=False):
                             findings_table = gr.Dataframe(
                                 headers=[
                                     "Gene",
@@ -264,10 +448,7 @@ def build_app() -> gr.Blocks:
                                     "Type",
                                     "Page",
                                     "Confidence",
-                                    "Research-use only",
-                                    "Needs review",
                                     "Source text",
-                                    "Finding ID",
                                 ],
                                 interactive=False,
                                 wrap=True,
@@ -277,24 +458,21 @@ def build_app() -> gr.Blocks:
                                     "Entity type",
                                     "Original text",
                                     "Normalized label",
-                                    "Source finding",
                                     "Needs review",
-                                    "Entity ID",
                                 ],
                                 interactive=False,
                                 wrap=True,
                                 label="Normalized biomedical entities",
                             )
 
-                        with gr.Accordion("2. Biological interpretation", open=True):
+                        with gr.Accordion("3. Biological interpretation", open=False):
                             phenotype_table = gr.Dataframe(
                                 headers=[
                                     "Biological axis",
-                                    "Supporting findings",
+                                    "Supporting finding count",
                                     "Evidence class",
                                     "Uncertainty",
                                     "Validation needed",
-                                    "Axis ID",
                                 ],
                                 interactive=False,
                                 wrap=True,
@@ -309,21 +487,27 @@ def build_app() -> gr.Blocks:
                                     "Evidence basis",
                                     "Required validation",
                                     "Limitations",
-                                    "Not a recommendation",
+                                    "Clinical use",
+                                    "Therapy class",
+                                    "Matched biomarkers",
+                                    "Resistance risks",
+                                    "Required before-use tests",
+                                    "Confidence",
+                                    "Evidence level",
                                 ],
                                 interactive=False,
                                 wrap=True,
                                 label="Molecular-fit review matrix",
                             )
 
-                        with gr.Accordion("3. Mechanism flow", open=True):
+                        with gr.Accordion("4. Mechanism Sankey: Therapy-to-escape flow", open=True):
                             sankey_plot = gr.Plot(
                                 value=empty_mechanism_figure(),
-                                label="Mechanism Sankey",
+                                label="Mechanism Sankey: Therapy-to-escape flow",
                                 show_label=False,
                             )
 
-                        with gr.Accordion("4. Confirmatory validation path", open=True):
+                        with gr.Accordion("5. Confirmatory validation path", open=False):
                             confirmatory_table = gr.Dataframe(
                                 headers=[
                                     "Priority",
@@ -332,18 +516,16 @@ def build_app() -> gr.Blocks:
                                     "Positive interpretation",
                                     "Negative interpretation",
                                     "Evidence gap",
-                                    "Source claims",
-                                    "Test ID",
                                 ],
                                 interactive=False,
                                 wrap=True,
                             )
 
-                        with gr.Accordion("5. Tumor-behavior hypotheses", open=True):
+                        with gr.Accordion("6. Tumor-behavior hypotheses", open=False):
                             tumor_states_table = gr.Dataframe(
                                 headers=[
                                     "State",
-                                    "Supporting findings",
+                                    "Supporting finding count",
                                     "Graph support",
                                     "Tool support",
                                     "Medea support",
@@ -360,7 +542,6 @@ def build_app() -> gr.Blocks:
                                     "From state",
                                     "To state",
                                     "Rationale",
-                                    "Supporting artifacts",
                                     "Confidence label",
                                     "Validation status",
                                     "Hypothesis-generating",
@@ -370,19 +551,19 @@ def build_app() -> gr.Blocks:
                                 label="Transition hypotheses",
                             )
 
-                        with gr.Accordion("6. Clinical-translational narrative", open=True):
+                        with gr.Accordion("7. Clinical-translational narrative", open=False):
                             narrative_markdown = gr.Markdown("")
                             containment_markdown = gr.Markdown("")
 
-                    with gr.Tab("Evidence and validation"):
+                    with gr.Tab("Evidence details"):
                         with gr.Accordion("OptimusKG graph context", open=True):
                             graph_nodes_table = gr.Dataframe(
-                                headers=["Node", "Kind", "Source", "Node ID"],
+                                headers=["Node", "Kind", "Source"],
                                 interactive=False,
                                 wrap=True,
                             )
                             graph_edges_table = gr.Dataframe(
-                                headers=["Source node", "Relation", "Target node", "Source", "Edge ID"],
+                                headers=["Source node", "Relation", "Target node", "Source"],
                                 interactive=False,
                                 wrap=True,
                             )
@@ -395,7 +576,6 @@ def build_app() -> gr.Blocks:
                                     "Evidence items",
                                     "Warnings",
                                     "Needs review",
-                                    "Artifact ID",
                                 ],
                                 interactive=False,
                                 wrap=True,
@@ -407,8 +587,6 @@ def build_app() -> gr.Blocks:
                                     "Title",
                                     "Identifier",
                                     "Finding / relevance",
-                                    "Raw evidence item",
-                                    "Item #",
                                 ],
                                 interactive=False,
                                 wrap=True,
@@ -423,14 +601,12 @@ def build_app() -> gr.Blocks:
                         with gr.Accordion("Human claim validation", open=True):
                             claims_table = gr.Dataframe(
                                 headers=[
-                                    "Claim ID",
                                     "Status",
                                     "Class",
                                     "Claim",
                                     "Evidence source",
                                     "Relevance",
                                     "Limitations",
-                                    "Source artifacts",
                                 ],
                                 interactive=False,
                                 wrap=True,
@@ -456,15 +632,13 @@ def build_app() -> gr.Blocks:
                             )
                             validation_status_message = gr.HTML("")
 
-                    with gr.Tab("Provenance and ledger"):
+                    with gr.Tab("Technical audit"):
                         validation_decisions_table = gr.Dataframe(
                             headers=[
                                 "Status",
-                                "Claim ID",
                                 "Reviewer",
                                 "Reviewer note",
                                 "Created at",
-                                "Decision ID",
                             ],
                             interactive=False,
                             wrap=True,
@@ -478,10 +652,6 @@ def build_app() -> gr.Blocks:
                                 "Generation status",
                                 "Validation status",
                                 "Source chunks",
-                                "Source artifacts",
-                                "Prompt hash",
-                                "Schema hash",
-                                "Artifact ID",
                             ],
                             interactive=False,
                             wrap=True,
@@ -491,25 +661,23 @@ def build_app() -> gr.Blocks:
                             headers=[
                                 "Created at",
                                 "Event",
-                                "Artifact",
                                 "Details",
-                                "Event ID",
                             ],
                             interactive=False,
                             wrap=True,
                             label="Discovery ledger",
                         )
                         export_button = gr.Button(
-                            "Fetch persisted review packet export",
+                            "Fetch technical packet export",
                             variant="secondary",
                         )
                         export_file = gr.File(
-                            label="Review packet JSON download",
+                            label="Technical packet JSON download",
                             interactive=False,
                         )
                         export_status = gr.HTML("")
 
-                    with gr.Tab("Technical packet"):
+                    with gr.Tab("Raw packet"):
                         raw_packet = gr.Code(
                             label="Exact persisted review packet JSON",
                             language="json",
@@ -519,6 +687,18 @@ def build_app() -> gr.Blocks:
             run_status,
             session_state,
             case_summary,
+            decision_snapshot,
+            decision_summary,
+            translational_checks_table,
+            evidence_sentence_table,
+            actionable_biology_table,
+            ranked_treatment_options_table,
+            treatment_pressure_table,
+            resistance_forecast_table,
+            biomarker_watch_table,
+            retesting_triggers_table,
+            next_tests_table,
+            decision_limitations_table,
             findings_table,
             entities_table,
             phenotype_table,
@@ -566,6 +746,11 @@ def build_app() -> gr.Blocks:
                 raw_packet,
             ],
         )
+        decision_export_button.click(
+            download_persisted_decision_brief,
+            inputs=[session_state],
+            outputs=[decision_export_file, decision_export_status],
+        )
         export_button.click(
             download_persisted_export,
             inputs=[session_state],
@@ -594,6 +779,18 @@ def _process_outputs(session_id: str, panels: ClinicalPanelData) -> tuple[Any, .
         panels.status_markdown,
         session_id,
         panels.case_summary_html,
+        panels.decision_snapshot_html,
+        panels.decision_summary_markdown,
+        panels.translational_check_rows,
+        panels.evidence_sentence_rows,
+        panels.actionable_biology_rows,
+        panels.ranked_treatment_option_rows,
+        panels.treatment_pressure_rows,
+        panels.resistance_forecast_rows,
+        panels.biomarker_watch_rows,
+        panels.retesting_trigger_rows,
+        panels.next_test_rows,
+        panels.decision_limitations_rows,
         panels.findings_rows,
         panels.entity_rows,
         panels.phenotype_rows,
@@ -623,16 +820,17 @@ def _process_outputs(session_id: str, panels: ClinicalPanelData) -> tuple[Any, .
 
 
 def _empty_process_outputs(error_message: str) -> tuple[Any, ...]:
-    empty_tables = [[] for _ in range(16)]
+    empty_tables = [[] for _ in range(25)]
     return (
         _error_html(error_message),
         "",
         '<div class="translume-safety-note">No persisted case is loaded.</div>',
+        '<div class="translume-safety-note">No decision brief is loaded.</div>',
+        "",
         empty_tables[0],
         empty_tables[1],
         empty_tables[2],
         empty_tables[3],
-        empty_mechanism_figure("No mechanism artifact is available."),
         empty_tables[4],
         empty_tables[5],
         empty_tables[6],
@@ -640,15 +838,26 @@ def _empty_process_outputs(error_message: str) -> tuple[Any, ...]:
         empty_tables[8],
         empty_tables[9],
         empty_tables[10],
-        "",
-        "",
-        "",
-        "",
         empty_tables[11],
-        gr.update(choices=[], value=None),
         empty_tables[12],
         empty_tables[13],
+        empty_mechanism_figure("No mechanism artifact is available."),
         empty_tables[14],
+        empty_tables[15],
+        empty_tables[16],
+        empty_tables[17],
+        empty_tables[18],
+        empty_tables[19],
+        empty_tables[20],
+        "",
+        "",
+        "",
+        "",
+        empty_tables[21],
+        gr.update(choices=[], value=None),
+        empty_tables[22],
+        empty_tables[23],
+        empty_tables[24],
         json_error_payload(error_message),
     )
 

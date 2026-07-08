@@ -6,6 +6,17 @@ from copy import deepcopy
 from translume_core.compiler.structured_model_artifacts import (
     _MAX_PROMPT_AXES,
     _MAX_PROMPT_CLAIMS,
+    _MAX_PROMPT_CLAIM_INPUT_CONFIRMATORY_TESTS,
+    _MAX_PROMPT_CLAIM_INPUT_GRAPH_EDGES,
+    _MAX_PROMPT_CLAIM_INPUT_GRAPH_NODES,
+    _MAX_PROMPT_CLAIM_INPUT_MATRIX_ROWS,
+    _MAX_PROMPT_CLAIM_INPUT_SANKEY_LINKS,
+    _MAX_PROMPT_CLAIM_INPUT_SANKEY_NODES,
+    _MAX_PROMPT_CLAIM_INPUT_TEXT_CHARS,
+    _MAX_PROMPT_CLAIM_INPUT_TOOL_EVIDENCE_ITEMS,
+    _MAX_PROMPT_CLAIM_INPUT_TOOL_OUTPUTS,
+    _MAX_PROMPT_CLAIM_INPUT_TRANSITIONS,
+    _MAX_PROMPT_CLAIM_INPUT_TUMOR_STATES,
     _MAX_PROMPT_CONFIRMATORY_TESTS,
     _MAX_PROMPT_GENERATED_TEXT_CHARS,
     _MAX_PROMPT_GRAPH_EDGES,
@@ -13,6 +24,14 @@ from translume_core.compiler.structured_model_artifacts import (
     _MAX_PROMPT_HYPOTHESES,
     _MAX_PROMPT_MATRIX_ROWS,
     _MAX_PROMPT_MISC_TEXT_CHARS,
+    _MAX_PROMPT_PHENOTYPE_FINDINGS,
+    _MAX_PROMPT_PHENOTYPE_GRAPH_EDGES,
+    _MAX_PROMPT_PHENOTYPE_GRAPH_NODES,
+    _MAX_PROMPT_PHENOTYPE_HYPOTHESES,
+    _MAX_PROMPT_PHENOTYPE_SUMMARY_CHARS,
+    _MAX_PROMPT_PHENOTYPE_TEXT_CHARS,
+    _MAX_PROMPT_PHENOTYPE_TOOL_EVIDENCE_ITEMS,
+    _MAX_PROMPT_PHENOTYPE_TOOL_OUTPUTS,
     _MAX_PROMPT_SANKEY_LINKS,
     _MAX_PROMPT_SANKEY_INPUT_AXES,
     _MAX_PROMPT_SANKEY_INPUT_GRAPH_EDGES,
@@ -23,12 +42,16 @@ from translume_core.compiler.structured_model_artifacts import (
     _MAX_PROMPT_TUMOR_STATES,
     _MAX_PROMPT_TRANSITIONS,
     compact_claims_for_prompt,
+    compact_claim_evidence_inputs_for_prompt,
     compact_clinical_artifact_bundle_for_prompt,
+    compact_evidence_context_for_molecular_phenotype_prompt,
     compact_evidence_context_for_prompt,
     compact_evidence_context_for_mechanism_sankey_prompt,
+    compact_confirmatory_for_prompt,
     compact_graph_for_prompt,
     compact_matrix_for_prompt,
     compact_matrix_for_sankey_prompt,
+    compact_phenotype_for_prompt,
     compact_phenotype_for_sankey_prompt,
     compact_sankey_for_prompt,
     compact_tumor_behavior_for_prompt,
@@ -39,7 +62,7 @@ from translume_schemas.confirmatory import ConfirmatoryTest, ConfirmatoryTesting
 from translume_schemas.evidence import EvidenceContextBundle
 from translume_schemas.export import ClinicalArtifactBundle
 from translume_schemas.extraction import MolecularFinding, ReportExtractionOutput
-from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode
+from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode, GraphSubgraphEvidence
 from translume_schemas.matrix import MolecularFitRow, TherapyEvidenceMatrixOutput
 from translume_schemas.medea import MedeaReasoningArtifact
 from translume_schemas.phenotype import BiologicalAxis, MolecularPhenotypeOutput
@@ -73,6 +96,9 @@ def test_compact_evidence_context_preserves_grounding_and_caps_payload() -> None
     assert len(graph["nodes"]) <= _MAX_PROMPT_GRAPH_NODES
     assert len(graph["edges"]) <= _MAX_PROMPT_GRAPH_EDGES
     assert graph["nodes"][0]["node_id"] == "node_flt3"
+    assert graph["retrieval_modes"] == ["general_context", "resistance_path"]
+    assert graph["subgraphs"][0]["retrieval_mode"] == "general_context"
+    assert graph["subgraphs"][1]["retrieval_mode"] == "resistance_path"
     assert graph["truncation"]["original_nodes"] > graph["truncation"]["kept_nodes"]
     assert "not be interpreted as absent" in graph["truncation"]["notice"]
     assert "provenance" not in graph["nodes"][0]
@@ -123,7 +149,7 @@ def test_generated_artifact_compactors_cap_payloads_and_keep_ids() -> None:
     compact_tumor = compact_tumor_behavior_for_prompt(tumor_behavior)
 
     assert len(compact_matrix["rows"]) == _MAX_PROMPT_MATRIX_ROWS
-    assert compact_matrix["rows"][0]["not_a_recommendation"] is True
+    assert compact_matrix["rows"][0]["clinical_use"] == "insufficient_evidence"
     assert "[truncated" in compact_matrix["rows"][0]["why_from_omics"]
     assert len(compact_sankey["nodes"]) == _MAX_PROMPT_SANKEY_NODES
     assert len(compact_sankey["links"]) == _MAX_PROMPT_SANKEY_LINKS
@@ -172,6 +198,148 @@ def test_mechanism_sankey_prompt_payload_uses_tighter_caps() -> None:
     assert len(phenotype_payload["axes"]) == _MAX_PROMPT_SANKEY_INPUT_AXES
     assert len(matrix_payload["rows"]) == _MAX_PROMPT_SANKEY_INPUT_MATRIX_ROWS
     assert len(json.dumps(payload)) < 12000
+
+
+def test_molecular_phenotype_prompt_payload_uses_tighter_caps() -> None:
+    context = _large_context()
+    original = context.model_dump(mode="json")
+
+    general = compact_evidence_context_for_prompt(context)
+    compact = compact_evidence_context_for_molecular_phenotype_prompt(context)
+
+    finding = compact["extraction"]["molecular_findings"][0]
+    graph = compact["graph_evidence"]
+    tool = compact["tool_outputs"][0]
+    medea = compact["medea_reasoning"]
+
+    assert compact["artifact_id"] == "artifact_context"
+    assert finding["finding_id"] == "finding_flt3"
+    assert finding["source_chunk_id"] == "chunk_1"
+    assert "[truncated" in finding["source_text"]
+    assert len(finding["source_text"]) > _MAX_PROMPT_PHENOTYPE_TEXT_CHARS
+    assert len(compact["extraction"]["molecular_findings"]) <= (
+        _MAX_PROMPT_PHENOTYPE_FINDINGS
+    )
+    assert graph["artifact_id"] == "artifact_graph"
+    assert graph["nodes"][0]["node_id"] == "node_flt3"
+    assert len(graph["nodes"]) <= _MAX_PROMPT_PHENOTYPE_GRAPH_NODES
+    assert len(graph["edges"]) <= _MAX_PROMPT_PHENOTYPE_GRAPH_EDGES
+    assert graph["retrieval_modes"] == ["general_context", "resistance_path"]
+    assert graph["subgraphs"][0]["retrieval_mode"] == "general_context"
+    assert "not be interpreted as absent" in graph["truncation"]["notice"]
+    assert len(compact["tool_outputs"]) <= _MAX_PROMPT_PHENOTYPE_TOOL_OUTPUTS
+    assert tool["artifact_id"] == "artifact_tool"
+    assert tool["workflow"] == "literature_validation"
+    assert len(tool["summary"]) > _MAX_PROMPT_PHENOTYPE_SUMMARY_CHARS
+    assert len(tool["evidence_items"]) == (
+        _MAX_PROMPT_PHENOTYPE_TOOL_EVIDENCE_ITEMS
+    )
+    assert "[truncated" in tool["evidence_items"][0]["context"]
+    assert medea["artifact_id"] == "artifact_medea"
+    assert len(medea["supported_hypotheses"]) == (
+        _MAX_PROMPT_PHENOTYPE_HYPOTHESES
+    )
+    assert "[truncated" in medea["summary"]
+    assert len(json.dumps(compact)) < len(json.dumps(general))
+    assert len(json.dumps(compact)) < 15000
+    assert context.model_dump(mode="json") == original
+
+
+def test_claim_evidence_prompt_payload_uses_tighter_caps() -> None:
+    context = _large_context()
+    phenotype = _large_phenotype()
+    matrix = _large_matrix()
+    sankey = _large_sankey()
+    confirmatory = _large_confirmatory()
+    tumor_behavior = _large_tumor_behavior()
+    originals = {
+        "context": context.model_dump(mode="json"),
+        "phenotype": phenotype.model_dump(mode="json"),
+        "matrix": matrix.model_dump(mode="json"),
+        "sankey": sankey.model_dump(mode="json"),
+        "confirmatory": confirmatory.model_dump(mode="json"),
+        "tumor_behavior": tumor_behavior.model_dump(mode="json"),
+    }
+
+    general_payload = {
+        "evidence_context": compact_evidence_context_for_prompt(context),
+        "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
+        "molecular_fit_matrix": compact_matrix_for_prompt(matrix),
+        "mechanism_sankey": compact_sankey_for_prompt(sankey),
+        "confirmatory_testing": compact_confirmatory_for_prompt(confirmatory),
+        "tumor_behavior_model": compact_tumor_behavior_for_prompt(
+            tumor_behavior
+        ),
+    }
+    compact = compact_claim_evidence_inputs_for_prompt(
+        context=context,
+        phenotype=phenotype,
+        matrix=matrix,
+        sankey=sankey,
+        confirmatory=confirmatory,
+        tumor_behavior=tumor_behavior,
+    )
+
+    evidence_context = compact["evidence_context"]
+    graph = evidence_context["graph_evidence"]
+    tool = evidence_context["tool_outputs"][0]
+    medea = evidence_context["medea_reasoning"]
+    finding = evidence_context["extraction"]["molecular_findings"][0]
+
+    assert evidence_context["artifact_id"] == "artifact_context"
+    assert finding["finding_id"] == "finding_flt3"
+    assert finding["source_chunk_id"] == "chunk_1"
+    assert "[truncated" in finding["source_text"]
+    assert len(finding["source_text"]) > _MAX_PROMPT_CLAIM_INPUT_TEXT_CHARS
+    assert graph["artifact_id"] == "artifact_graph"
+    assert graph["nodes"][0]["node_id"] == "node_flt3"
+    assert len(graph["nodes"]) <= _MAX_PROMPT_CLAIM_INPUT_GRAPH_NODES
+    assert len(graph["edges"]) <= _MAX_PROMPT_CLAIM_INPUT_GRAPH_EDGES
+    assert len(evidence_context["tool_outputs"]) <= (
+        _MAX_PROMPT_CLAIM_INPUT_TOOL_OUTPUTS
+    )
+    assert tool["artifact_id"] == "artifact_tool"
+    assert len(tool["evidence_items"]) == (
+        _MAX_PROMPT_CLAIM_INPUT_TOOL_EVIDENCE_ITEMS
+    )
+    assert "[truncated" in tool["evidence_items"][0]["context"]
+    assert medea["artifact_id"] == "artifact_medea"
+    assert "[truncated" in medea["summary"]
+    assert compact["molecular_phenotype"]["artifact_id"] == "artifact_phenotype"
+    assert compact["molecular_fit_matrix"]["artifact_id"] == "artifact_matrix"
+    assert len(compact["molecular_fit_matrix"]["rows"]) == (
+        _MAX_PROMPT_CLAIM_INPUT_MATRIX_ROWS
+    )
+    assert compact["mechanism_sankey"]["artifact_id"] == "artifact_sankey"
+    assert len(compact["mechanism_sankey"]["nodes"]) == (
+        _MAX_PROMPT_CLAIM_INPUT_SANKEY_NODES
+    )
+    assert len(compact["mechanism_sankey"]["links"]) <= (
+        _MAX_PROMPT_CLAIM_INPUT_SANKEY_LINKS
+    )
+    assert compact["confirmatory_testing"]["artifact_id"] == (
+        "artifact_confirmatory"
+    )
+    assert len(compact["confirmatory_testing"]["tests"]) == (
+        _MAX_PROMPT_CLAIM_INPUT_CONFIRMATORY_TESTS
+    )
+    assert compact["tumor_behavior_model"]["artifact_id"] == (
+        "artifact_tumor_behavior"
+    )
+    assert len(compact["tumor_behavior_model"]["state_evidence"]) == (
+        _MAX_PROMPT_CLAIM_INPUT_TUMOR_STATES
+    )
+    assert len(compact["tumor_behavior_model"]["transition_hypotheses"]) == (
+        _MAX_PROMPT_CLAIM_INPUT_TRANSITIONS
+    )
+    assert len(json.dumps(compact)) < len(json.dumps(general_payload))
+    assert len(json.dumps(compact)) < 25000
+    assert context.model_dump(mode="json") == originals["context"]
+    assert phenotype.model_dump(mode="json") == originals["phenotype"]
+    assert matrix.model_dump(mode="json") == originals["matrix"]
+    assert sankey.model_dump(mode="json") == originals["sankey"]
+    assert confirmatory.model_dump(mode="json") == originals["confirmatory"]
+    assert tumor_behavior.model_dump(mode="json") == originals["tumor_behavior"]
 
 
 def test_clinical_bundle_compactor_caps_generated_artifacts_and_claims() -> None:
@@ -281,6 +449,21 @@ def _large_context() -> EvidenceContextBundle:
                 for index in range(29)
             ],
         ],
+        retrieval_modes=["general_context", "resistance_path"],
+        subgraphs=[
+            GraphSubgraphEvidence(
+                retrieval_mode="general_context",
+                query_terms=["FLT3"],
+                node_ids=["node_flt3", "node_neighbor_0"],
+                edge_ids=["edge_flt3_neighbor_0"],
+            ),
+            GraphSubgraphEvidence(
+                retrieval_mode="resistance_path",
+                query_terms=["FLT3", "escape"],
+                node_ids=["node_flt3", "node_neighbor_1"],
+                edge_ids=["edge_flt3_neighbor_1"],
+            ),
+        ],
     )
     tool = ToolRunArtifact(
         artifact_id="artifact_tool",
@@ -338,7 +521,7 @@ def _large_phenotype() -> MolecularPhenotypeOutput:
             )
             for index in range(30)
         ],
-        limitations=["Do not infer treatment actionability. " * 80],
+        limitations=["Do not infer unsupported certainty. " * 80],
     )
 
 
@@ -352,9 +535,15 @@ def _large_matrix() -> TherapyEvidenceMatrixOutput:
                 fit_label="needs_review",
                 why_from_omics="FLT3 context requires review. " * 120,
                 evidence_basis="Source-backed report and MIMS evidence. " * 120,
-                limitations="Not treatment-directing. " * 120,
+                limitations="Evidence limitations require clinician review. " * 120,
                 required_validation="Clinician validation required. " * 120,
-                not_a_recommendation=True,
+                clinical_use="insufficient_evidence",
+                therapy_class="review context",
+                matched_biomarkers=["FLT3"],
+                resistance_risks=["Pathway adaptation requires review."],
+                required_before_use_tests=["Clinician validation required."],
+                confidence="needs_review",
+                evidence_level="source-backed hypothesis requiring review",
             )
             for index in range(40)
         ],

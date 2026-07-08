@@ -144,6 +144,31 @@ async def get_review_packet_export(session_id: str) -> dict[str, object]:
     return packet.model_dump(mode="json")
 
 
+
+
+@app.get("/api/v1/review-packets/{session_id}/decision-brief")
+async def get_oncologist_decision_brief(session_id: str) -> dict[str, object]:
+    """Return only the persisted oncologist decision brief for a session.
+
+    Acceptance criteria:
+        1. Loads the exact persisted review packet from Postgres.
+        2. Returns the stored decision_brief artifact only.
+        3. Does not reconstruct or fabricate decision-brief content.
+        4. Fails explicitly when the persisted packet has no decision brief.
+    """
+    store = _postgres_store(get_settings())
+    try:
+        packet = await store.fetch_review_packet_by_session_id(session_id)
+    except Exception as error:
+        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
+    if packet.bundle.decision_brief is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Persisted packet does not contain an oncologist decision brief",
+        )
+    return packet.bundle.decision_brief.model_dump(mode="json")
+
+
 @app.post("/api/v1/review-packets/{session_id}/claims/{claim_id}/validation")
 async def validate_claim(
     session_id: str,
@@ -213,6 +238,17 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         vllm_model=settings.vllm_model,
         prompts_root=settings.prompts_root,
         tool_workflows=settings.tool_workflows,
+        enable_provider_cache=settings.enable_provider_cache,
+        graph_cache_ttl_seconds=settings.graph_cache_ttl_seconds,
+        tool_cache_ttl_seconds=settings.tool_cache_ttl_seconds,
+        medea_cache_ttl_seconds=settings.medea_cache_ttl_seconds,
+        async_stage_latency_budget_seconds=(
+            settings.async_stage_latency_budget_seconds
+        ),
+        decision_brief_stage_latency_budget_seconds=(
+            settings.decision_brief_stage_latency_budget_seconds
+        ),
+        stage_latency_budgets_seconds=settings.stage_latency_budgets_seconds,
     )
 
 

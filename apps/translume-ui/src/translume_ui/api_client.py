@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from translume_schemas.decision_brief import OncologistDecisionBrief
 from translume_schemas.export import ReviewPacketExport
 
 
@@ -78,6 +79,26 @@ class TranslumeAPIClient:
         return _validate_review_packet_response(
             response,
             operation="fetch persisted review packet",
+        )
+
+    def fetch_decision_brief(self, session_id: str) -> OncologistDecisionBrief:
+        """Fetch the exact persisted oncologist decision brief for a session.
+
+        Acceptance criteria:
+            1. Requires a non-empty session ID.
+            2. Calls the focused decision-brief API endpoint.
+            3. Validates the payload against ``OncologistDecisionBrief``.
+            4. Does not reconstruct or synthesize decision-brief content.
+        """
+        normalized_session_id = _required_identifier(session_id, "session_id")
+        response = self._request(
+            "GET",
+            f"/api/v1/review-packets/{normalized_session_id}/decision-brief",
+            timeout=self._config.request_timeout_seconds,
+        )
+        return _validate_decision_brief_response(
+            response,
+            operation="fetch persisted decision brief",
         )
 
     def validate_claim(
@@ -153,6 +174,52 @@ def write_persisted_review_packet(
     )
     temporary.replace(destination)
     return destination
+
+
+def write_persisted_decision_brief(
+    brief: OncologistDecisionBrief,
+    export_root: Path,
+) -> Path:
+    """Write an API-validated decision brief to an atomic JSON export file.
+
+    Acceptance criteria:
+        1. Creates the export directory when missing.
+        2. Names the file from the validated decision-brief artifact ID.
+        3. Writes only the decision brief, not the full review packet.
+        4. Uses atomic replacement to avoid partial user downloads.
+
+    Args:
+        brief: API-validated persisted decision-brief artifact.
+        export_root: Directory where the JSON file should be written.
+
+    Returns:
+        Path to the completed JSON export.
+    """
+    export_root.mkdir(parents=True, exist_ok=True)
+    safe_artifact_id = _safe_filename_component(brief.artifact_id)
+    destination = export_root / f"translume-decision-brief-{safe_artifact_id}.json"
+    temporary = destination.with_suffix(".json.tmp")
+    temporary.write_text(
+        json.dumps(brief.model_dump(mode="json"), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    temporary.replace(destination)
+    return destination
+
+
+def _validate_decision_brief_response(
+    response: httpx.Response,
+    *,
+    operation: str,
+) -> OncologistDecisionBrief:
+    payload = _response_json_object(response, operation=operation)
+    try:
+        return OncologistDecisionBrief.model_validate(payload)
+    except ValidationError as error:
+        raise TranslumeUIAPIError(
+            "Translume API returned an invalid oncologist decision brief "
+            f"during {operation}: {error}"
+        ) from error
 
 
 def _validate_review_packet_response(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -36,7 +35,7 @@ REQUIRED_ENV = {
     "MEDEA_SERVICE_URL": "http://medea-service:8093",
     "OPENSEARCH_URL": "http://opensearch:9200",
     "POSTGRES_DSN": "postgresql://translume:translume@postgres:5432/translume",
-    "TRANSLUME_TOOL_WORKFLOWS": "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
+    "TRANSLUME_TOOL_WORKFLOWS": "literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context",
     "TRANSLUME_RETRIEVAL_MODE": "lexical",
 }
 
@@ -98,6 +97,12 @@ def _write_tooluniverse_workflow_config(root: Path) -> None:
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     config.write_text(
         json.dumps(
@@ -142,6 +147,12 @@ def _prepare_root(tmp_path: Path) -> Path:
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     workflow_config.write_text(
         json.dumps(

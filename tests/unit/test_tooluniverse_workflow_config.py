@@ -15,7 +15,7 @@ from translume_adapters.tool_providers.tooluniverse_runtime import (
     workflow_tool_names,
 )
 from translume_schemas.entities import NormalizedEntity, NormalizedEntitySet
-from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode
+from translume_schemas.graph import GraphEdge, GraphEvidenceArtifact, GraphNode, GraphSubgraphEvidence
 
 
 CONFIG_PATH = Path("configs/local/tooluniverse_workflows.json")
@@ -39,6 +39,18 @@ def test_default_tooluniverse_config_covers_required_mvp_workflows() -> None:
     assert "ClinVar_search_variants" in tool_names
     assert "search_clinical_trials" in tool_names
     assert pathway_commons_step["arguments"]["type"] == "Pathway"
+    assert (
+        catalog.workflows["therapy_context"]["steps"][0]["arguments"]["queryString"]
+        == "$drug_target_biomarker_query"
+    )
+    assert (
+        catalog.workflows["resistance_mechanism_context"]["steps"][0]["arguments"]["query"]
+        == "$resistance_path_query"
+    )
+    assert (
+        catalog.workflows["biomarker_retesting_context"]["steps"][0]["arguments"]["query"]
+        == "$biomarker_monitoring_query"
+    )
 
 
 def test_tooluniverse_template_context_bounds_external_queries() -> None:
@@ -139,3 +151,92 @@ def test_tooluniverse_config_rejects_empty_steps(tmp_path: Path) -> None:
     )
     with pytest.raises(ToolUniverseWorkflowError, match="no executable steps"):
         load_workflow_catalog(path)
+
+
+def test_tooluniverse_template_context_exposes_targeted_graph_queries() -> None:
+    entities = NormalizedEntitySet(
+        artifact_id="artifact_entities",
+        case_id="case",
+        session_id="session",
+        entities=[
+            NormalizedEntity(
+                entity_id="entity_disease",
+                entity_type="disease",
+                original_text="lung cancer",
+                normalized_label="lung cancer",
+                source_artifact_id="artifact_report",
+            ),
+            NormalizedEntity(
+                entity_id="entity_gene",
+                entity_type="gene",
+                original_text="EGFR",
+                normalized_label="EGFR",
+                source_artifact_id="artifact_report",
+            ),
+        ],
+    )
+    graph = GraphEvidenceArtifact(
+        artifact_id="artifact_graph",
+        source_entity_ids=["entity_gene"],
+        nodes=[
+            GraphNode(
+                node_id="node_egfr",
+                label="EGFR",
+                kind="gene",
+                source="optimuskg",
+            ),
+            GraphNode(
+                node_id="node_met",
+                label="MET amplification bypass",
+                kind="resistance",
+                source="optimuskg",
+            ),
+        ],
+        edges=[
+            GraphEdge(
+                edge_id="edge_resistance",
+                source_node_id="node_egfr",
+                target_node_id="node_met",
+                relation_type="resistance_bypass_path",
+                source="optimuskg",
+            ),
+            GraphEdge(
+                edge_id="edge_biomarker",
+                source_node_id="node_egfr",
+                target_node_id="node_met",
+                relation_type="biomarker_monitoring_path",
+                source="optimuskg",
+            ),
+        ],
+        retrieval_modes=[
+            "general_context",
+            "resistance_path",
+            "biomarker_monitoring",
+        ],
+        subgraphs=[
+            GraphSubgraphEvidence(
+                retrieval_mode="resistance_path",
+                query_terms=["EGFR", "MET amplification bypass"],
+                node_ids=["node_egfr", "node_met"],
+                edge_ids=["edge_resistance"],
+            ),
+            GraphSubgraphEvidence(
+                retrieval_mode="biomarker_monitoring",
+                query_terms=["EGFR", "ctDNA"],
+                node_ids=["node_egfr", "node_met"],
+                edge_ids=["edge_biomarker"],
+            ),
+        ],
+    )
+
+    context = template_context(entities, graph)
+
+    assert context["graph_retrieval_modes"] == [
+        "general_context",
+        "resistance_path",
+        "biomarker_monitoring",
+    ]
+    assert "MET amplification bypass" in context["resistance_path_query"]
+    assert "resistance_bypass_path" in context["resistance_path_query"]
+    assert "ctDNA" in context["biomarker_monitoring_query"]
+    assert "biomarker_monitoring_path" in context["biomarker_monitoring_query"]

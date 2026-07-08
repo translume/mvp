@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
+from datetime import date, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,13 @@ REQUIRED_MVP_WORKFLOWS: tuple[str, ...] = (
     "target_context",
     "variant_context",
     "trial_context_review",
+    "therapy_context",
+    "resistance_mechanism_context",
+    "biomarker_retesting_context",
+    "guideline_context",
+    "clinical_trial_context",
+    "lineage_transformation_context",
+    "recent_therapy_agent_backfill_context",
 )
 MAX_TOOL_QUERY_TERMS = 8
 MAX_GRAPH_QUERY_TERMS = 3
@@ -498,13 +506,15 @@ def template_context(
     entities: NormalizedEntitySet,
     graph: GraphEvidenceArtifact,
 ) -> dict[str, Any]:
-    """Build dynamic workflow arguments from normalized entities and graph evidence.
+    """Build dynamic workflow arguments from entities and targeted graph slices.
 
     Acceptance criteria:
         1. Keeps unbounded entity and graph lists available for audit.
         2. Preserves first gene, disease, and variant values.
         3. Bounds generated ToolUniverse query strings deterministically.
         4. Prioritizes source entities before graph-expanded context.
+        5. Exposes therapy-pressure, resistance-path, drug-target-biomarker,
+           and biomarker-monitoring graph terms as distinct workflow inputs.
     """
     groups: dict[str, list[str]] = {}
     for entity in entities.entities:
@@ -517,6 +527,16 @@ def template_context(
     copy_number_loss = unique_nonempty(groups.get("copy_number_loss", []))
     copy_number_gain = unique_nonempty(groups.get("copy_number_gain", []))
     gene_terms = unique_nonempty([*genes, *copy_number_loss, *copy_number_gain])
+
+    therapy_graph_terms = subgraph_query_terms(graph, "therapy_pressure")
+    therapy_graph_relations = subgraph_relation_terms(graph, "therapy_pressure")
+    resistance_graph_terms = subgraph_query_terms(graph, "resistance_path")
+    resistance_graph_relations = subgraph_relation_terms(graph, "resistance_path")
+    drug_target_graph_terms = subgraph_query_terms(graph, "drug_target_biomarker")
+    drug_target_graph_relations = subgraph_relation_terms(graph, "drug_target_biomarker")
+    biomarker_graph_terms = subgraph_query_terms(graph, "biomarker_monitoring")
+    biomarker_graph_relations = subgraph_relation_terms(graph, "biomarker_monitoring")
+
     literature_terms = bounded_query_terms(
         priority_terms=[
             *diseases,
@@ -543,6 +563,60 @@ def template_context(
         priority_terms=[*diseases, *gene_terms],
         secondary_terms=[],
     )
+    therapy_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, *variants, "therapy"],
+        secondary_terms=graph_nodes,
+    )
+    resistance_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, "resistance", "escape"],
+        secondary_terms=graph_nodes,
+    )
+    retesting_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, "ctDNA", "biomarker monitoring"],
+        secondary_terms=graph_nodes,
+    )
+    guideline_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, "guideline", "biomarker"],
+        secondary_terms=[],
+    )
+    transformation_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, "histologic transformation"],
+        secondary_terms=graph_nodes,
+    )
+    therapy_pressure_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, *variants, *therapy_graph_terms],
+        secondary_terms=[*therapy_graph_relations, "therapy pressure", "selective pressure"],
+    )
+    resistance_path_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, *resistance_graph_terms],
+        secondary_terms=[*resistance_graph_relations, "resistance mechanism", "escape route"],
+    )
+    drug_target_biomarker_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, *drug_target_graph_terms],
+        secondary_terms=[*drug_target_graph_relations, "drug target biomarker"],
+    )
+    biomarker_monitoring_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, *biomarker_graph_terms],
+        secondary_terms=[*biomarker_graph_relations, "ctDNA", "retesting"],
+    )
+    lineage_transformation_terms = bounded_query_terms(
+        priority_terms=[*diseases, *gene_terms, "histologic transformation"],
+        secondary_terms=[*resistance_graph_terms, *graph_nodes],
+    )
+    recent_agent_terms = bounded_query_terms(
+        priority_terms=[
+            *diseases,
+            *gene_terms,
+            "trial agent",
+            "targeted therapy",
+            _recent_pubmed_date_filter(),
+        ],
+        secondary_terms=[*drug_target_graph_terms, *therapy_graph_terms],
+    )
+    recent_agent_trial_terms = bounded_query_terms(
+        priority_terms=[*gene_terms, "targeted therapy", "trial agent"],
+        secondary_terms=[*drug_target_graph_terms, *therapy_graph_terms],
+    )
     return {
         "entities": unique_nonempty([entity.normalized_label for entity in entities.entities]),
         "genes": genes,
@@ -555,6 +629,7 @@ def template_context(
         "copy_number_gain": copy_number_gain,
         "graph_nodes": graph_nodes,
         "graph_relations": graph_relations,
+        "graph_retrieval_modes": list(graph.retrieval_modes),
         "literature_query": join_terms(literature_terms),
         "pathway_query": join_terms(pathway_terms),
         "target_query": join_terms(target_terms),
@@ -562,7 +637,41 @@ def template_context(
         "variant_query": join_terms(variant_terms),
         "trial_query": join_terms(trial_terms),
         "clinical_trial_query": join_terms(trial_terms),
+        "therapy_query": join_terms(therapy_terms),
+        "resistance_query": join_terms(resistance_terms),
+        "biomarker_retesting_query": join_terms(retesting_terms),
+        "guideline_query": join_terms(guideline_terms),
+        "transformation_query": join_terms(transformation_terms),
+        "therapy_pressure_query": join_terms(therapy_pressure_terms),
+        "resistance_path_query": join_terms(resistance_path_terms),
+        "drug_target_biomarker_query": join_terms(drug_target_biomarker_terms),
+        "biomarker_monitoring_query": join_terms(biomarker_monitoring_terms),
+        "lineage_transformation_query": join_terms(lineage_transformation_terms),
+        "recent_therapy_agent_backfill_query": join_terms(recent_agent_terms),
+        "recent_therapy_agent_trial_query": join_terms(recent_agent_trial_terms),
     }
+
+
+def subgraph_query_terms(graph: GraphEvidenceArtifact, retrieval_mode: str) -> list[str]:
+    """Return query terms for a targeted graph retrieval mode."""
+    terms: list[str] = []
+    for subgraph in graph.subgraphs:
+        if subgraph.retrieval_mode == retrieval_mode:
+            terms.extend(subgraph.query_terms)
+    return unique_nonempty(terms)
+
+
+def subgraph_relation_terms(graph: GraphEvidenceArtifact, retrieval_mode: str) -> list[str]:
+    """Return relation terms attached to a targeted graph retrieval mode."""
+    edge_ids: set[str] = set()
+    for subgraph in graph.subgraphs:
+        if subgraph.retrieval_mode == retrieval_mode:
+            edge_ids.update(subgraph.edge_ids)
+    if not edge_ids:
+        return []
+    return unique_nonempty(
+        [edge.relation_type for edge in graph.edges if edge.edge_id in edge_ids]
+    )
 
 
 def bounded_query_terms(
@@ -700,6 +809,14 @@ def to_text(value: Any) -> str:
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
     except TypeError:
         return repr(value)
+
+
+
+
+def _recent_pubmed_date_filter() -> str:
+    """Return a PubMed-style last-18-month date filter for backfill queries."""
+    start = date.today() - timedelta(days=548)
+    return f"({start.isoformat()}[dp] : 3000[dp])"
 
 
 def unique_nonempty(values: list[str]) -> list[str]:

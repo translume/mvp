@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Any
-
 from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
 
 from pydantic import BaseModel
@@ -10,7 +8,7 @@ from pydantic import BaseModel
 from translume_schemas.claims import ClaimEvidenceOutput
 from translume_schemas.document import DocumentChunk
 from translume_schemas.entities import NormalizedEntitySet
-from translume_schemas.export import ClinicalArtifactBundle, ReviewPacketExport
+from translume_schemas.export import ReviewPacketExport
 from translume_schemas.extraction import ReportExtractionOutput
 from translume_schemas.graph import GraphEvidenceArtifact
 from translume_schemas.ledger import LedgerEvent
@@ -402,6 +400,7 @@ def artifact_bundle_to_opensearch_docs(
         ("mechanism_sankey", bundle.sankey, [bundle.extraction.artifact_id], "mechanism sankey"),
         ("confirmatory_testing", bundle.confirmatory, [bundle.extraction.artifact_id], "confirmatory testing"),
         ("tumor_behavior", bundle.tumor_behavior, [bundle.extraction.artifact_id], "tumor behavior model"),
+        ("oncologist_decision_brief", bundle.decision_brief, [bundle.extraction.artifact_id], "oncologist decision brief"),
         ("clinical_narrative", bundle.narrative, [bundle.extraction.artifact_id], "clinical narrative"),
         ("narrative_containment", bundle.narrative_containment, [bundle.extraction.artifact_id], "narrative containment report"),
     ]
@@ -425,6 +424,8 @@ def artifact_bundle_to_opensearch_docs(
 
 
 def _summary_text(artifact: object, fallback: str) -> str:
+    if hasattr(artifact, "clinical_decision_summary"):
+        return str(getattr(artifact, "clinical_decision_summary"))
     if hasattr(artifact, "markdown"):
         return str(getattr(artifact, "markdown"))
     if hasattr(artifact, "summary"):

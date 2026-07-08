@@ -11,3 +11,5 @@ class MedeaReasoningArtifact(TranslumeBaseModel):
     weakened_hypotheses: list[str]
     warnings: list[str] = []
     requires_human_review: bool = True
+    decision_support_role: str = "hypothesis_support_only"
+    downstream_uses: list[str] = []

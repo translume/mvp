@@ -66,9 +66,12 @@ def test_nested_path_extraction_and_non_empty_validation() -> None:
 
 
 def test_absent_phrase_check_blocks_unsafe_output() -> None:
-    assert_absent_phrases({"text": "molecular fit for expert review"}, ["recommended treatment"])
+    assert_absent_phrases(
+        {"text": "treatment option for clinician review"},
+        ["guaranteed", "will respond"],
+    )
     with pytest.raises(Exception):
-        assert_absent_phrases({"text": "recommended treatment"}, ["recommended treatment"])
+        assert_absent_phrases({"text": "will respond"}, ["will respond"])
 
 
 def test_health_field_mismatch_accepts_workflows_in_any_order() -> None:
@@ -78,14 +81,26 @@ def test_health_field_mismatch_accepts_workflows_in_any_order() -> None:
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     payload = {
         "configured_workflows": [
-            "literature_validation",
-            "pathway_context",
-            "target_context",
+            "lineage_transformation_context",
+            "clinical_trial_context",
+            "guideline_context",
+            "biomarker_retesting_context",
+            "resistance_mechanism_context",
+            "therapy_context",
             "trial_context_review",
             "variant_context",
+            "target_context",
+            "pathway_context",
+            "literature_validation",
         ]
     }
     assert health_field_mismatch("configured_workflows", expected, payload) is None
@@ -98,6 +113,12 @@ def test_health_field_mismatch_rejects_missing_workflow() -> None:
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     payload = {
         "configured_workflows": [

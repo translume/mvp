@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Settings(BaseModel):
@@ -23,6 +23,13 @@ class Settings(BaseModel):
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
+        "recent_therapy_agent_backfill_context",
     )
     max_chunk_chars: int = 2400
     opensearch_url: str = "http://opensearch:9200"
@@ -42,6 +49,13 @@ class Settings(BaseModel):
     vllm_timeout_seconds: float = 240.0
     prompts_root: Path = Path("configs/prompts")
     require_local_vllm: bool = True
+    enable_provider_cache: bool = True
+    graph_cache_ttl_seconds: float | None = 3600.0
+    tool_cache_ttl_seconds: float | None = 1800.0
+    medea_cache_ttl_seconds: float | None = 1800.0
+    async_stage_latency_budget_seconds: float | None = None
+    decision_brief_stage_latency_budget_seconds: float | None = None
+    stage_latency_budgets_seconds: dict[str, float] = Field(default_factory=dict)
 
 
 def get_settings() -> Settings:
@@ -55,35 +69,93 @@ def get_settings() -> Settings:
     """
     return Settings(
         storage_root=Path(os.getenv("TRANSLUME_STORAGE_ROOT", "data/uploads")),
-        require_mims=os.getenv("TRANSLUME_REQUIRE_MIMS", "true").casefold() == "true",
-        optimuskg_service_url=os.getenv("OPTIMUSKG_SERVICE_URL", "http://optimuskg-service:8091"),
-        tooluniverse_service_url=os.getenv("TOOLUNIVERSE_SERVICE_URL", "http://tooluniverse-service:8092"),
-        medea_service_url=os.getenv("MEDEA_SERVICE_URL", "http://medea-service:8093"),
+        require_mims=os.getenv("TRANSLUME_REQUIRE_MIMS", "true").casefold()
+        == "true",
+        optimuskg_service_url=os.getenv(
+            "OPTIMUSKG_SERVICE_URL",
+            "http://optimuskg-service:8091",
+        ),
+        tooluniverse_service_url=os.getenv(
+            "TOOLUNIVERSE_SERVICE_URL",
+            "http://tooluniverse-service:8092",
+        ),
+        medea_service_url=os.getenv(
+            "MEDEA_SERVICE_URL",
+            "http://medea-service:8093",
+        ),
         mims_timeout_seconds=float(os.getenv("MIMS_TIMEOUT_SECONDS", "240")),
-        tool_workflows=_parse_csv_tuple(os.getenv(
+        tool_workflows=_parse_csv_tuple(
+            os.getenv(
                 "TRANSLUME_TOOL_WORKFLOWS",
-                "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
-            )),
+                _default_tool_workflows_csv(),
+            )
+        ),
         max_chunk_chars=int(os.getenv("TRANSLUME_MAX_CHUNK_CHARS", "2400")),
         opensearch_url=os.getenv("OPENSEARCH_URL", "http://opensearch:9200"),
-        opensearch_timeout_seconds=float(os.getenv("OPENSEARCH_TIMEOUT_SECONDS", "30")),
-        opensearch_required=os.getenv("TRANSLUME_REQUIRE_OPENSEARCH", "true").casefold() == "true",
+        opensearch_timeout_seconds=float(
+            os.getenv("OPENSEARCH_TIMEOUT_SECONDS", "30")
+        ),
+        opensearch_required=os.getenv(
+            "TRANSLUME_REQUIRE_OPENSEARCH",
+            "true",
+        ).casefold()
+        == "true",
         retrieval_mode=os.getenv("TRANSLUME_RETRIEVAL_MODE", "lexical"),
         vector_dimension=_optional_int(os.getenv("TRANSLUME_VECTOR_DIMENSION", "")),
-        postgres_dsn=os.getenv("POSTGRES_DSN", "postgresql://translume:translume@postgres:5432/translume"),
-        postgres_connect_timeout_seconds=float(os.getenv("POSTGRES_CONNECT_TIMEOUT_SECONDS", "10")),
-        postgres_required=os.getenv("TRANSLUME_REQUIRE_POSTGRES", "true").casefold() == "true",
-        docling_service_url=os.getenv("DOCLING_SERVICE_URL", "http://docling-service:8090"),
+        postgres_dsn=os.getenv(
+            "POSTGRES_DSN",
+            "postgresql://translume:translume@postgres:5432/translume",
+        ),
+        postgres_connect_timeout_seconds=float(
+            os.getenv("POSTGRES_CONNECT_TIMEOUT_SECONDS", "10")
+        ),
+        postgres_required=os.getenv("TRANSLUME_REQUIRE_POSTGRES", "true").casefold()
+        == "true",
+        docling_service_url=os.getenv(
+            "DOCLING_SERVICE_URL",
+            "http://docling-service:8090",
+        ),
         docling_timeout_seconds=float(os.getenv("DOCLING_TIMEOUT_SECONDS", "240")),
-        docling_required=os.getenv("TRANSLUME_REQUIRE_DOCLING", "true").casefold() == "true",
+        docling_required=os.getenv("TRANSLUME_REQUIRE_DOCLING", "true").casefold()
+        == "true",
         docling_extraction_method=os.getenv("DOCLING_EXTRACTION_METHOD", "docling"),
         vllm_base_url=os.getenv("VLLM_BASE_URL", "http://vllm:8000/v1"),
         vllm_model=os.getenv("VLLM_MODEL", ""),
         vllm_timeout_seconds=float(os.getenv("VLLM_TIMEOUT_SECONDS", "240")),
         prompts_root=Path(os.getenv("TRANSLUME_PROMPTS_ROOT", "configs/prompts")),
-        require_local_vllm=os.getenv("TRANSLUME_REQUIRE_LOCAL_VLLM", "true").casefold() == "true",
+        require_local_vllm=os.getenv(
+            "TRANSLUME_REQUIRE_LOCAL_VLLM",
+            "true",
+        ).casefold()
+        == "true",
+        enable_provider_cache=os.getenv(
+            "TRANSLUME_ENABLE_PROVIDER_CACHE",
+            "true",
+        ).casefold()
+        == "true",
+        graph_cache_ttl_seconds=_optional_float(
+            os.getenv("TRANSLUME_GRAPH_CACHE_TTL_SECONDS", "3600")
+        ),
+        tool_cache_ttl_seconds=_optional_float(
+            os.getenv("TRANSLUME_TOOL_CACHE_TTL_SECONDS", "1800")
+        ),
+        medea_cache_ttl_seconds=_optional_float(
+            os.getenv("TRANSLUME_MEDEA_CACHE_TTL_SECONDS", "1800")
+        ),
+        async_stage_latency_budget_seconds=_optional_float(
+            os.getenv("TRANSLUME_ASYNC_STAGE_LATENCY_BUDGET_SECONDS", "")
+        ),
+        decision_brief_stage_latency_budget_seconds=_optional_float(
+            os.getenv("TRANSLUME_DECISION_BRIEF_STAGE_LATENCY_BUDGET_SECONDS", "")
+        ),
+        stage_latency_budgets_seconds=_parse_latency_budget_map(
+            os.getenv("TRANSLUME_STAGE_LATENCY_BUDGETS_SECONDS", "")
+        ),
     )
 
+
+def _default_tool_workflows_csv() -> str:
+    return ",".join(Settings().tool_workflows)
 
 def _parse_csv_tuple(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
@@ -92,3 +164,27 @@ def _parse_csv_tuple(value: str) -> tuple[str, ...]:
 def _optional_int(value: str) -> int | None:
     stripped = value.strip()
     return int(stripped) if stripped else None
+
+
+def _optional_float(value: str) -> float | None:
+    stripped = value.strip()
+    return float(stripped) if stripped else None
+
+
+def _parse_latency_budget_map(value: str) -> dict[str, float]:
+    budgets: dict[str, float] = {}
+    for item in value.split(","):
+        if not item.strip():
+            continue
+        if "=" not in item:
+            raise ValueError(
+                "TRANSLUME_STAGE_LATENCY_BUDGETS_SECONDS entries must be stage=seconds"
+            )
+        stage, seconds = item.split("=", 1)
+        stage = stage.strip()
+        if not stage:
+            raise ValueError(
+                "TRANSLUME_STAGE_LATENCY_BUDGETS_SECONDS contains an empty stage name"
+            )
+        budgets[stage] = float(seconds.strip())
+    return budgets
