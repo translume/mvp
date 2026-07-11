@@ -76,6 +76,34 @@ make test
 make docker-config
 ```
 
+## Precision oncology JSON batch service
+
+The standalone `precision_oncology_json_pipeline` runs as a persistent Docker
+Compose service so commands can be executed inside it. Start it with:
+
+```bash
+docker compose up --build -d precision-oncology-pipeline
+```
+
+Set `PRECISION_ONCOLOGY_INPUT_PATH` and
+`PRECISION_ONCOLOGY_OUTPUT_DIR` in `.env` to use other host paths. For a
+cost-controlled live run, also set `OPENAI_API_KEY`, then execute:
+
+```bash
+docker compose exec --user pipeline precision-oncology-pipeline \
+  python /app/precision_oncology_pipeline.py \
+  --input /inputs/review_packet.json \
+  --output-dir /outputs \
+  --model gpt-5.6-luna \
+  --quick-test
+```
+
+Use `--user pipeline` so generated files retain the configured host UID/GID.
+The host `./precision_oncology_json_pipeline` directory is bind-mounted at
+`/app`, so source edits are immediately visible in the running container.
+The service is an independent container and does not start or depend on the
+Translume API, database, search, vLLM, or MIMS services.
+
 ## MVP invariant
 
 Every clinical statement must be traceable to source report text, a structured artifact, graph/tool/Medea evidence, or a human validation decision.
@@ -516,4 +544,3 @@ Translume is not itself an adaptive precision oncology platform today. It is a f
 By creating structured, traceable, source-backed, and human-validated records from oncology reports, Translume helps build the data and reasoning layer needed for future systems that may support longitudinal tumor modeling, evidence learning, cohort analysis, adaptive research workflows, and more personalized oncology review.
 
 The near-term goal is not autonomous medicine. The goal is to make complex oncology information more usable, reviewable, auditable, and scalable so that expert teams can work faster and with greater confidence.
-

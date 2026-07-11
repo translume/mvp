@@ -1,0 +1,26 @@
+{
+  "disease": {
+    "name": "Example solid tumor",
+    "histology": "Example histology",
+    "stage": "metastatic",
+    "setting": "advanced unresectable disease"
+  },
+  "specimen": {
+    "site": "example biopsy site",
+    "collection_date": "2026-06-01",
+    "tumor_percentage": 70,
+    "specimen_type": "FFPE tissue"
+  },
+  "prior_therapies": ["example systemic therapy"],
+  "line_of_therapy": "second line",
+  "performance_status": "ECOG 1",
+  "organ_function": {
+    "renal": "adequate per treating clinician",
+    "hepatic": "adequate per treating clinician"
+  },
+  "measurable_disease": true,
+  "biopsy_feasibility": null,
+  "location": "Milwaukee, Wisconsin, USA",
+  "matched_normal_available": false,
+  "validation_status": "needs_review"
+}

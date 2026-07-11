@@ -1,0 +1,47 @@
+{
+  "actionable_findings": [
+    {
+      "finding_id": "finding_example_mtap_loss",
+      "gene_or_marker": "MTAP",
+      "display_label": "MTAP copy-number loss",
+      "alteration": "copy-number loss",
+      "alteration_type": "loss",
+      "molecular_layers": ["DNA"],
+      "priority": "PRIMARY",
+      "reported_category": "biologically_relevant",
+      "clinical_roles": [
+        "tumor_biology",
+        "therapeutic_biomarker",
+        "trial_biomarker"
+      ],
+      "source_pages": [3],
+      "source_chunk_ids": ["chunk_example_mtap"],
+      "source_texts": ["MTAP copy number loss"],
+      "confidence": 0.98,
+      "needs_human_review": true,
+      "research_use_only": false,
+      "related_finding_ids": [],
+      "contradictions": [],
+      "missing_validation": [
+        "homozygous deletion status",
+        "MTAP protein-loss confirmation"
+      ],
+      "existing_drug_mentions": [],
+      "existing_trial_ids": []
+    }
+  ],
+  "secondary_findings": [],
+  "context_findings": [],
+  "technical_limitations": [
+    {
+      "limitation_id": "lim_example_low_coverage",
+      "label": "Example low-coverage region",
+      "description": "The assay did not read this region reliably.",
+      "source_pages": [4],
+      "source_chunk_ids": ["chunk_example_low_coverage"],
+      "patient_evidence_ids": [],
+      "clinical_effect": "Do not interpret a non-call as a true negative.",
+      "conditional_follow_up": "Use orthogonal testing only if clinically material."
+    }
+  ]
+}

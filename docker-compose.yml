@@ -137,7 +137,9 @@ services:
     ports:
       - "8093:8093"
     depends_on:
-      - vllm-clinical
+      vllm-clinical:
+        condition: service_started
+        required: false
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8093/health', timeout=5).read()"]
       interval: 15s
@@ -203,6 +205,21 @@ services:
         condition: service_healthy
       opensearch:
         condition: service_healthy
+
+  precision-oncology-pipeline:
+    build:
+      context: .
+      dockerfile: docker/precision-oncology-pipeline.Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-medium}
+      PRECISION_ONCOLOGY_UID: ${PRECISION_ONCOLOGY_UID:-1000}
+      PRECISION_ONCOLOGY_GID: ${PRECISION_ONCOLOGY_GID:-1000}
+    volumes:
+      - "./precision_oncology_json_pipeline:/app"
+      - "${PRECISION_ONCOLOGY_INPUT_PATH:-./precision_oncology_json_pipeline/examples/minimal_translume_input.example.json}:/inputs/review_packet.json:ro"
+      - "${PRECISION_ONCOLOGY_OUTPUT_DIR:-./precision_oncology_outputs}:/outputs"
 
 volumes:
   postgres-data:

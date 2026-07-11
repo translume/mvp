@@ -4,6 +4,42 @@
 
 Translume uses ports and adapters. Domain logic lives under `packages/translume-core`. Stable protocols live under `packages/translume-ports`. External systems and Harvard MIMS repos are isolated behind adapters under `packages/translume-adapters` or service wrappers under `services`.
 
+The standalone `precision_oncology_json_pipeline` is packaged separately from
+the ports-and-adapters application. Its container definition is
+`docker/precision-oncology-pipeline.Dockerfile`, and the
+`precision-oncology-pipeline` Compose service runs it as a persistent command
+container.
+The service mounts one input packet at `/inputs/review_packet.json` and writes
+its persistent output under `/outputs`. The host
+`precision_oncology_json_pipeline` directory is bind-mounted at `/app`, making
+source changes immediately available without rebuilding. Its entrypoint
+prepares the output mount for the configured UID/GID and then drops root
+privileges before starting the keep-alive process.
+
+Start the container with:
+
+```bash
+docker compose up --build -d precision-oncology-pipeline
+```
+
+Use a live, cost-controlled run with:
+
+```bash
+docker compose exec --user pipeline precision-oncology-pipeline \
+  python /app/precision_oncology_pipeline.py \
+  --input /inputs/review_packet.json \
+  --output-dir /outputs \
+  --model gpt-5.6-luna \
+  --quick-test
+```
+
+Host input/output paths and container UID/GID are configured by the
+`PRECISION_ONCOLOGY_*` variables documented in `.env.example`. Live runs also
+require `OPENAI_API_KEY`; dry runs do not.
+Pass `--user pipeline` to `compose exec` so output files use the configured
+host UID/GID. Stop the persistent container with
+`docker compose stop precision-oncology-pipeline`.
+
 ## Dependency direction
 
 Allowed:

@@ -1,0 +1,3677 @@
+{
+  "$defs": {
+    "AppendixSourceIndexRow": {
+      "additionalProperties": false,
+      "properties": {
+        "display_order": {
+          "title": "Display Order",
+          "type": "integer"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "marker_or_pathway": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Marker Or Pathway",
+          "type": "array"
+        },
+        "evidence_type": {
+          "title": "Evidence Type",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_order",
+        "source_id",
+        "title",
+        "marker_or_pathway",
+        "evidence_type",
+        "url"
+      ],
+      "title": "AppendixSourceIndexRow",
+      "type": "object"
+    },
+    "ArtifactEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "parent_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Artifact Ids",
+          "type": "array"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "input_hash": {
+          "title": "Input Hash",
+          "type": "string"
+        },
+        "prompt_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Version"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "response_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Response Id"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "artifact_type",
+        "stage",
+        "parent_artifact_ids",
+        "created_at",
+        "input_hash",
+        "payload"
+      ],
+      "title": "ArtifactEnvelope",
+      "type": "object"
+    },
+    "BiomarkerDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "markers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Markers",
+          "type": "array"
+        },
+        "required_alterations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Alterations",
+          "type": "array"
+        },
+        "excluded_alterations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excluded Alterations",
+          "type": "array"
+        },
+        "assay_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assay Requirements",
+          "type": "array"
+        },
+        "thresholds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Thresholds",
+          "type": "array"
+        },
+        "confirmation_methods": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Confirmation Methods",
+          "type": "array"
+        }
+      },
+      "title": "BiomarkerDefinition",
+      "type": "object"
+    },
+    "BottomLineScoreRow": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "strength_label": {
+          "title": "Strength Label",
+          "type": "string"
+        },
+        "score_min": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Score Min",
+          "type": "integer"
+        },
+        "score_max": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Score Max",
+          "type": "integer"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "strength_label",
+        "score_min",
+        "score_max",
+        "why"
+      ],
+      "title": "BottomLineScoreRow",
+      "type": "object"
+    },
+    "CanonicalFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "raw_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Raw Finding Ids",
+          "type": "array"
+        },
+        "gene_or_marker": {
+          "title": "Gene Or Marker",
+          "type": "string"
+        },
+        "display_label": {
+          "title": "Display Label",
+          "type": "string"
+        },
+        "alteration": {
+          "title": "Alteration",
+          "type": "string"
+        },
+        "alteration_type": {
+          "title": "Alteration Type",
+          "type": "string"
+        },
+        "molecular_layers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Molecular Layers",
+          "type": "array"
+        },
+        "priority": {
+          "enum": [
+            "PRIMARY",
+            "SECONDARY",
+            "CONTEXT",
+            "TECHNICAL"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "reported_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reported Category"
+        },
+        "clinical_roles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Clinical Roles",
+          "type": "array"
+        },
+        "source_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Pages",
+          "type": "array"
+        },
+        "source_chunk_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Chunk Ids",
+          "type": "array"
+        },
+        "source_texts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Texts",
+          "type": "array"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "confidence": {
+          "default": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "needs_human_review": {
+          "default": true,
+          "title": "Needs Human Review",
+          "type": "boolean"
+        },
+        "research_use_only": {
+          "default": false,
+          "title": "Research Use Only",
+          "type": "boolean"
+        },
+        "related_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Related Finding Ids",
+          "type": "array"
+        },
+        "contradictions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Contradictions",
+          "type": "array"
+        },
+        "missing_validation": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Validation",
+          "type": "array"
+        },
+        "existing_drug_mentions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Existing Drug Mentions",
+          "type": "array"
+        },
+        "existing_trial_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Existing Trial Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "finding_id",
+        "gene_or_marker",
+        "display_label",
+        "alteration",
+        "alteration_type",
+        "priority"
+      ],
+      "title": "CanonicalFinding",
+      "type": "object"
+    },
+    "CanonicalInput": {
+      "additionalProperties": false,
+      "properties": {
+        "case": {
+          "$ref": "#/$defs/CaseContext"
+        },
+        "actionable_findings": {
+          "items": {
+            "$ref": "#/$defs/CanonicalFinding"
+          },
+          "title": "Actionable Findings",
+          "type": "array"
+        },
+        "secondary_findings": {
+          "items": {
+            "$ref": "#/$defs/CanonicalFinding"
+          },
+          "title": "Secondary Findings",
+          "type": "array"
+        },
+        "context_findings": {
+          "items": {
+            "$ref": "#/$defs/CanonicalFinding"
+          },
+          "title": "Context Findings",
+          "type": "array"
+        },
+        "technical_limitations": {
+          "items": {
+            "$ref": "#/$defs/TechnicalLimitation"
+          },
+          "title": "Technical Limitations",
+          "type": "array"
+        },
+        "negative_findings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Negative Findings",
+          "type": "array"
+        },
+        "existing_context": {
+          "$ref": "#/$defs/ExistingContext"
+        },
+        "patient_evidence": {
+          "items": {
+            "$ref": "#/$defs/PatientEvidence"
+          },
+          "title": "Patient Evidence",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProvenanceInput"
+        }
+      },
+      "required": [
+        "case",
+        "actionable_findings",
+        "existing_context",
+        "provenance"
+      ],
+      "title": "CanonicalInput",
+      "type": "object"
+    },
+    "CaseContext": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "source_file_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source File Id"
+        },
+        "report_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Report Type"
+        },
+        "disease": {
+          "$ref": "#/$defs/DiseaseContext"
+        },
+        "specimen": {
+          "$ref": "#/$defs/SpecimenContext"
+        },
+        "prior_therapies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prior Therapies",
+          "type": "array"
+        },
+        "line_of_therapy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line Of Therapy"
+        },
+        "performance_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Performance Status"
+        },
+        "organ_function": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Organ Function",
+          "type": "object"
+        },
+        "measurable_disease": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Measurable Disease"
+        },
+        "biopsy_feasibility": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Biopsy Feasibility"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "matched_normal_available": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matched Normal Available"
+        },
+        "validation_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validation Status"
+        },
+        "report_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Report Date"
+        },
+        "missing_context": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Context",
+          "type": "array"
+        }
+      },
+      "required": [
+        "case_id",
+        "disease",
+        "specimen"
+      ],
+      "title": "CaseContext",
+      "type": "object"
+    },
+    "CauseEffectRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "finding": {
+          "title": "Finding",
+          "type": "string"
+        },
+        "mechanism_chain": {
+          "title": "Mechanism Chain",
+          "type": "string"
+        },
+        "plain_english": {
+          "title": "Plain English",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "finding",
+        "mechanism_chain",
+        "plain_english"
+      ],
+      "title": "CauseEffectRow",
+      "type": "object"
+    },
+    "CauseEffectStep": {
+      "additionalProperties": false,
+      "properties": {
+        "step": {
+          "minimum": 1,
+          "title": "Step",
+          "type": "integer"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "evidence_type": {
+          "title": "Evidence Type",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "step",
+        "statement",
+        "evidence_type"
+      ],
+      "title": "CauseEffectStep",
+      "type": "object"
+    },
+    "ConfirmatoryTestSynthesis": {
+      "additionalProperties": false,
+      "properties": {
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "why_it_matters": {
+          "title": "Why It Matters",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "test",
+        "why_it_matters",
+        "priority"
+      ],
+      "title": "ConfirmatoryTestSynthesis",
+      "type": "object"
+    },
+    "CoverMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "subtitle": {
+          "title": "Subtitle",
+          "type": "string"
+        },
+        "purpose_statements": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Purpose Statements",
+          "type": "array"
+        },
+        "source_label": {
+          "title": "Source Label",
+          "type": "string"
+        },
+        "report_type": {
+          "title": "Report Type",
+          "type": "string"
+        },
+        "disease_or_tumor_type": {
+          "title": "Disease Or Tumor Type",
+          "type": "string"
+        },
+        "specimen_context": {
+          "title": "Specimen Context",
+          "type": "string"
+        },
+        "overall_validation_status": {
+          "title": "Overall Validation Status",
+          "type": "string"
+        },
+        "important_note": {
+          "title": "Important Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "subtitle",
+        "purpose_statements",
+        "source_label",
+        "report_type",
+        "disease_or_tumor_type",
+        "specimen_context",
+        "overall_validation_status",
+        "important_note"
+      ],
+      "title": "CoverMetadata",
+      "type": "object"
+    },
+    "CriterionAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion": {
+          "title": "Criterion",
+          "type": "string"
+        },
+        "assessment": {
+          "enum": [
+            "MATCH",
+            "POSSIBLE_MATCH",
+            "MISMATCH",
+            "UNKNOWN",
+            "NOT_ASSESSABLE"
+          ],
+          "title": "Assessment",
+          "type": "string"
+        },
+        "patient_evidence": {
+          "title": "Patient Evidence",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "criterion",
+        "assessment",
+        "patient_evidence",
+        "reason"
+      ],
+      "title": "CriterionAssessment",
+      "type": "object"
+    },
+    "CrossSourceSynthesis": {
+      "additionalProperties": false,
+      "properties": {
+        "synthesis_id": {
+          "title": "Synthesis Id",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "themes": {
+          "items": {
+            "$ref": "#/$defs/CrossSourceTheme"
+          },
+          "title": "Themes",
+          "type": "array"
+        },
+        "practical_bottom_line": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Practical Bottom Line",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "synthesis_id",
+        "summary",
+        "themes",
+        "practical_bottom_line",
+        "source_ids"
+      ],
+      "title": "CrossSourceSynthesis",
+      "type": "object"
+    },
+    "CrossSourceTheme": {
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "title": "Theme",
+          "type": "string"
+        },
+        "cross_source_conclusion": {
+          "title": "Cross Source Conclusion",
+          "type": "string"
+        },
+        "evidence_maturity": {
+          "title": "Evidence Maturity",
+          "type": "string"
+        },
+        "clinical_role": {
+          "title": "Clinical Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "theme",
+        "cross_source_conclusion",
+        "evidence_maturity",
+        "clinical_role"
+      ],
+      "title": "CrossSourceTheme",
+      "type": "object"
+    },
+    "DiseaseContext": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "setting": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setting"
+        },
+        "histology": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Histology"
+        }
+      },
+      "title": "DiseaseContext",
+      "type": "object"
+    },
+    "EvidenceParagraph": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "EvidenceParagraph",
+      "type": "object"
+    },
+    "ExecutiveSummarySection": {
+      "additionalProperties": false,
+      "properties": {
+        "paragraphs": {
+          "items": {
+            "$ref": "#/$defs/EvidenceParagraph"
+          },
+          "title": "Paragraphs",
+          "type": "array"
+        },
+        "top_takeaway": {
+          "title": "Top Takeaway",
+          "type": "string"
+        },
+        "most_trial_relevant_finding": {
+          "title": "Most Trial Relevant Finding",
+          "type": "string"
+        },
+        "most_likely_to_require_confirmation": {
+          "title": "Most Likely To Require Confirmation",
+          "type": "string"
+        },
+        "most_important_technical_caveat": {
+          "title": "Most Important Technical Caveat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "paragraphs",
+        "top_takeaway",
+        "most_trial_relevant_finding",
+        "most_likely_to_require_confirmation",
+        "most_important_technical_caveat"
+      ],
+      "title": "ExecutiveSummarySection",
+      "type": "object"
+    },
+    "ExistingContext": {
+      "additionalProperties": false,
+      "properties": {
+        "phenotype_axes": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Phenotype Axes",
+          "type": "array"
+        },
+        "treatment_matrix": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Treatment Matrix",
+          "type": "array"
+        },
+        "confirmatory_tests": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Confirmatory Tests",
+          "type": "array"
+        },
+        "must_not_assume": {
+          "items": {},
+          "title": "Must Not Assume",
+          "type": "array"
+        },
+        "tumor_behavior": {
+          "additionalProperties": true,
+          "title": "Tumor Behavior",
+          "type": "object"
+        },
+        "ranked_treatment_hints": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Ranked Treatment Hints",
+          "type": "array"
+        },
+        "treatment_pressure_hints": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Treatment Pressure Hints",
+          "type": "array"
+        },
+        "resistance_hints": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Resistance Hints",
+          "type": "array"
+        },
+        "biomarker_watch_hints": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Biomarker Watch Hints",
+          "type": "array"
+        },
+        "retesting_triggers": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Retesting Triggers",
+          "type": "array"
+        },
+        "next_test_hints": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Next Test Hints",
+          "type": "array"
+        },
+        "evidence_limitations": {
+          "items": {},
+          "title": "Evidence Limitations",
+          "type": "array"
+        },
+        "missing_evidence": {
+          "items": {},
+          "title": "Missing Evidence",
+          "type": "array"
+        },
+        "conflicting_evidence": {
+          "items": {},
+          "title": "Conflicting Evidence",
+          "type": "array"
+        },
+        "reasoning_warnings": {
+          "items": {},
+          "title": "Reasoning Warnings",
+          "type": "array"
+        },
+        "existing_trial_mentions": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Existing Trial Mentions",
+          "type": "array"
+        }
+      },
+      "title": "ExistingContext",
+      "type": "object"
+    },
+    "FitDimension": {
+      "additionalProperties": false,
+      "properties": {
+        "score": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Score",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "score",
+        "reason"
+      ],
+      "title": "FitDimension",
+      "type": "object"
+    },
+    "FitDimensions": {
+      "additionalProperties": false,
+      "properties": {
+        "molecular_fit": {
+          "$ref": "#/$defs/FitDimension"
+        },
+        "population_fit": {
+          "$ref": "#/$defs/FitDimension"
+        },
+        "evidence_maturity": {
+          "$ref": "#/$defs/FitDimension"
+        },
+        "standard_care_readiness": {
+          "$ref": "#/$defs/FitDimension"
+        },
+        "trial_screening_value": {
+          "$ref": "#/$defs/FitDimension"
+        }
+      },
+      "required": [
+        "molecular_fit",
+        "population_fit",
+        "evidence_maturity",
+        "standard_care_readiness",
+        "trial_screening_value"
+      ],
+      "title": "FitDimensions",
+      "type": "object"
+    },
+    "FollowUpAction": {
+      "additionalProperties": false,
+      "properties": {
+        "follow_up": {
+          "title": "Follow Up",
+          "type": "string"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Priority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "follow_up",
+        "why",
+        "priority"
+      ],
+      "title": "FollowUpAction",
+      "type": "object"
+    },
+    "FollowUpTestRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "recommended_next_step": {
+          "title": "Recommended Next Step",
+          "type": "string"
+        },
+        "why_it_matters": {
+          "title": "Why It Matters",
+          "type": "string"
+        },
+        "priority": {
+          "title": "Priority",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "recommended_next_step",
+        "why_it_matters",
+        "priority"
+      ],
+      "title": "FollowUpTestRow",
+      "type": "object"
+    },
+    "Hypothesis": {
+      "additionalProperties": false,
+      "properties": {
+        "hypothesis_id": {
+          "title": "Hypothesis Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "hypothesis_type": {
+          "title": "Hypothesis Type",
+          "type": "string"
+        },
+        "primary_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Primary Finding Ids",
+          "type": "array"
+        },
+        "supporting_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Finding Ids",
+          "type": "array"
+        },
+        "technical_limitation_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Technical Limitation Ids",
+          "type": "array"
+        },
+        "biological_theme": {
+          "title": "Biological Theme",
+          "type": "string"
+        },
+        "patient_specific_observation": {
+          "title": "Patient Specific Observation",
+          "type": "string"
+        },
+        "mechanism_to_validate": {
+          "title": "Mechanism To Validate",
+          "type": "string"
+        },
+        "potential_clinical_roles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Potential Clinical Roles",
+          "type": "array"
+        },
+        "therapy_classes_to_research": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Therapy Classes To Research",
+          "type": "array"
+        },
+        "trial_search_required": {
+          "title": "Trial Search Required",
+          "type": "boolean"
+        },
+        "variant_interpretation_required": {
+          "title": "Variant Interpretation Required",
+          "type": "boolean"
+        },
+        "confirmatory_questions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Confirmatory Questions",
+          "type": "array"
+        },
+        "critical_cautions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Critical Cautions",
+          "type": "array"
+        },
+        "missing_context": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Context",
+          "type": "array"
+        },
+        "research_priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "none"
+          ],
+          "title": "Research Priority",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hypothesis_id",
+        "title",
+        "hypothesis_type",
+        "primary_finding_ids",
+        "biological_theme",
+        "patient_specific_observation",
+        "mechanism_to_validate",
+        "trial_search_required",
+        "variant_interpretation_required",
+        "research_priority"
+      ],
+      "title": "Hypothesis",
+      "type": "object"
+    },
+    "HypothesisSynthesis": {
+      "additionalProperties": false,
+      "properties": {
+        "synthesis_id": {
+          "title": "Synthesis Id",
+          "type": "string"
+        },
+        "hypothesis_id": {
+          "title": "Hypothesis Id",
+          "type": "string"
+        },
+        "hypothesis_status": {
+          "enum": [
+            "supported",
+            "partially_supported",
+            "uncertain",
+            "not_supported",
+            "technical_only"
+          ],
+          "title": "Hypothesis Status",
+          "type": "string"
+        },
+        "executive_summary_statement": {
+          "title": "Executive Summary Statement",
+          "type": "string"
+        },
+        "validated_biology": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validated Biology",
+          "type": "array"
+        },
+        "cause_effect_chain": {
+          "items": {
+            "$ref": "#/$defs/CauseEffectStep"
+          },
+          "title": "Cause Effect Chain",
+          "type": "array"
+        },
+        "plain_english_explanation": {
+          "title": "Plain English Explanation",
+          "type": "string"
+        },
+        "therapy_opportunities": {
+          "items": {
+            "$ref": "#/$defs/TherapyOpportunity"
+          },
+          "title": "Therapy Opportunities",
+          "type": "array"
+        },
+        "confirmatory_tests": {
+          "items": {
+            "$ref": "#/$defs/ConfirmatoryTestSynthesis"
+          },
+          "title": "Confirmatory Tests",
+          "type": "array"
+        },
+        "resistance_and_escape": {
+          "items": {
+            "$ref": "#/$defs/ResistanceEscapeSynthesis"
+          },
+          "title": "Resistance And Escape",
+          "type": "array"
+        },
+        "monitoring_implications": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Monitoring Implications",
+          "type": "array"
+        },
+        "active_trial_leads": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Active Trial Leads",
+          "type": "array"
+        },
+        "unsupported_or_overstated_options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unsupported Or Overstated Options",
+          "type": "array"
+        },
+        "population_alignment": {
+          "$ref": "#/$defs/PopulationAlignment"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "moderate",
+            "low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "report_claims": {
+          "items": {
+            "$ref": "#/$defs/ReportClaim"
+          },
+          "title": "Report Claims",
+          "type": "array"
+        }
+      },
+      "required": [
+        "synthesis_id",
+        "hypothesis_id",
+        "hypothesis_status",
+        "executive_summary_statement",
+        "plain_english_explanation",
+        "population_alignment",
+        "confidence"
+      ],
+      "title": "HypothesisSynthesis",
+      "type": "object"
+    },
+    "KeyFindingRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "marker_or_finding": {
+          "title": "Marker Or Finding",
+          "type": "string"
+        },
+        "reasoning_domain": {
+          "title": "Reasoning Domain",
+          "type": "string"
+        },
+        "what_it_means": {
+          "title": "What It Means",
+          "type": "string"
+        },
+        "why_it_matters": {
+          "title": "Why It Matters",
+          "type": "string"
+        },
+        "actionability": {
+          "title": "Actionability",
+          "type": "string"
+        },
+        "next_step": {
+          "title": "Next Step",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "marker_or_finding",
+        "reasoning_domain",
+        "what_it_means",
+        "why_it_matters",
+        "actionability",
+        "next_step"
+      ],
+      "title": "KeyFindingRow",
+      "type": "object"
+    },
+    "MatchAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "MATCH",
+            "POSSIBLE_MATCH",
+            "MISMATCH",
+            "UNKNOWN",
+            "NOT_ASSESSABLE"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "title": "MatchAssessment",
+      "type": "object"
+    },
+    "OtherFindingRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "finding": {
+          "title": "Finding",
+          "type": "string"
+        },
+        "interpretation": {
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "finding",
+        "interpretation"
+      ],
+      "title": "OtherFindingRow",
+      "type": "object"
+    },
+    "OutcomeExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "response": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Response",
+          "type": "array"
+        },
+        "pfs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Pfs",
+          "type": "array"
+        },
+        "os": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Os",
+          "type": "array"
+        },
+        "duration_of_response": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Duration Of Response",
+          "type": "array"
+        },
+        "pharmacodynamic": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Pharmacodynamic",
+          "type": "array"
+        },
+        "toxicity": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Toxicity",
+          "type": "array"
+        }
+      },
+      "title": "OutcomeExtraction",
+      "type": "object"
+    },
+    "PatientEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "source_kind": {
+          "enum": [
+            "finding",
+            "chunk",
+            "claim",
+            "artifact",
+            "limitation"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "source_kind",
+        "source_id",
+        "text"
+      ],
+      "title": "PatientEvidence",
+      "type": "object"
+    },
+    "PhenotypicEventRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "clinical_event": {
+          "title": "Clinical Event",
+          "type": "string"
+        },
+        "why_it_matters": {
+          "title": "Why It Matters",
+          "type": "string"
+        },
+        "urgency": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Urgency",
+          "type": "string"
+        },
+        "recommended_test": {
+          "title": "Recommended Test",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "clinical_event",
+        "why_it_matters",
+        "urgency",
+        "recommended_test"
+      ],
+      "title": "PhenotypicEventRow",
+      "type": "object"
+    },
+    "PopulationAlignment": {
+      "additionalProperties": false,
+      "properties": {
+        "matching": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matching",
+          "type": "array"
+        },
+        "mismatching": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mismatching",
+          "type": "array"
+        },
+        "unknown": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknown",
+          "type": "array"
+        }
+      },
+      "title": "PopulationAlignment",
+      "type": "object"
+    },
+    "PopulationExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "tumor_types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tumor Types",
+          "type": "array"
+        },
+        "histologies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Histologies",
+          "type": "array"
+        },
+        "disease_setting": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disease Setting",
+          "type": "array"
+        },
+        "stage": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Stage",
+          "type": "array"
+        },
+        "prior_therapy": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prior Therapy",
+          "type": "array"
+        },
+        "sample_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Size"
+        },
+        "age_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Age Requirements",
+          "type": "array"
+        },
+        "performance_status_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Performance Status Requirements",
+          "type": "array"
+        },
+        "other_key_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Other Key Criteria",
+          "type": "array"
+        }
+      },
+      "title": "PopulationExtraction",
+      "type": "object"
+    },
+    "ProvenanceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_sentences": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Evidence Sentences",
+          "type": "array"
+        },
+        "claims": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "artifact_records": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Artifact Records",
+          "type": "array"
+        }
+      },
+      "title": "ProvenanceInput",
+      "type": "object"
+    },
+    "ReportClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "external_source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "External Source Ids",
+          "type": "array"
+        },
+        "allowed_strength": {
+          "title": "Allowed Strength",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "claim",
+        "allowed_strength"
+      ],
+      "title": "ReportClaim",
+      "type": "object"
+    },
+    "ReportDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "report_draft_id": {
+          "title": "Report Draft Id",
+          "type": "string"
+        },
+        "cover_metadata": {
+          "$ref": "#/$defs/CoverMetadata"
+        },
+        "executive_summary": {
+          "$ref": "#/$defs/ExecutiveSummarySection"
+        },
+        "key_findings": {
+          "items": {
+            "$ref": "#/$defs/KeyFindingRow"
+          },
+          "title": "Key Findings",
+          "type": "array"
+        },
+        "other_findings": {
+          "items": {
+            "$ref": "#/$defs/OtherFindingRow"
+          },
+          "title": "Other Findings",
+          "type": "array"
+        },
+        "cause_effect": {
+          "items": {
+            "$ref": "#/$defs/CauseEffectRow"
+          },
+          "title": "Cause Effect",
+          "type": "array"
+        },
+        "therapy_options": {
+          "items": {
+            "$ref": "#/$defs/TherapyOptionRow"
+          },
+          "title": "Therapy Options",
+          "type": "array"
+        },
+        "practical_readout": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Practical Readout",
+          "type": "array"
+        },
+        "resistance_escape": {
+          "items": {
+            "$ref": "#/$defs/ResistanceEscapeRow"
+          },
+          "title": "Resistance Escape",
+          "type": "array"
+        },
+        "follow_up_tests": {
+          "items": {
+            "$ref": "#/$defs/FollowUpTestRow"
+          },
+          "title": "Follow Up Tests",
+          "type": "array"
+        },
+        "phenotypic_events": {
+          "items": {
+            "$ref": "#/$defs/PhenotypicEventRow"
+          },
+          "title": "Phenotypic Events",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "selected_links": {
+          "items": {
+            "$ref": "#/$defs/SelectedLinkRow"
+          },
+          "title": "Selected Links",
+          "type": "array"
+        },
+        "bottom_line": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Bottom Line",
+          "type": "array"
+        },
+        "url_fit_appendix": {
+          "$ref": "#/$defs/URLFitAppendixOverview"
+        }
+      },
+      "required": [
+        "report_draft_id",
+        "cover_metadata",
+        "executive_summary",
+        "key_findings",
+        "other_findings",
+        "cause_effect",
+        "therapy_options",
+        "practical_readout",
+        "resistance_escape",
+        "follow_up_tests",
+        "phenotypic_events",
+        "limitations",
+        "selected_links",
+        "bottom_line",
+        "url_fit_appendix"
+      ],
+      "title": "ReportDraft",
+      "type": "object"
+    },
+    "ResearchJob": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "title": "Job Id",
+          "type": "string"
+        },
+        "hypothesis_id": {
+          "title": "Hypothesis Id",
+          "type": "string"
+        },
+        "question_type": {
+          "enum": [
+            "variant",
+            "disease",
+            "mechanism",
+            "regulatory",
+            "clinical_evidence",
+            "trial",
+            "confirmation",
+            "population",
+            "resistance",
+            "monitoring"
+          ],
+          "title": "Question Type",
+          "type": "string"
+        },
+        "clinical_question": {
+          "title": "Clinical Question",
+          "type": "string"
+        },
+        "search_concepts": {
+          "$ref": "#/$defs/SearchConcepts"
+        },
+        "source_roles_needed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Roles Needed",
+          "type": "array"
+        },
+        "preferred_sources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Preferred Sources",
+          "type": "array"
+        },
+        "minimum_evidence_level": {
+          "title": "Minimum Evidence Level",
+          "type": "string"
+        },
+        "maximum_sources": {
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Maximum Sources",
+          "type": "integer"
+        },
+        "required_report_sections": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Report Sections",
+          "type": "array"
+        },
+        "stop_condition": {
+          "title": "Stop Condition",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Priority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "hypothesis_id",
+        "question_type",
+        "clinical_question",
+        "search_concepts",
+        "minimum_evidence_level",
+        "maximum_sources",
+        "stop_condition",
+        "priority"
+      ],
+      "title": "ResearchJob",
+      "type": "object"
+    },
+    "ResistanceEscapeRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "therapy_or_pathway": {
+          "title": "Therapy Or Pathway",
+          "type": "string"
+        },
+        "escape_routes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Escape Routes",
+          "type": "array"
+        },
+        "evidence_status": {
+          "title": "Evidence Status",
+          "type": "string"
+        },
+        "monitoring_markers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Monitoring Markers",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "therapy_or_pathway",
+        "evidence_status"
+      ],
+      "title": "ResistanceEscapeRow",
+      "type": "object"
+    },
+    "ResistanceEscapeSynthesis": {
+      "additionalProperties": false,
+      "properties": {
+        "escape_route": {
+          "title": "Escape Route",
+          "type": "string"
+        },
+        "evidence_status": {
+          "enum": [
+            "observed",
+            "reported",
+            "mechanistically_plausible",
+            "speculative"
+          ],
+          "title": "Evidence Status",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "biomarkers_to_monitor": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Biomarkers To Monitor",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "escape_route",
+        "evidence_status",
+        "description"
+      ],
+      "title": "ResistanceEscapeSynthesis",
+      "type": "object"
+    },
+    "SearchConcepts": {
+      "additionalProperties": false,
+      "properties": {
+        "disease": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disease",
+          "type": "array"
+        },
+        "histology": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Histology",
+          "type": "array"
+        },
+        "genes_or_markers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Genes Or Markers",
+          "type": "array"
+        },
+        "alterations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alterations",
+          "type": "array"
+        },
+        "pathways": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Pathways",
+          "type": "array"
+        },
+        "therapy_classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Therapy Classes",
+          "type": "array"
+        },
+        "agents_already_known": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Agents Already Known",
+          "type": "array"
+        },
+        "trial_ids_already_known": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Trial Ids Already Known",
+          "type": "array"
+        }
+      },
+      "title": "SearchConcepts",
+      "type": "object"
+    },
+    "SectionEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "section_id": {
+          "title": "Section Id",
+          "type": "string"
+        },
+        "section_number": {
+          "title": "Section Number",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "content_type": {
+          "title": "Content Type",
+          "type": "string"
+        },
+        "display_order": {
+          "title": "Display Order",
+          "type": "integer"
+        },
+        "preferred_page_break_before": {
+          "title": "Preferred Page Break Before",
+          "type": "boolean"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        }
+      },
+      "required": [
+        "section_id",
+        "section_number",
+        "title",
+        "content_type",
+        "display_order",
+        "preferred_page_break_before",
+        "payload"
+      ],
+      "title": "SectionEnvelope",
+      "type": "object"
+    },
+    "SelectedLinkRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "why_it_is_useful": {
+          "title": "Why It Is Useful",
+          "type": "string"
+        },
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "hypothesis_id": {
+          "title": "Hypothesis Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "source_id",
+        "title",
+        "url",
+        "why_it_is_useful",
+        "source_type",
+        "hypothesis_id"
+      ],
+      "title": "SelectedLinkRow",
+      "type": "object"
+    },
+    "SourceExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_identity": {
+          "$ref": "#/$defs/SourceIdentity"
+        },
+        "study_design": {
+          "title": "Study Design",
+          "type": "string"
+        },
+        "evidence_level": {
+          "title": "Evidence Level",
+          "type": "string"
+        },
+        "population": {
+          "$ref": "#/$defs/PopulationExtraction"
+        },
+        "biomarker_definition": {
+          "$ref": "#/$defs/BiomarkerDefinition"
+        },
+        "interventions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Interventions",
+          "type": "array"
+        },
+        "comparators": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Comparators",
+          "type": "array"
+        },
+        "mechanism_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mechanism Claims",
+          "type": "array"
+        },
+        "outcomes": {
+          "$ref": "#/$defs/OutcomeExtraction"
+        },
+        "trial": {
+          "$ref": "#/$defs/TrialExtraction"
+        },
+        "resistance_findings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Resistance Findings",
+          "type": "array"
+        },
+        "monitoring_findings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Monitoring Findings",
+          "type": "array"
+        },
+        "authors_limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors Limitations",
+          "type": "array"
+        },
+        "facts_not_reported": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Facts Not Reported",
+          "type": "array"
+        },
+        "support_spans": {
+          "items": {
+            "$ref": "#/$defs/SupportSpan"
+          },
+          "title": "Support Spans",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_identity",
+        "study_design",
+        "evidence_level",
+        "population",
+        "biomarker_definition",
+        "outcomes",
+        "trial"
+      ],
+      "title": "SourceExtraction",
+      "type": "object"
+    },
+    "SourceFitAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {
+          "title": "Assessment Id",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "hypothesis_id": {
+          "title": "Hypothesis Id",
+          "type": "string"
+        },
+        "appendix_title": {
+          "title": "Appendix Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "relevant_marker_or_pathway": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Relevant Marker Or Pathway",
+          "type": "array"
+        },
+        "opening_assessment": {
+          "title": "Opening Assessment",
+          "type": "string"
+        },
+        "standardized_scores": {
+          "$ref": "#/$defs/FitDimensions"
+        },
+        "bottom_line_score_rows": {
+          "items": {
+            "$ref": "#/$defs/BottomLineScoreRow"
+          },
+          "title": "Bottom Line Score Rows",
+          "type": "array"
+        },
+        "why_the_fit_is_strong": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Why The Fit Is Strong",
+          "type": "array"
+        },
+        "matching_features": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matching Features",
+          "type": "array"
+        },
+        "mismatching_features": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mismatching Features",
+          "type": "array"
+        },
+        "unknown_alignment_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknown Alignment Fields",
+          "type": "array"
+        },
+        "what_would_make_the_patient_a_stronger_candidate": {
+          "items": {
+            "type": "string"
+          },
+          "title": "What Would Make The Patient A Stronger Candidate",
+          "type": "array"
+        },
+        "what_weakens_the_case": {
+          "items": {
+            "type": "string"
+          },
+          "title": "What Weakens The Case",
+          "type": "array"
+        },
+        "my_read_on_this_case": {
+          "title": "My Read On This Case",
+          "type": "string"
+        },
+        "clinical_framing_to_use": {
+          "title": "Clinical Framing To Use",
+          "type": "string"
+        },
+        "do_not_say": {
+          "title": "Do Not Say",
+          "type": "string"
+        },
+        "say_instead": {
+          "title": "Say Instead",
+          "type": "string"
+        },
+        "source_specific_follow_up": {
+          "items": {
+            "$ref": "#/$defs/FollowUpAction"
+          },
+          "title": "Source Specific Follow Up",
+          "type": "array"
+        },
+        "source_specific_conclusion": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Specific Conclusion",
+          "type": "array"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "external_support_claims": {
+          "items": {
+            "type": "string"
+          },
+          "title": "External Support Claims",
+          "type": "array"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "moderate",
+            "low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assessment_id",
+        "source_id",
+        "hypothesis_id",
+        "appendix_title",
+        "url",
+        "source_type",
+        "opening_assessment",
+        "standardized_scores",
+        "bottom_line_score_rows",
+        "my_read_on_this_case",
+        "clinical_framing_to_use",
+        "do_not_say",
+        "say_instead",
+        "confidence"
+      ],
+      "title": "SourceFitAssessment",
+      "type": "object"
+    },
+    "SourceIdentifiers": {
+      "additionalProperties": false,
+      "properties": {
+        "doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doi"
+        },
+        "pmid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pmid"
+        },
+        "pmcid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pmcid"
+        },
+        "nct_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nct Id"
+        }
+      },
+      "title": "SourceIdentifiers",
+      "type": "object"
+    },
+    "SourceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "publisher": {
+          "title": "Publisher",
+          "type": "string"
+        },
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "publication_or_update_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publication Or Update Date"
+        },
+        "identifiers": {
+          "$ref": "#/$defs/SourceIdentifiers"
+        }
+      },
+      "required": [
+        "title",
+        "url",
+        "publisher",
+        "source_type",
+        "identifiers"
+      ],
+      "title": "SourceIdentity",
+      "type": "object"
+    },
+    "SourceRegistryEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "canonical_key": {
+          "title": "Canonical Key",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "publisher": {
+          "title": "Publisher",
+          "type": "string"
+        },
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "source_role": {
+          "title": "Source Role",
+          "type": "string"
+        },
+        "publication_or_update_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publication Or Update Date"
+        },
+        "identifiers": {
+          "$ref": "#/$defs/SourceIdentifiers"
+        },
+        "hypothesis_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Hypothesis Ids",
+          "type": "array"
+        },
+        "job_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Job Ids",
+          "type": "array"
+        },
+        "selection_score": {
+          "title": "Selection Score",
+          "type": "number"
+        },
+        "verification_status": {
+          "title": "Verification Status",
+          "type": "string"
+        },
+        "consulted_urls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Consulted Urls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "canonical_key",
+        "title",
+        "url",
+        "publisher",
+        "source_type",
+        "source_role",
+        "identifiers",
+        "hypothesis_ids",
+        "job_ids",
+        "selection_score",
+        "verification_status"
+      ],
+      "title": "SourceRegistryEntry",
+      "type": "object"
+    },
+    "SpecimenContext": {
+      "additionalProperties": false,
+      "properties": {
+        "site": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Site"
+        },
+        "collection_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Collection Date"
+        },
+        "tumor_percentage": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tumor Percentage"
+        },
+        "specimen_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Specimen Type"
+        }
+      },
+      "title": "SpecimenContext",
+      "type": "object"
+    },
+    "SupportSpan": {
+      "additionalProperties": false,
+      "properties": {
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "source_location": {
+          "title": "Source Location",
+          "type": "string"
+        },
+        "text_excerpt": {
+          "title": "Text Excerpt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim",
+        "source_location",
+        "text_excerpt"
+      ],
+      "title": "SupportSpan",
+      "type": "object"
+    },
+    "TechnicalLimitation": {
+      "additionalProperties": false,
+      "properties": {
+        "limitation_id": {
+          "title": "Limitation Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "source_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Pages",
+          "type": "array"
+        },
+        "source_chunk_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Chunk Ids",
+          "type": "array"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "clinical_effect": {
+          "title": "Clinical Effect",
+          "type": "string"
+        },
+        "conditional_follow_up": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conditional Follow Up"
+        }
+      },
+      "required": [
+        "limitation_id",
+        "label",
+        "description",
+        "clinical_effect"
+      ],
+      "title": "TechnicalLimitation",
+      "type": "object"
+    },
+    "TherapyOpportunity": {
+      "additionalProperties": false,
+      "properties": {
+        "therapy_class": {
+          "title": "Therapy Class",
+          "type": "string"
+        },
+        "example_agents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Example Agents",
+          "type": "array"
+        },
+        "molecular_interaction": {
+          "title": "Molecular Interaction",
+          "type": "string"
+        },
+        "clinical_use": {
+          "enum": [
+            "standard",
+            "off_label",
+            "investigational",
+            "biologic_rationale_only",
+            "unsupported"
+          ],
+          "title": "Clinical Use",
+          "type": "string"
+        },
+        "population_fit": {
+          "title": "Population Fit",
+          "type": "string"
+        },
+        "evidence_level": {
+          "title": "Evidence Level",
+          "type": "string"
+        },
+        "key_caveats": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Caveats",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "therapy_class",
+        "molecular_interaction",
+        "clinical_use",
+        "population_fit",
+        "evidence_level"
+      ],
+      "title": "TherapyOpportunity",
+      "type": "object"
+    },
+    "TherapyOptionRow": {
+      "additionalProperties": false,
+      "properties": {
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "marker_or_target": {
+          "title": "Marker Or Target",
+          "type": "string"
+        },
+        "therapy_class": {
+          "title": "Therapy Class",
+          "type": "string"
+        },
+        "example_agents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Example Agents",
+          "type": "array"
+        },
+        "molecular_interaction": {
+          "title": "Molecular Interaction",
+          "type": "string"
+        },
+        "key_caveats": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Caveats",
+          "type": "array"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "marker_or_target",
+        "therapy_class",
+        "molecular_interaction",
+        "status"
+      ],
+      "title": "TherapyOptionRow",
+      "type": "object"
+    },
+    "TrialExtraction": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
+        "locations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Locations",
+          "type": "array"
+        },
+        "last_update": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Update"
+        }
+      },
+      "title": "TrialExtraction",
+      "type": "object"
+    },
+    "TrialPrescreen": {
+      "additionalProperties": false,
+      "properties": {
+        "prescreen_id": {
+          "title": "Prescreen Id",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "nct_id": {
+          "title": "Nct Id",
+          "type": "string"
+        },
+        "trial_status": {
+          "title": "Trial Status",
+          "type": "string"
+        },
+        "last_update": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Update"
+        },
+        "biomarker_match": {
+          "$ref": "#/$defs/MatchAssessment"
+        },
+        "tumor_type_match": {
+          "$ref": "#/$defs/MatchAssessment"
+        },
+        "disease_setting_match": {
+          "$ref": "#/$defs/MatchAssessment"
+        },
+        "criterion_assessment": {
+          "items": {
+            "$ref": "#/$defs/CriterionAssessment"
+          },
+          "title": "Criterion Assessment",
+          "type": "array"
+        },
+        "required_missing_data": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Missing Data",
+          "type": "array"
+        },
+        "site_and_geography": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Site And Geography",
+          "type": "array"
+        },
+        "screening_priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "not_currently_actionable"
+          ],
+          "title": "Screening Priority",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "not_a_final_eligibility_determination": {
+          "title": "Not A Final Eligibility Determination",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "prescreen_id",
+        "source_id",
+        "nct_id",
+        "trial_status",
+        "biomarker_match",
+        "tumor_type_match",
+        "disease_setting_match",
+        "criterion_assessment",
+        "screening_priority",
+        "reason",
+        "not_a_final_eligibility_determination"
+      ],
+      "title": "TrialPrescreen",
+      "type": "object"
+    },
+    "URLFitAppendixOverview": {
+      "additionalProperties": false,
+      "properties": {
+        "data_basis_and_rules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Data Basis And Rules",
+          "type": "array"
+        },
+        "scoring_guide": {
+          "title": "Scoring Guide",
+          "type": "string"
+        },
+        "source_index": {
+          "items": {
+            "$ref": "#/$defs/AppendixSourceIndexRow"
+          },
+          "title": "Source Index",
+          "type": "array"
+        },
+        "source_assessment_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Assessment Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "data_basis_and_rules",
+        "scoring_guide",
+        "source_index",
+        "source_assessment_ids"
+      ],
+      "title": "URLFitAppendixOverview",
+      "type": "object"
+    },
+    "UsageRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "call_id": {
+          "title": "Call Id",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "response_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Response Id"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "usage": {
+          "additionalProperties": true,
+          "title": "Usage",
+          "type": "object"
+        },
+        "web_source_count": {
+          "default": 0,
+          "title": "Web Source Count",
+          "type": "integer"
+        },
+        "cache_hit": {
+          "default": false,
+          "title": "Cache Hit",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "call_id",
+        "stage",
+        "artifact_id",
+        "model"
+      ],
+      "title": "UsageRecord",
+      "type": "object"
+    },
+    "ValidationFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error",
+            "blocking"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "PASS",
+            "REVISE",
+            "REMOVE"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "section_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Id"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Id"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "suggested_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Revision"
+        },
+        "patient_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Patient Evidence Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "finding_id",
+        "severity",
+        "disposition",
+        "statement",
+        "reason"
+      ],
+      "title": "ValidationFinding",
+      "type": "object"
+    },
+    "ValidationOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "validator_id": {
+          "title": "Validator Id",
+          "type": "string"
+        },
+        "validator_type": {
+          "enum": [
+            "claim_grounding",
+            "population_alignment",
+            "clinical_safety",
+            "deterministic_integrity"
+          ],
+          "title": "Validator Type",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/ValidationFinding"
+          },
+          "title": "Findings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "validator_id",
+        "validator_type",
+        "passed",
+        "findings"
+      ],
+      "title": "ValidationOutput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tool_version": {
+      "title": "Tool Version",
+      "type": "string"
+    },
+    "packet_id": {
+      "title": "Packet Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "case_id": {
+      "title": "Case Id",
+      "type": "string"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "source_input_sha256": {
+      "title": "Source Input Sha256",
+      "type": "string"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "reasoning_effort": {
+      "title": "Reasoning Effort",
+      "type": "string"
+    },
+    "clinical_disclaimer": {
+      "title": "Clinical Disclaimer",
+      "type": "string"
+    },
+    "canonical_input": {
+      "$ref": "#/$defs/CanonicalInput"
+    },
+    "hypotheses_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Hypothesis"
+      },
+      "title": "Hypotheses By Id",
+      "type": "object"
+    },
+    "research_jobs_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ResearchJob"
+      },
+      "title": "Research Jobs By Id",
+      "type": "object"
+    },
+    "sources_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SourceRegistryEntry"
+      },
+      "title": "Sources By Id",
+      "type": "object"
+    },
+    "source_extractions_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SourceExtraction"
+      },
+      "title": "Source Extractions By Id",
+      "type": "object"
+    },
+    "source_fit_assessments_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SourceFitAssessment"
+      },
+      "title": "Source Fit Assessments By Id",
+      "type": "object"
+    },
+    "trial_prescreens_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TrialPrescreen"
+      },
+      "title": "Trial Prescreens By Id",
+      "type": "object"
+    },
+    "hypothesis_syntheses_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/HypothesisSynthesis"
+      },
+      "title": "Hypothesis Syntheses By Id",
+      "type": "object"
+    },
+    "report_draft": {
+      "$ref": "#/$defs/ReportDraft"
+    },
+    "cross_source_synthesis": {
+      "$ref": "#/$defs/CrossSourceSynthesis"
+    },
+    "document_flow": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Document Flow",
+      "type": "array"
+    },
+    "sections_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SectionEnvelope"
+      },
+      "title": "Sections By Id",
+      "type": "object"
+    },
+    "patient_evidence_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PatientEvidence"
+      },
+      "title": "Patient Evidence By Id",
+      "type": "object"
+    },
+    "claims_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ReportClaim"
+      },
+      "title": "Claims By Id",
+      "type": "object"
+    },
+    "artifacts_by_id": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ArtifactEnvelope"
+      },
+      "title": "Artifacts By Id",
+      "type": "object"
+    },
+    "validations": {
+      "items": {
+        "$ref": "#/$defs/ValidationOutput"
+      },
+      "title": "Validations",
+      "type": "array"
+    },
+    "usage_records": {
+      "items": {
+        "$ref": "#/$defs/UsageRecord"
+      },
+      "title": "Usage Records",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "tool_version",
+    "packet_id",
+    "run_id",
+    "case_id",
+    "generated_at",
+    "source_input_sha256",
+    "model",
+    "reasoning_effort",
+    "clinical_disclaimer",
+    "canonical_input",
+    "hypotheses_by_id",
+    "research_jobs_by_id",
+    "sources_by_id",
+    "source_extractions_by_id",
+    "source_fit_assessments_by_id",
+    "trial_prescreens_by_id",
+    "hypothesis_syntheses_by_id",
+    "report_draft",
+    "cross_source_synthesis",
+    "document_flow",
+    "sections_by_id",
+    "patient_evidence_by_id",
+    "claims_by_id",
+    "artifacts_by_id",
+    "validations",
+    "usage_records",
+    "warnings"
+  ],
+  "title": "FinalPacket",
+  "type": "object"
+}

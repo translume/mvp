@@ -271,7 +271,7 @@ debug/
 exports/
 reports/
 artifacts/
-
+precision_oncology_json_pipeline/outputs/run_*/
 ###############################################################################
 # Translume Specific
 ###############################################################################

@@ -1,0 +1,2320 @@
+{
+  "schema_version": "1.0.0",
+  "tool_version": "1.0.0",
+  "packet_id": "packet_8a3589c33bda58a2624a",
+  "run_id": "run_d889564e24c7f8b715061b294514",
+  "case_id": "case_example",
+  "generated_at": "2026-07-10T22:52:18+00:00",
+  "source_input_sha256": "0872d8c4ac4e556ac9ab1fb37c493180de716dcd9205fa572d54d280fc2c4403",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "medium",
+  "clinical_disclaimer": "Educational precision-oncology decision support only. This JSON does not diagnose disease, recommend treatment, or determine clinical-trial eligibility. Qualified clinicians must verify patient data, source evidence, current trial status, and all clinical decisions.",
+  "canonical_input": {
+    "case": {
+      "case_id": "case_example",
+      "session_id": "session_example",
+      "source_file_id": "file_example",
+      "report_type": "NGS",
+      "disease": {
+        "name": "Example sarcoma",
+        "stage": null,
+        "setting": null,
+        "histology": "Example sarcoma"
+      },
+      "specimen": {
+        "site": "Soft tissue",
+        "collection_date": null,
+        "tumor_percentage": 70.0,
+        "specimen_type": null
+      },
+      "prior_therapies": [],
+      "line_of_therapy": null,
+      "performance_status": null,
+      "organ_function": {},
+      "measurable_disease": null,
+      "biopsy_feasibility": null,
+      "location": null,
+      "matched_normal_available": null,
+      "validation_status": "needs_review",
+      "report_date": null,
+      "missing_context": [
+        "disease.stage",
+        "disease.setting",
+        "prior_therapies",
+        "line_of_therapy",
+        "performance_status",
+        "organ_function",
+        "measurable_disease",
+        "biopsy_feasibility",
+        "location"
+      ]
+    },
+    "actionable_findings": [
+      {
+        "finding_id": "finding_6d74c0639829df2fb13f",
+        "raw_finding_ids": [
+          "raw_mtap"
+        ],
+        "gene_or_marker": "MTAP",
+        "display_label": "MTAP copy number loss",
+        "alteration": "copy number loss",
+        "alteration_type": "loss",
+        "molecular_layers": [
+          "DNA"
+        ],
+        "priority": "PRIMARY",
+        "reported_category": "biologically_relevant",
+        "clinical_roles": [
+          "tumor_biology",
+          "therapeutic_biomarker",
+          "trial_biomarker"
+        ],
+        "source_pages": [
+          2
+        ],
+        "source_chunk_ids": [
+          "chunk_mtap"
+        ],
+        "source_texts": [
+          "MTAP Copy number loss"
+        ],
+        "patient_evidence_ids": [
+          "pev_7cae556746a9e1223e6e"
+        ],
+        "confidence": 1.0,
+        "needs_human_review": true,
+        "research_use_only": false,
+        "related_finding_ids": [],
+        "contradictions": [],
+        "missing_validation": [
+          "confirm absolute copy number",
+          "clarify homozygous versus heterozygous loss"
+        ],
+        "existing_drug_mentions": [],
+        "existing_trial_ids": [
+          "NCT05094336"
+        ]
+      }
+    ],
+    "secondary_findings": [],
+    "context_findings": [],
+    "technical_limitations": [
+      {
+        "limitation_id": "lim_3e6e74be89f92b3d2ac4",
+        "label": "TAF1 low coverage",
+        "description": "LOW COVERAGE REGIONS TAF1",
+        "source_pages": [
+          3
+        ],
+        "source_chunk_ids": [
+          "chunk_taf1"
+        ],
+        "patient_evidence_ids": [
+          "pev_e23de9e0d38967322879"
+        ],
+        "clinical_effect": "Do not interpret a non-call or low-coverage region as a true negative.",
+        "conditional_follow_up": "Orthogonal testing should be considered only if TAF1 is clinically relevant."
+      }
+    ],
+    "negative_findings": [],
+    "existing_context": {
+      "phenotype_axes": [],
+      "treatment_matrix": [],
+      "confirmatory_tests": [],
+      "must_not_assume": [],
+      "tumor_behavior": {},
+      "ranked_treatment_hints": [],
+      "treatment_pressure_hints": [],
+      "resistance_hints": [],
+      "biomarker_watch_hints": [],
+      "retesting_triggers": [],
+      "next_test_hints": [],
+      "evidence_limitations": [],
+      "missing_evidence": [],
+      "conflicting_evidence": [],
+      "reasoning_warnings": [],
+      "existing_trial_mentions": [
+        {
+          "trial_id": "NCT05094336",
+          "title_or_context": "Study in MTAP-deleted solid tumors (NCT05094336)",
+          "url": "https://clinicaltrials.gov/study/NCT05094336",
+          "source_chunk_id": "chunk_trial",
+          "source_page": 2
+        }
+      ]
+    },
+    "patient_evidence": [
+      {
+        "evidence_id": "pev_7cae556746a9e1223e6e",
+        "source_kind": "finding",
+        "source_id": "raw_mtap",
+        "page": 2,
+        "text": "MTAP Copy number loss"
+      },
+      {
+        "evidence_id": "pev_e23de9e0d38967322879",
+        "source_kind": "finding",
+        "source_id": "raw_taf1",
+        "page": 3,
+        "text": "LOW COVERAGE REGIONS TAF1"
+      }
+    ],
+    "provenance": {
+      "evidence_sentences": [],
+      "claims": [],
+      "artifact_records": []
+    }
+  },
+  "hypotheses_by_id": {
+    "hyp_7b140b887334436de174": {
+      "hypothesis_id": "hyp_7b140b887334436de174",
+      "title": "MTAP-loss metabolic vulnerability",
+      "hypothesis_type": "metabolic_vulnerability",
+      "primary_finding_ids": [
+        "finding_6d74c0639829df2fb13f"
+      ],
+      "supporting_finding_ids": [],
+      "technical_limitation_ids": [],
+      "biological_theme": "MTAP loss and PRMT5 pathway dependence",
+      "patient_specific_observation": "MTAP copy-number loss was reported.",
+      "mechanism_to_validate": "MTAP loss may create an MTA-dependent PRMT5 vulnerability.",
+      "potential_clinical_roles": [
+        "trial_biomarker"
+      ],
+      "therapy_classes_to_research": [
+        "MTA-cooperative PRMT5 inhibitors"
+      ],
+      "trial_search_required": true,
+      "variant_interpretation_required": false,
+      "confirmatory_questions": [
+        "Is MTAP loss protocol-confirmed?"
+      ],
+      "critical_cautions": [
+        "Investigational rationale only."
+      ],
+      "missing_context": [
+        "stage",
+        "performance status"
+      ],
+      "research_priority": "high",
+      "patient_evidence_ids": [
+        "pev_7cae556746a9e1223e6e"
+      ]
+    }
+  },
+  "research_jobs_by_id": {
+    "job_03492b14be03b5d7cabe": {
+      "job_id": "job_03492b14be03b5d7cabe",
+      "hypothesis_id": "hyp_7b140b887334436de174",
+      "question_type": "trial",
+      "clinical_question": "Which current MTAP-deleted solid-tumor trials are relevant?",
+      "search_concepts": {
+        "disease": [
+          "solid tumor"
+        ],
+        "histology": [
+          "sarcoma"
+        ],
+        "genes_or_markers": [
+          "MTAP"
+        ],
+        "alterations": [
+          "copy-number loss"
+        ],
+        "pathways": [
+          "PRMT5"
+        ],
+        "therapy_classes": [
+          "MTA-cooperative PRMT5 inhibitor"
+        ],
+        "agents_already_known": [],
+        "trial_ids_already_known": [
+          "NCT05094336"
+        ]
+      },
+      "source_roles_needed": [
+        "trial_record"
+      ],
+      "preferred_sources": [
+        "ClinicalTrials.gov"
+      ],
+      "minimum_evidence_level": "official current trial record",
+      "maximum_sources": 1,
+      "required_report_sections": [
+        "selected_links",
+        "url_appendix"
+      ],
+      "stop_condition": "One current official trial record is verified.",
+      "priority": "high"
+    }
+  },
+  "sources_by_id": {
+    "src_bc4e9490b29ca9200039": {
+      "source_id": "src_bc4e9490b29ca9200039",
+      "canonical_key": "nct:NCT05094336",
+      "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+      "url": "https://clinicaltrials.gov/study/NCT05094336",
+      "publisher": "ClinicalTrials.gov",
+      "source_type": "trial_record",
+      "source_role": "existing_report_trial_context",
+      "publication_or_update_date": null,
+      "identifiers": {
+        "doi": null,
+        "pmid": null,
+        "pmcid": null,
+        "nct_id": "NCT05094336"
+      },
+      "hypothesis_ids": [
+        "hyp_7b140b887334436de174"
+      ],
+      "job_ids": [
+        "job_03492b14be03b5d7cabe"
+      ],
+      "selection_score": 7.5,
+      "verification_status": "identifier_verified",
+      "consulted_urls": [
+        "https://clinicaltrials.gov/study/NCT05094336"
+      ]
+    }
+  },
+  "source_extractions_by_id": {
+    "src_bc4e9490b29ca9200039": {
+      "source_id": "src_bc4e9490b29ca9200039",
+      "source_identity": {
+        "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+        "url": "https://clinicaltrials.gov/study/NCT05094336",
+        "publisher": "ClinicalTrials.gov",
+        "source_type": "trial_record",
+        "publication_or_update_date": "2026-07-01",
+        "identifiers": {
+          "doi": null,
+          "pmid": null,
+          "pmcid": null,
+          "nct_id": "NCT05094336"
+        }
+      },
+      "study_design": "Phase 1/2 interventional trial",
+      "evidence_level": "official trial record",
+      "population": {
+        "tumor_types": [
+          "advanced solid tumors"
+        ],
+        "histologies": [],
+        "disease_setting": [
+          "advanced"
+        ],
+        "stage": [
+          "advanced or metastatic"
+        ],
+        "prior_therapy": [],
+        "sample_size": null,
+        "age_requirements": [
+          "adult"
+        ],
+        "performance_status_requirements": [
+          "protocol defined"
+        ],
+        "other_key_criteria": [
+          "MTAP-null tumor"
+        ]
+      },
+      "biomarker_definition": {
+        "markers": [
+          "MTAP"
+        ],
+        "required_alterations": [
+          "MTAP-null"
+        ],
+        "excluded_alterations": [],
+        "assay_requirements": [
+          "protocol-acceptable confirmation"
+        ],
+        "thresholds": [],
+        "confirmation_methods": []
+      },
+      "interventions": [
+        "AMG 193"
+      ],
+      "comparators": [],
+      "mechanism_claims": [
+        "MTA-cooperative PRMT5 inhibition"
+      ],
+      "outcomes": {
+        "response": [],
+        "pfs": [],
+        "os": [],
+        "duration_of_response": [],
+        "pharmacodynamic": [],
+        "toxicity": []
+      },
+      "trial": {
+        "status": "RECRUITING",
+        "phase": "Phase 1/2",
+        "locations": [
+          "United States"
+        ],
+        "last_update": "2026-07-01"
+      },
+      "resistance_findings": [],
+      "monitoring_findings": [],
+      "authors_limitations": [
+        "Trial record does not establish benefit."
+      ],
+      "facts_not_reported": [
+        "patient-specific eligibility"
+      ],
+      "support_spans": []
+    }
+  },
+  "source_fit_assessments_by_id": {
+    "fit_d5ca4259642d9f7f1235": {
+      "assessment_id": "fit_d5ca4259642d9f7f1235",
+      "source_id": "src_bc4e9490b29ca9200039",
+      "hypothesis_id": "hyp_7b140b887334436de174",
+      "appendix_title": "ClinicalTrials.gov - AMG 193 MTAP-null trial",
+      "url": "https://clinicaltrials.gov/study/NCT05094336",
+      "source_type": "trial_record",
+      "relevant_marker_or_pathway": [
+        "MTAP",
+        "PRMT5",
+        "AMG 193"
+      ],
+      "opening_assessment": "Strong molecular trial-screening lead, not standard care.",
+      "standardized_scores": {
+        "molecular_fit": {
+          "score": 8,
+          "reason": "The trial is MTAP directed."
+        },
+        "population_fit": {
+          "score": 5,
+          "reason": "Exact histology fit is unresolved."
+        },
+        "evidence_maturity": {
+          "score": 3,
+          "reason": "Official trial record, not efficacy evidence."
+        },
+        "standard_care_readiness": {
+          "score": 1,
+          "reason": "Investigational therapy."
+        },
+        "trial_screening_value": {
+          "score": 8,
+          "reason": "Biomarker-directed protocol."
+        }
+      },
+      "bottom_line_score_rows": [
+        {
+          "question": "Does the tumor biology match the trial biomarker?",
+          "strength_label": "Strong",
+          "score_min": 8,
+          "score_max": 8,
+          "why": "MTAP loss aligns with the protocol concept."
+        }
+      ],
+      "why_the_fit_is_strong": [
+        "Direct MTAP biomarker logic."
+      ],
+      "matching_features": [
+        "MTAP copy-number loss"
+      ],
+      "mismatching_features": [],
+      "unknown_alignment_fields": [
+        "stage",
+        "ECOG",
+        "organ function"
+      ],
+      "what_would_make_the_patient_a_stronger_candidate": [
+        "Protocol-acceptable MTAP confirmation."
+      ],
+      "what_weakens_the_case": [
+        "Eligibility context is incomplete."
+      ],
+      "my_read_on_this_case": "Appropriate for protocol-level screening if clinically relevant.",
+      "clinical_framing_to_use": "Confirm MTAP loss and review the current protocol.",
+      "do_not_say": "The patient is eligible or should receive AMG 193.",
+      "say_instead": "The biomarker supports a trial-screening discussion.",
+      "source_specific_follow_up": [
+        {
+          "follow_up": "Confirm MTAP loss using a protocol-acceptable assay.",
+          "why": "The trial may require a specific biomarker definition.",
+          "priority": "high"
+        }
+      ],
+      "source_specific_conclusion": [
+        "Strong trial-screening lead; investigational only."
+      ],
+      "patient_evidence_ids": [
+        "pev_7cae556746a9e1223e6e"
+      ],
+      "external_support_claims": [
+        "The official record describes an MTAP-null solid-tumor trial."
+      ],
+      "confidence": "moderate"
+    }
+  },
+  "trial_prescreens_by_id": {
+    "trialfit_c8b84cea7bf1c91a8051": {
+      "prescreen_id": "trialfit_c8b84cea7bf1c91a8051",
+      "source_id": "src_bc4e9490b29ca9200039",
+      "nct_id": "NCT05094336",
+      "trial_status": "RECRUITING",
+      "last_update": "2026-07-01",
+      "biomarker_match": {
+        "status": "POSSIBLE_MATCH",
+        "reason": "MTAP loss is reported but protocol confirmation is unresolved."
+      },
+      "tumor_type_match": {
+        "status": "UNKNOWN",
+        "reason": "Histology cohort fit is unresolved."
+      },
+      "disease_setting_match": {
+        "status": "UNKNOWN",
+        "reason": "Stage and setting are missing."
+      },
+      "criterion_assessment": [],
+      "required_missing_data": [
+        "stage",
+        "ECOG",
+        "organ function"
+      ],
+      "site_and_geography": [
+        "United States"
+      ],
+      "screening_priority": "medium",
+      "reason": "Molecular logic warrants review; eligibility is unknown.",
+      "not_a_final_eligibility_determination": true
+    }
+  },
+  "hypothesis_syntheses_by_id": {
+    "hyp_7b140b887334436de174": {
+      "synthesis_id": "syn_94d07606b28819c2a5e4",
+      "hypothesis_id": "hyp_7b140b887334436de174",
+      "hypothesis_status": "partially_supported",
+      "executive_summary_statement": "MTAP loss supports an investigational PRMT5 trial-screening discussion.",
+      "validated_biology": [
+        "MTAP loss is the patient-specific anchor."
+      ],
+      "cause_effect_chain": [
+        {
+          "step": 1,
+          "statement": "MTAP loss can create an MTA-associated PRMT5 vulnerability.",
+          "evidence_type": "mechanistic and trial rationale",
+          "patient_evidence_ids": [
+            "pev_7cae556746a9e1223e6e"
+          ],
+          "source_ids": [
+            "src_bc4e9490b29ca9200039"
+          ]
+        }
+      ],
+      "plain_english_explanation": "The tumor may have a metabolic weak spot studied in clinical trials.",
+      "therapy_opportunities": [
+        {
+          "therapy_class": "MTA-cooperative PRMT5 inhibitors",
+          "example_agents": [
+            "AMG 193"
+          ],
+          "molecular_interaction": "Exploit the MTAP-loss/MTA state.",
+          "clinical_use": "investigational",
+          "population_fit": "Exact histology and eligibility remain unresolved.",
+          "evidence_level": "clinical trial record",
+          "key_caveats": [
+            "Not standard care."
+          ],
+          "source_ids": [
+            "src_bc4e9490b29ca9200039"
+          ]
+        }
+      ],
+      "confirmatory_tests": [
+        {
+          "test": "Protocol-acceptable MTAP confirmation",
+          "why_it_matters": "The trial may require a specific biomarker definition.",
+          "priority": "high",
+          "source_ids": [
+            "src_bc4e9490b29ca9200039"
+          ]
+        }
+      ],
+      "resistance_and_escape": [],
+      "monitoring_implications": [],
+      "active_trial_leads": [
+        "NCT05094336"
+      ],
+      "unsupported_or_overstated_options": [
+        "Do not present AMG 193 as proven standard care."
+      ],
+      "population_alignment": {
+        "matching": [
+          "MTAP-directed biomarker concept"
+        ],
+        "mismatching": [],
+        "unknown": [
+          "stage",
+          "ECOG",
+          "organ function"
+        ]
+      },
+      "limitations": [
+        "Patient eligibility is not established."
+      ],
+      "confidence": "moderate",
+      "report_claims": [
+        {
+          "claim_id": "claim_c745aad265015a44424b",
+          "claim": "MTAP loss supports protocol-level trial screening.",
+          "patient_evidence_ids": [
+            "pev_7cae556746a9e1223e6e"
+          ],
+          "external_source_ids": [
+            "src_bc4e9490b29ca9200039"
+          ],
+          "allowed_strength": "investigational trial-screening rationale"
+        }
+      ]
+    }
+  },
+  "report_draft": {
+    "report_draft_id": "report_e3e3b7361af07ed8a066",
+    "cover_metadata": {
+      "title": "Precision Oncology Actionable Packet",
+      "subtitle": "Professional summary for clinicians and patients",
+      "purpose_statements": [
+        "Translate actionable findings into a structured clinical summary."
+      ],
+      "source_label": "Uploaded review packet",
+      "report_type": "NGS",
+      "disease_or_tumor_type": "Example sarcoma",
+      "specimen_context": "Soft tissue",
+      "overall_validation_status": "Needs Review",
+      "important_note": "Educational support only."
+    },
+    "executive_summary": {
+      "paragraphs": [
+        {
+          "text": "MTAP loss supports an investigational PRMT5 trial-screening discussion.",
+          "patient_evidence_ids": [
+            "pev_7cae556746a9e1223e6e"
+          ],
+          "source_ids": [
+            "src_bc4e9490b29ca9200039"
+          ]
+        }
+      ],
+      "top_takeaway": "Confirm MTAP loss and review investigational trials.",
+      "most_trial_relevant_finding": "MTAP loss",
+      "most_likely_to_require_confirmation": "MTAP loss",
+      "most_important_technical_caveat": "TAF1 low coverage"
+    },
+    "key_findings": [
+      {
+        "row_id": "kf_fd57f210c391de336a3b",
+        "marker_or_finding": "MTAP copy number loss",
+        "reasoning_domain": "Tumor biology / trial biomarker",
+        "what_it_means": "MTAP loss was reported.",
+        "why_it_matters": "It can support PRMT5-pathway trial reasoning.",
+        "actionability": "Investigational trial-screening rationale.",
+        "next_step": "Confirm the biomarker and review eligibility.",
+        "patient_evidence_ids": [
+          "pev_7cae556746a9e1223e6e"
+        ],
+        "source_ids": [
+          "src_bc4e9490b29ca9200039"
+        ]
+      }
+    ],
+    "other_findings": [],
+    "cause_effect": [
+      {
+        "row_id": "ce_4c9985ac14dc358d6d1c",
+        "finding": "MTAP loss",
+        "mechanism_chain": "MTAP loss -> MTA-associated state -> PRMT5-pathway vulnerability.",
+        "plain_english": "The tumor may have a metabolic weak spot studied in trials.",
+        "patient_evidence_ids": [
+          "pev_7cae556746a9e1223e6e"
+        ],
+        "source_ids": [
+          "src_bc4e9490b29ca9200039"
+        ]
+      }
+    ],
+    "therapy_options": [
+      {
+        "row_id": "tx_40da9512c80a52aff437",
+        "marker_or_target": "MTAP loss",
+        "therapy_class": "MTA-cooperative PRMT5 inhibitors",
+        "example_agents": [
+          "AMG 193"
+        ],
+        "molecular_interaction": "Exploit MTAP-loss/MTA biology.",
+        "key_caveats": [
+          "Investigational; eligibility unresolved."
+        ],
+        "status": "High-interest trial strategy",
+        "patient_evidence_ids": [
+          "pev_7cae556746a9e1223e6e"
+        ],
+        "source_ids": [
+          "src_bc4e9490b29ca9200039"
+        ]
+      }
+    ],
+    "practical_readout": [
+      "The strongest opportunity is protocol-level MTAP trial screening."
+    ],
+    "resistance_escape": [],
+    "follow_up_tests": [
+      {
+        "row_id": "fu_966f0cec5f48b5df406a",
+        "recommended_next_step": "Confirm MTAP loss using an acceptable assay.",
+        "why_it_matters": "Trial protocols may define the biomarker precisely.",
+        "priority": "high",
+        "patient_evidence_ids": [
+          "pev_7cae556746a9e1223e6e"
+        ],
+        "source_ids": [
+          "src_bc4e9490b29ca9200039"
+        ]
+      }
+    ],
+    "phenotypic_events": [
+      {
+        "row_id": "evt_b1603ae7144448452250",
+        "clinical_event": "Radiographic progression",
+        "why_it_matters": "Progression can justify repeat profiling.",
+        "urgency": "high",
+        "recommended_test": "Repeat tissue or liquid profiling as clinically appropriate."
+      }
+    ],
+    "limitations": [
+      "Stage, treatment setting, performance status, and organ function are unresolved."
+    ],
+    "selected_links": [
+      {
+        "row_id": "link_0cd3fd9aa27df1b42512",
+        "source_id": "src_bc4e9490b29ca9200039",
+        "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+        "url": "https://clinicaltrials.gov/study/NCT05094336",
+        "why_it_is_useful": "Official current trial record.",
+        "source_type": "trial_record",
+        "hypothesis_id": "hyp_7b140b887334436de174"
+      }
+    ],
+    "bottom_line": [
+      "This is a trial-screening rationale, not a treatment recommendation."
+    ],
+    "url_fit_appendix": {
+      "data_basis_and_rules": [
+        "Separate molecular rationale from treatment readiness."
+      ],
+      "scoring_guide": "9-10 very strong; 1-3 weak or not actionable.",
+      "source_index": [
+        {
+          "display_order": 1,
+          "source_id": "src_bc4e9490b29ca9200039",
+          "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+          "marker_or_pathway": [
+            "MTAP",
+            "PRMT5",
+            "AMG 193"
+          ],
+          "evidence_type": "trial_record",
+          "url": "https://clinicaltrials.gov/study/NCT05094336"
+        }
+      ],
+      "source_assessment_ids": [
+        "fit_d5ca4259642d9f7f1235"
+      ]
+    }
+  },
+  "cross_source_synthesis": {
+    "synthesis_id": "crosssyn_56141af09670157ad42f",
+    "summary": "MTAP-directed evidence supports trial screening, not standard care.",
+    "themes": [
+      {
+        "theme": "MTAP / PRMT5",
+        "cross_source_conclusion": "Confirm MTAP loss and review current trials.",
+        "evidence_maturity": "investigational",
+        "clinical_role": "trial screening"
+      }
+    ],
+    "practical_bottom_line": [
+      "Protocol eligibility and patient context remain unresolved."
+    ],
+    "source_ids": [
+      "src_bc4e9490b29ca9200039"
+    ]
+  },
+  "document_flow": [
+    "sec_00_cover",
+    "sec_01_executive_summary",
+    "sec_02_key_findings",
+    "sec_03_cause_and_effect",
+    "sec_04_therapy_options",
+    "sec_05_resistance_and_escape",
+    "sec_06_follow_up_tests",
+    "sec_07_future_phenotypic_events",
+    "sec_08_limitations_and_confidence",
+    "sec_09_selected_reference_and_trial_links",
+    "sec_10_url_fit_assessments_overview",
+    "sec_10_source_b752da7fa45df7a1a46b",
+    "sec_11_cross_source_synthesis",
+    "sec_12_urls_assessed"
+  ],
+  "sections_by_id": {
+    "sec_00_cover": {
+      "section_id": "sec_00_cover",
+      "section_number": "0",
+      "title": "Precision Oncology Actionable Packet",
+      "content_type": "cover_and_purpose_metadata",
+      "display_order": 1,
+      "preferred_page_break_before": false,
+      "payload": {
+        "title": "Precision Oncology Actionable Packet",
+        "subtitle": "Professional summary for clinicians and patients",
+        "purpose_statements": [
+          "Translate actionable findings into a structured clinical summary."
+        ],
+        "source_label": "Uploaded review packet",
+        "report_type": "NGS",
+        "disease_or_tumor_type": "Example sarcoma",
+        "specimen_context": "Soft tissue",
+        "overall_validation_status": "Needs Review",
+        "important_note": "Educational support only."
+      }
+    },
+    "sec_01_executive_summary": {
+      "section_id": "sec_01_executive_summary",
+      "section_number": "1",
+      "title": "Executive Summary",
+      "content_type": "executive_summary_with_key_takeaways",
+      "display_order": 2,
+      "preferred_page_break_before": false,
+      "payload": {
+        "paragraphs": [
+          {
+            "text": "MTAP loss supports an investigational PRMT5 trial-screening discussion.",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "top_takeaway": "Confirm MTAP loss and review investigational trials.",
+        "most_trial_relevant_finding": "MTAP loss",
+        "most_likely_to_require_confirmation": "MTAP loss",
+        "most_important_technical_caveat": "TAF1 low coverage"
+      }
+    },
+    "sec_02_key_findings": {
+      "section_id": "sec_02_key_findings",
+      "section_number": "2",
+      "title": "Key Findings at a Glance",
+      "content_type": "key_findings_and_other_findings_tables",
+      "display_order": 3,
+      "preferred_page_break_before": true,
+      "payload": {
+        "key_findings": [
+          {
+            "row_id": "kf_fd57f210c391de336a3b",
+            "marker_or_finding": "MTAP copy number loss",
+            "reasoning_domain": "Tumor biology / trial biomarker",
+            "what_it_means": "MTAP loss was reported.",
+            "why_it_matters": "It can support PRMT5-pathway trial reasoning.",
+            "actionability": "Investigational trial-screening rationale.",
+            "next_step": "Confirm the biomarker and review eligibility.",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "other_findings": []
+      }
+    },
+    "sec_03_cause_and_effect": {
+      "section_id": "sec_03_cause_and_effect",
+      "section_number": "3",
+      "title": "Cause and Effect: Why These Findings Matter",
+      "content_type": "cause_effect_chains_and_plain_english",
+      "display_order": 4,
+      "preferred_page_break_before": false,
+      "payload": {
+        "cause_effect": [
+          {
+            "row_id": "ce_4c9985ac14dc358d6d1c",
+            "finding": "MTAP loss",
+            "mechanism_chain": "MTAP loss -> MTA-associated state -> PRMT5-pathway vulnerability.",
+            "plain_english": "The tumor may have a metabolic weak spot studied in trials.",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ]
+      }
+    },
+    "sec_04_therapy_options": {
+      "section_id": "sec_04_therapy_options",
+      "section_number": "4",
+      "title": "Therapy Options and Clinical Rationale",
+      "content_type": "therapy_options_table_and_practical_readout",
+      "display_order": 5,
+      "preferred_page_break_before": true,
+      "payload": {
+        "therapy_options": [
+          {
+            "row_id": "tx_40da9512c80a52aff437",
+            "marker_or_target": "MTAP loss",
+            "therapy_class": "MTA-cooperative PRMT5 inhibitors",
+            "example_agents": [
+              "AMG 193"
+            ],
+            "molecular_interaction": "Exploit MTAP-loss/MTA biology.",
+            "key_caveats": [
+              "Investigational; eligibility unresolved."
+            ],
+            "status": "High-interest trial strategy",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "practical_readout": [
+          "The strongest opportunity is protocol-level MTAP trial screening."
+        ]
+      }
+    },
+    "sec_05_resistance_and_escape": {
+      "section_id": "sec_05_resistance_and_escape",
+      "section_number": "5",
+      "title": "Resistance and Escape Routes",
+      "content_type": "resistance_escape_and_monitoring",
+      "display_order": 6,
+      "preferred_page_break_before": false,
+      "payload": {
+        "resistance_escape": []
+      }
+    },
+    "sec_06_follow_up_tests": {
+      "section_id": "sec_06_follow_up_tests",
+      "section_number": "6",
+      "title": "Follow-up Tests for Precision Oncology",
+      "content_type": "follow_up_tests_table",
+      "display_order": 7,
+      "preferred_page_break_before": false,
+      "payload": {
+        "follow_up_tests": [
+          {
+            "row_id": "fu_966f0cec5f48b5df406a",
+            "recommended_next_step": "Confirm MTAP loss using an acceptable assay.",
+            "why_it_matters": "Trial protocols may define the biomarker precisely.",
+            "priority": "high",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ]
+      }
+    },
+    "sec_07_future_phenotypic_events": {
+      "section_id": "sec_07_future_phenotypic_events",
+      "section_number": "7",
+      "title": "Future Phenotypic Events to Watch For",
+      "content_type": "phenotypic_event_retesting_triggers_table",
+      "display_order": 8,
+      "preferred_page_break_before": true,
+      "payload": {
+        "phenotypic_events": [
+          {
+            "row_id": "evt_b1603ae7144448452250",
+            "clinical_event": "Radiographic progression",
+            "why_it_matters": "Progression can justify repeat profiling.",
+            "urgency": "high",
+            "recommended_test": "Repeat tissue or liquid profiling as clinically appropriate."
+          }
+        ]
+      }
+    },
+    "sec_08_limitations_and_confidence": {
+      "section_id": "sec_08_limitations_and_confidence",
+      "section_number": "8",
+      "title": "Limitations and Confidence Boundaries",
+      "content_type": "limitations_and_confidence_boundaries",
+      "display_order": 9,
+      "preferred_page_break_before": false,
+      "payload": {
+        "limitations": [
+          "Stage, treatment setting, performance status, and organ function are unresolved."
+        ]
+      }
+    },
+    "sec_09_selected_reference_and_trial_links": {
+      "section_id": "sec_09_selected_reference_and_trial_links",
+      "section_number": "9",
+      "title": "Selected Reference and Trial Links",
+      "content_type": "selected_reference_trial_links_and_bottom_line",
+      "display_order": 10,
+      "preferred_page_break_before": false,
+      "payload": {
+        "selected_links": [
+          {
+            "row_id": "link_0cd3fd9aa27df1b42512",
+            "source_id": "src_bc4e9490b29ca9200039",
+            "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+            "url": "https://clinicaltrials.gov/study/NCT05094336",
+            "why_it_is_useful": "Official current trial record.",
+            "source_type": "trial_record",
+            "hypothesis_id": "hyp_7b140b887334436de174"
+          }
+        ],
+        "bottom_line": [
+          "This is a trial-screening rationale, not a treatment recommendation."
+        ]
+      }
+    },
+    "sec_10_url_fit_assessments_overview": {
+      "section_id": "sec_10_url_fit_assessments_overview",
+      "section_number": "10",
+      "title": "URL-by-URL Candidate Fit Assessments",
+      "content_type": "url_fit_appendix_overview_and_source_index",
+      "display_order": 11,
+      "preferred_page_break_before": true,
+      "payload": {
+        "data_basis_and_rules": [
+          "Separate molecular rationale from treatment readiness."
+        ],
+        "scoring_guide": "9-10 very strong; 1-3 weak or not actionable.",
+        "source_index": [
+          {
+            "display_order": 1,
+            "source_id": "src_bc4e9490b29ca9200039",
+            "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+            "marker_or_pathway": [
+              "MTAP",
+              "PRMT5",
+              "AMG 193"
+            ],
+            "evidence_type": "trial_record",
+            "url": "https://clinicaltrials.gov/study/NCT05094336"
+          }
+        ],
+        "source_assessment_ids": [
+          "fit_d5ca4259642d9f7f1235"
+        ]
+      }
+    },
+    "sec_10_source_b752da7fa45df7a1a46b": {
+      "section_id": "sec_10_source_b752da7fa45df7a1a46b",
+      "section_number": "10.1",
+      "title": "ClinicalTrials.gov - AMG 193 MTAP-null trial",
+      "content_type": "url_candidate_fit_assessment",
+      "display_order": 12,
+      "preferred_page_break_before": true,
+      "payload": {
+        "source": {
+          "source_id": "src_bc4e9490b29ca9200039",
+          "canonical_key": "nct:NCT05094336",
+          "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+          "url": "https://clinicaltrials.gov/study/NCT05094336",
+          "publisher": "ClinicalTrials.gov",
+          "source_type": "trial_record",
+          "source_role": "existing_report_trial_context",
+          "publication_or_update_date": null,
+          "identifiers": {
+            "doi": null,
+            "pmid": null,
+            "pmcid": null,
+            "nct_id": "NCT05094336"
+          },
+          "hypothesis_ids": [
+            "hyp_7b140b887334436de174"
+          ],
+          "job_ids": [
+            "job_03492b14be03b5d7cabe"
+          ],
+          "selection_score": 7.5,
+          "verification_status": "identifier_verified",
+          "consulted_urls": [
+            "https://clinicaltrials.gov/study/NCT05094336"
+          ]
+        },
+        "assessment": {
+          "assessment_id": "fit_d5ca4259642d9f7f1235",
+          "source_id": "src_bc4e9490b29ca9200039",
+          "hypothesis_id": "hyp_7b140b887334436de174",
+          "appendix_title": "ClinicalTrials.gov - AMG 193 MTAP-null trial",
+          "url": "https://clinicaltrials.gov/study/NCT05094336",
+          "source_type": "trial_record",
+          "relevant_marker_or_pathway": [
+            "MTAP",
+            "PRMT5",
+            "AMG 193"
+          ],
+          "opening_assessment": "Strong molecular trial-screening lead, not standard care.",
+          "standardized_scores": {
+            "molecular_fit": {
+              "score": 8,
+              "reason": "The trial is MTAP directed."
+            },
+            "population_fit": {
+              "score": 5,
+              "reason": "Exact histology fit is unresolved."
+            },
+            "evidence_maturity": {
+              "score": 3,
+              "reason": "Official trial record, not efficacy evidence."
+            },
+            "standard_care_readiness": {
+              "score": 1,
+              "reason": "Investigational therapy."
+            },
+            "trial_screening_value": {
+              "score": 8,
+              "reason": "Biomarker-directed protocol."
+            }
+          },
+          "bottom_line_score_rows": [
+            {
+              "question": "Does the tumor biology match the trial biomarker?",
+              "strength_label": "Strong",
+              "score_min": 8,
+              "score_max": 8,
+              "why": "MTAP loss aligns with the protocol concept."
+            }
+          ],
+          "why_the_fit_is_strong": [
+            "Direct MTAP biomarker logic."
+          ],
+          "matching_features": [
+            "MTAP copy-number loss"
+          ],
+          "mismatching_features": [],
+          "unknown_alignment_fields": [
+            "stage",
+            "ECOG",
+            "organ function"
+          ],
+          "what_would_make_the_patient_a_stronger_candidate": [
+            "Protocol-acceptable MTAP confirmation."
+          ],
+          "what_weakens_the_case": [
+            "Eligibility context is incomplete."
+          ],
+          "my_read_on_this_case": "Appropriate for protocol-level screening if clinically relevant.",
+          "clinical_framing_to_use": "Confirm MTAP loss and review the current protocol.",
+          "do_not_say": "The patient is eligible or should receive AMG 193.",
+          "say_instead": "The biomarker supports a trial-screening discussion.",
+          "source_specific_follow_up": [
+            {
+              "follow_up": "Confirm MTAP loss using a protocol-acceptable assay.",
+              "why": "The trial may require a specific biomarker definition.",
+              "priority": "high"
+            }
+          ],
+          "source_specific_conclusion": [
+            "Strong trial-screening lead; investigational only."
+          ],
+          "patient_evidence_ids": [
+            "pev_7cae556746a9e1223e6e"
+          ],
+          "external_support_claims": [
+            "The official record describes an MTAP-null solid-tumor trial."
+          ],
+          "confidence": "moderate"
+        },
+        "trial_prescreen": {
+          "prescreen_id": "trialfit_c8b84cea7bf1c91a8051",
+          "source_id": "src_bc4e9490b29ca9200039",
+          "nct_id": "NCT05094336",
+          "trial_status": "RECRUITING",
+          "last_update": "2026-07-01",
+          "biomarker_match": {
+            "status": "POSSIBLE_MATCH",
+            "reason": "MTAP loss is reported but protocol confirmation is unresolved."
+          },
+          "tumor_type_match": {
+            "status": "UNKNOWN",
+            "reason": "Histology cohort fit is unresolved."
+          },
+          "disease_setting_match": {
+            "status": "UNKNOWN",
+            "reason": "Stage and setting are missing."
+          },
+          "criterion_assessment": [],
+          "required_missing_data": [
+            "stage",
+            "ECOG",
+            "organ function"
+          ],
+          "site_and_geography": [
+            "United States"
+          ],
+          "screening_priority": "medium",
+          "reason": "Molecular logic warrants review; eligibility is unknown.",
+          "not_a_final_eligibility_determination": true
+        }
+      }
+    },
+    "sec_11_cross_source_synthesis": {
+      "section_id": "sec_11_cross_source_synthesis",
+      "section_number": "11",
+      "title": "Cross-Source Synthesis",
+      "content_type": "cross_source_synthesis",
+      "display_order": 13,
+      "preferred_page_break_before": true,
+      "payload": {
+        "synthesis_id": "crosssyn_56141af09670157ad42f",
+        "summary": "MTAP-directed evidence supports trial screening, not standard care.",
+        "themes": [
+          {
+            "theme": "MTAP / PRMT5",
+            "cross_source_conclusion": "Confirm MTAP loss and review current trials.",
+            "evidence_maturity": "investigational",
+            "clinical_role": "trial screening"
+          }
+        ],
+        "practical_bottom_line": [
+          "Protocol eligibility and patient context remain unresolved."
+        ],
+        "source_ids": [
+          "src_bc4e9490b29ca9200039"
+        ]
+      }
+    },
+    "sec_12_urls_assessed": {
+      "section_id": "sec_12_urls_assessed",
+      "section_number": "12",
+      "title": "URLs Assessed in This Appendix",
+      "content_type": "fully_qualified_urls_assessed_table",
+      "display_order": 14,
+      "preferred_page_break_before": false,
+      "payload": {
+        "urls_assessed": [
+          {
+            "display_order": 1,
+            "source_id": "src_bc4e9490b29ca9200039",
+            "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+            "url": "https://clinicaltrials.gov/study/NCT05094336",
+            "publisher": "ClinicalTrials.gov",
+            "source_type": "trial_record",
+            "identifiers": {
+              "doi": null,
+              "pmid": null,
+              "pmcid": null,
+              "nct_id": "NCT05094336"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "patient_evidence_by_id": {
+    "pev_7cae556746a9e1223e6e": {
+      "evidence_id": "pev_7cae556746a9e1223e6e",
+      "source_kind": "finding",
+      "source_id": "raw_mtap",
+      "page": 2,
+      "text": "MTAP Copy number loss"
+    },
+    "pev_e23de9e0d38967322879": {
+      "evidence_id": "pev_e23de9e0d38967322879",
+      "source_kind": "finding",
+      "source_id": "raw_taf1",
+      "page": 3,
+      "text": "LOW COVERAGE REGIONS TAF1"
+    }
+  },
+  "claims_by_id": {
+    "claim_c745aad265015a44424b": {
+      "claim_id": "claim_c745aad265015a44424b",
+      "claim": "MTAP loss supports protocol-level trial screening.",
+      "patient_evidence_ids": [
+        "pev_7cae556746a9e1223e6e"
+      ],
+      "external_source_ids": [
+        "src_bc4e9490b29ca9200039"
+      ],
+      "allowed_strength": "investigational trial-screening rationale"
+    }
+  },
+  "artifacts_by_id": {
+    "artifact_13f0ae450d635ebd34fc": {
+      "artifact_id": "artifact_13f0ae450d635ebd34fc",
+      "artifact_type": "source_discovery",
+      "stage": "source_discovery",
+      "parent_artifact_ids": [
+        "job_03492b14be03b5d7cabe"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "69285e3e3793d5f9bd69a613ca6a08be48db9f2a8f2ccc6882eae8f47da7f1db",
+      "prompt_version": "2026-07-10.1.source_discovery",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_source_discovery",
+      "payload": {
+        "job_id": "job_03492b14be03b5d7cabe",
+        "searches_run": [
+          {
+            "query": "MTAP deleted solid tumors NCT05094336",
+            "purpose": "Verify current official trial record."
+          }
+        ],
+        "candidate_sources": [
+          {
+            "source_id": "src_candidate_85550e6f64ba3a116334",
+            "hypothesis_id": "hyp_7b140b887334436de174",
+            "job_id": "job_03492b14be03b5d7cabe",
+            "url": "https://clinicaltrials.gov/study/NCT05094336",
+            "canonical_url": "https://clinicaltrials.gov/study/NCT05094336",
+            "title": "AMG 193 in MTAP-null solid tumors",
+            "publisher": "ClinicalTrials.gov",
+            "source_type": "trial_record",
+            "publication_or_update_date": "2026-07-01",
+            "identifiers": {
+              "doi": null,
+              "pmid": null,
+              "pmcid": null,
+              "nct_id": "NCT05094336"
+            },
+            "source_role": "trial_record",
+            "why_candidate": "Official biomarker-directed trial record.",
+            "patient_anchor_matched": [
+              "MTAP loss"
+            ],
+            "apparent_evidence_level": "official clinical trial record",
+            "requires_full_text": true
+          }
+        ],
+        "unresolved_questions": []
+      }
+    },
+    "artifact_4a0b4549c17970dda385": {
+      "artifact_id": "artifact_4a0b4549c17970dda385",
+      "artifact_type": "source_extraction",
+      "stage": "source_extractor",
+      "parent_artifact_ids": [
+        "src_bc4e9490b29ca9200039"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "67e613505e23d941cfebeb1489936a3a81ea18bb278b184830211dbf440815db",
+      "prompt_version": "2026-07-10.1.source_extractor",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_source_extractor",
+      "payload": {
+        "source_id": "src_bc4e9490b29ca9200039",
+        "source_identity": {
+          "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+          "url": "https://clinicaltrials.gov/study/NCT05094336",
+          "publisher": "ClinicalTrials.gov",
+          "source_type": "trial_record",
+          "publication_or_update_date": "2026-07-01",
+          "identifiers": {
+            "doi": null,
+            "pmid": null,
+            "pmcid": null,
+            "nct_id": "NCT05094336"
+          }
+        },
+        "study_design": "Phase 1/2 interventional trial",
+        "evidence_level": "official trial record",
+        "population": {
+          "tumor_types": [
+            "advanced solid tumors"
+          ],
+          "histologies": [],
+          "disease_setting": [
+            "advanced"
+          ],
+          "stage": [
+            "advanced or metastatic"
+          ],
+          "prior_therapy": [],
+          "sample_size": null,
+          "age_requirements": [
+            "adult"
+          ],
+          "performance_status_requirements": [
+            "protocol defined"
+          ],
+          "other_key_criteria": [
+            "MTAP-null tumor"
+          ]
+        },
+        "biomarker_definition": {
+          "markers": [
+            "MTAP"
+          ],
+          "required_alterations": [
+            "MTAP-null"
+          ],
+          "excluded_alterations": [],
+          "assay_requirements": [
+            "protocol-acceptable confirmation"
+          ],
+          "thresholds": [],
+          "confirmation_methods": []
+        },
+        "interventions": [
+          "AMG 193"
+        ],
+        "comparators": [],
+        "mechanism_claims": [
+          "MTA-cooperative PRMT5 inhibition"
+        ],
+        "outcomes": {
+          "response": [],
+          "pfs": [],
+          "os": [],
+          "duration_of_response": [],
+          "pharmacodynamic": [],
+          "toxicity": []
+        },
+        "trial": {
+          "status": "RECRUITING",
+          "phase": "Phase 1/2",
+          "locations": [
+            "United States"
+          ],
+          "last_update": "2026-07-01"
+        },
+        "resistance_findings": [],
+        "monitoring_findings": [],
+        "authors_limitations": [
+          "Trial record does not establish benefit."
+        ],
+        "facts_not_reported": [
+          "patient-specific eligibility"
+        ],
+        "support_spans": []
+      }
+    },
+    "artifact_86b7bbe4cc43a9282e06": {
+      "artifact_id": "artifact_86b7bbe4cc43a9282e06",
+      "artifact_type": "trial_prescreen",
+      "stage": "trial_prescreen",
+      "parent_artifact_ids": [
+        "src_bc4e9490b29ca9200039"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "b946cd2d431e56cec771f1b735e8eb1224bf68828bc86194084efa6937a29c25",
+      "prompt_version": "2026-07-10.1.trial_prescreen",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_trial_prescreen",
+      "payload": {
+        "prescreen_id": "trialfit_c8b84cea7bf1c91a8051",
+        "source_id": "src_bc4e9490b29ca9200039",
+        "nct_id": "NCT05094336",
+        "trial_status": "RECRUITING",
+        "last_update": "2026-07-01",
+        "biomarker_match": {
+          "status": "POSSIBLE_MATCH",
+          "reason": "MTAP loss is reported but protocol confirmation is unresolved."
+        },
+        "tumor_type_match": {
+          "status": "UNKNOWN",
+          "reason": "Histology cohort fit is unresolved."
+        },
+        "disease_setting_match": {
+          "status": "UNKNOWN",
+          "reason": "Stage and setting are missing."
+        },
+        "criterion_assessment": [],
+        "required_missing_data": [
+          "stage",
+          "ECOG",
+          "organ function"
+        ],
+        "site_and_geography": [
+          "United States"
+        ],
+        "screening_priority": "medium",
+        "reason": "Molecular logic warrants review; eligibility is unknown.",
+        "not_a_final_eligibility_determination": true
+      }
+    },
+    "artifact_960d383f3d211df98db1": {
+      "artifact_id": "artifact_960d383f3d211df98db1",
+      "artifact_type": "report_draft",
+      "stage": "report_compiler",
+      "parent_artifact_ids": [
+        "syn_94d07606b28819c2a5e4"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "8a2169096efbeb4dca327dbd4a14eedef01aa7c4492ae8bc93019acf5498b602",
+      "prompt_version": "2026-07-10.1.report_compiler",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_report_compiler",
+      "payload": {
+        "report_draft_id": "report_e3e3b7361af07ed8a066",
+        "cover_metadata": {
+          "title": "Precision Oncology Actionable Packet",
+          "subtitle": "Professional summary for clinicians and patients",
+          "purpose_statements": [
+            "Translate actionable findings into a structured clinical summary."
+          ],
+          "source_label": "Uploaded review packet",
+          "report_type": "NGS",
+          "disease_or_tumor_type": "Example sarcoma",
+          "specimen_context": "Soft tissue",
+          "overall_validation_status": "Needs Review",
+          "important_note": "Educational support only."
+        },
+        "executive_summary": {
+          "paragraphs": [
+            {
+              "text": "MTAP loss supports an investigational PRMT5 trial-screening discussion.",
+              "patient_evidence_ids": [
+                "pev_7cae556746a9e1223e6e"
+              ],
+              "source_ids": [
+                "src_bc4e9490b29ca9200039"
+              ]
+            }
+          ],
+          "top_takeaway": "Confirm MTAP loss and review investigational trials.",
+          "most_trial_relevant_finding": "MTAP loss",
+          "most_likely_to_require_confirmation": "MTAP loss",
+          "most_important_technical_caveat": "TAF1 low coverage"
+        },
+        "key_findings": [
+          {
+            "row_id": "kf_fd57f210c391de336a3b",
+            "marker_or_finding": "MTAP copy number loss",
+            "reasoning_domain": "Tumor biology / trial biomarker",
+            "what_it_means": "MTAP loss was reported.",
+            "why_it_matters": "It can support PRMT5-pathway trial reasoning.",
+            "actionability": "Investigational trial-screening rationale.",
+            "next_step": "Confirm the biomarker and review eligibility.",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "other_findings": [],
+        "cause_effect": [
+          {
+            "row_id": "ce_4c9985ac14dc358d6d1c",
+            "finding": "MTAP loss",
+            "mechanism_chain": "MTAP loss -> MTA-associated state -> PRMT5-pathway vulnerability.",
+            "plain_english": "The tumor may have a metabolic weak spot studied in trials.",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "therapy_options": [
+          {
+            "row_id": "tx_40da9512c80a52aff437",
+            "marker_or_target": "MTAP loss",
+            "therapy_class": "MTA-cooperative PRMT5 inhibitors",
+            "example_agents": [
+              "AMG 193"
+            ],
+            "molecular_interaction": "Exploit MTAP-loss/MTA biology.",
+            "key_caveats": [
+              "Investigational; eligibility unresolved."
+            ],
+            "status": "High-interest trial strategy",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "practical_readout": [
+          "The strongest opportunity is protocol-level MTAP trial screening."
+        ],
+        "resistance_escape": [],
+        "follow_up_tests": [
+          {
+            "row_id": "fu_966f0cec5f48b5df406a",
+            "recommended_next_step": "Confirm MTAP loss using an acceptable assay.",
+            "why_it_matters": "Trial protocols may define the biomarker precisely.",
+            "priority": "high",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "phenotypic_events": [
+          {
+            "row_id": "evt_b1603ae7144448452250",
+            "clinical_event": "Radiographic progression",
+            "why_it_matters": "Progression can justify repeat profiling.",
+            "urgency": "high",
+            "recommended_test": "Repeat tissue or liquid profiling as clinically appropriate."
+          }
+        ],
+        "limitations": [
+          "Stage, treatment setting, performance status, and organ function are unresolved."
+        ],
+        "selected_links": [
+          {
+            "row_id": "link_0cd3fd9aa27df1b42512",
+            "source_id": "src_bc4e9490b29ca9200039",
+            "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+            "url": "https://clinicaltrials.gov/study/NCT05094336",
+            "why_it_is_useful": "Official current trial record.",
+            "source_type": "trial_record",
+            "hypothesis_id": "hyp_7b140b887334436de174"
+          }
+        ],
+        "bottom_line": [
+          "This is a trial-screening rationale, not a treatment recommendation."
+        ],
+        "url_fit_appendix": {
+          "data_basis_and_rules": [
+            "Separate molecular rationale from treatment readiness."
+          ],
+          "scoring_guide": "9-10 very strong; 1-3 weak or not actionable.",
+          "source_index": [
+            {
+              "display_order": 1,
+              "source_id": "src_bc4e9490b29ca9200039",
+              "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+              "marker_or_pathway": [
+                "MTAP",
+                "PRMT5",
+                "AMG 193"
+              ],
+              "evidence_type": "trial_record",
+              "url": "https://clinicaltrials.gov/study/NCT05094336"
+            }
+          ],
+          "source_assessment_ids": [
+            "fit_d5ca4259642d9f7f1235"
+          ]
+        }
+      }
+    },
+    "artifact_99a7477d03bdc0cdcb52": {
+      "artifact_id": "artifact_99a7477d03bdc0cdcb52",
+      "artifact_type": "source_registry",
+      "stage": "source_selection",
+      "parent_artifact_ids": [
+        "artifact_13f0ae450d635ebd34fc"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "122997b7fa324bb1e90d860c03330d5fcb6e31366ef46ba3c8ef7ca0e26f6b71",
+      "prompt_version": null,
+      "model": null,
+      "response_id": null,
+      "payload": {
+        "sources": [
+          {
+            "source_id": "src_bc4e9490b29ca9200039",
+            "canonical_key": "nct:NCT05094336",
+            "title": "Study in MTAP-deleted solid tumors (NCT05094336)",
+            "url": "https://clinicaltrials.gov/study/NCT05094336",
+            "publisher": "ClinicalTrials.gov",
+            "source_type": "trial_record",
+            "source_role": "existing_report_trial_context",
+            "publication_or_update_date": null,
+            "identifiers": {
+              "doi": null,
+              "pmid": null,
+              "pmcid": null,
+              "nct_id": "NCT05094336"
+            },
+            "hypothesis_ids": [
+              "hyp_7b140b887334436de174"
+            ],
+            "job_ids": [
+              "job_03492b14be03b5d7cabe"
+            ],
+            "selection_score": 7.5,
+            "verification_status": "identifier_verified",
+            "consulted_urls": [
+              "https://clinicaltrials.gov/study/NCT05094336"
+            ]
+          }
+        ]
+      }
+    },
+    "artifact_9b10ef53680947e29205": {
+      "artifact_id": "artifact_9b10ef53680947e29205",
+      "artifact_type": "hypothesis_collection",
+      "stage": "hypothesis_builder",
+      "parent_artifact_ids": [
+        "artifact_f148f088d54e1f946a92"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "e7a3e14029f93083723164d092e5ebf80897cfd1056a9448b7977ba0e63bc0e1",
+      "prompt_version": "2026-07-10.1.hypothesis",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_hypothesis_builder",
+      "payload": {
+        "hypotheses": [
+          {
+            "hypothesis_id": "hyp_7b140b887334436de174",
+            "title": "MTAP-loss metabolic vulnerability",
+            "hypothesis_type": "metabolic_vulnerability",
+            "primary_finding_ids": [
+              "finding_6d74c0639829df2fb13f"
+            ],
+            "supporting_finding_ids": [],
+            "technical_limitation_ids": [],
+            "biological_theme": "MTAP loss and PRMT5 pathway dependence",
+            "patient_specific_observation": "MTAP copy-number loss was reported.",
+            "mechanism_to_validate": "MTAP loss may create an MTA-dependent PRMT5 vulnerability.",
+            "potential_clinical_roles": [
+              "trial_biomarker"
+            ],
+            "therapy_classes_to_research": [
+              "MTA-cooperative PRMT5 inhibitors"
+            ],
+            "trial_search_required": true,
+            "variant_interpretation_required": false,
+            "confirmatory_questions": [
+              "Is MTAP loss protocol-confirmed?"
+            ],
+            "critical_cautions": [
+              "Investigational rationale only."
+            ],
+            "missing_context": [
+              "stage",
+              "performance status"
+            ],
+            "research_priority": "high",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ]
+          }
+        ]
+      }
+    },
+    "artifact_a78c762d45b9c0fc3e3f": {
+      "artifact_id": "artifact_a78c762d45b9c0fc3e3f",
+      "artifact_type": "validation_output",
+      "stage": "deterministic_integrity",
+      "parent_artifact_ids": [
+        "report_e3e3b7361af07ed8a066",
+        "crosssyn_56141af09670157ad42f"
+      ],
+      "created_at": "2026-07-10T22:52:18+00:00",
+      "input_hash": "c209368b45acd128d462427676e942af59c4cc71d7556ba92eaa08d36ab9dea1",
+      "prompt_version": null,
+      "model": null,
+      "response_id": null,
+      "payload": {
+        "validator_id": "validator_449c7caa01dae8e5b09d",
+        "validator_type": "deterministic_integrity",
+        "passed": true,
+        "findings": []
+      }
+    },
+    "artifact_de9b46f5d3670cd29440": {
+      "artifact_id": "artifact_de9b46f5d3670cd29440",
+      "artifact_type": "hypothesis_synthesis",
+      "stage": "hypothesis_synthesis",
+      "parent_artifact_ids": [
+        "hyp_7b140b887334436de174",
+        "fit_d5ca4259642d9f7f1235"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "2a92910e7e5e075665ecb8423fb7e60a926cfe76b48dff45c2e877a3ac7258dd",
+      "prompt_version": "2026-07-10.1.hypothesis_synthesis",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_hypothesis_synthesis",
+      "payload": {
+        "synthesis_id": "syn_94d07606b28819c2a5e4",
+        "hypothesis_id": "hyp_7b140b887334436de174",
+        "hypothesis_status": "partially_supported",
+        "executive_summary_statement": "MTAP loss supports an investigational PRMT5 trial-screening discussion.",
+        "validated_biology": [
+          "MTAP loss is the patient-specific anchor."
+        ],
+        "cause_effect_chain": [
+          {
+            "step": 1,
+            "statement": "MTAP loss can create an MTA-associated PRMT5 vulnerability.",
+            "evidence_type": "mechanistic and trial rationale",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "plain_english_explanation": "The tumor may have a metabolic weak spot studied in clinical trials.",
+        "therapy_opportunities": [
+          {
+            "therapy_class": "MTA-cooperative PRMT5 inhibitors",
+            "example_agents": [
+              "AMG 193"
+            ],
+            "molecular_interaction": "Exploit the MTAP-loss/MTA state.",
+            "clinical_use": "investigational",
+            "population_fit": "Exact histology and eligibility remain unresolved.",
+            "evidence_level": "clinical trial record",
+            "key_caveats": [
+              "Not standard care."
+            ],
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "confirmatory_tests": [
+          {
+            "test": "Protocol-acceptable MTAP confirmation",
+            "why_it_matters": "The trial may require a specific biomarker definition.",
+            "priority": "high",
+            "source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ]
+          }
+        ],
+        "resistance_and_escape": [],
+        "monitoring_implications": [],
+        "active_trial_leads": [
+          "NCT05094336"
+        ],
+        "unsupported_or_overstated_options": [
+          "Do not present AMG 193 as proven standard care."
+        ],
+        "population_alignment": {
+          "matching": [
+            "MTAP-directed biomarker concept"
+          ],
+          "mismatching": [],
+          "unknown": [
+            "stage",
+            "ECOG",
+            "organ function"
+          ]
+        },
+        "limitations": [
+          "Patient eligibility is not established."
+        ],
+        "confidence": "moderate",
+        "report_claims": [
+          {
+            "claim_id": "claim_c745aad265015a44424b",
+            "claim": "MTAP loss supports protocol-level trial screening.",
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "external_source_ids": [
+              "src_bc4e9490b29ca9200039"
+            ],
+            "allowed_strength": "investigational trial-screening rationale"
+          }
+        ]
+      }
+    },
+    "artifact_ec7194cf19f2f5623ef3": {
+      "artifact_id": "artifact_ec7194cf19f2f5623ef3",
+      "artifact_type": "research_plan",
+      "stage": "research_planner",
+      "parent_artifact_ids": [
+        "artifact_9b10ef53680947e29205"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "1d574e5c5b0fd511b1e81395286c299131b637017d7c78f8946af8d822a21a2e",
+      "prompt_version": "2026-07-10.1.research_plan",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_research_planner",
+      "payload": {
+        "research_jobs": [
+          {
+            "job_id": "job_03492b14be03b5d7cabe",
+            "hypothesis_id": "hyp_7b140b887334436de174",
+            "question_type": "trial",
+            "clinical_question": "Which current MTAP-deleted solid-tumor trials are relevant?",
+            "search_concepts": {
+              "disease": [
+                "solid tumor"
+              ],
+              "histology": [
+                "sarcoma"
+              ],
+              "genes_or_markers": [
+                "MTAP"
+              ],
+              "alterations": [
+                "copy-number loss"
+              ],
+              "pathways": [
+                "PRMT5"
+              ],
+              "therapy_classes": [
+                "MTA-cooperative PRMT5 inhibitor"
+              ],
+              "agents_already_known": [],
+              "trial_ids_already_known": [
+                "NCT05094336"
+              ]
+            },
+            "source_roles_needed": [
+              "trial_record"
+            ],
+            "preferred_sources": [
+              "ClinicalTrials.gov"
+            ],
+            "minimum_evidence_level": "official current trial record",
+            "maximum_sources": 1,
+            "required_report_sections": [
+              "selected_links",
+              "url_appendix"
+            ],
+            "stop_condition": "One current official trial record is verified.",
+            "priority": "high"
+          }
+        ]
+      }
+    },
+    "artifact_f148f088d54e1f946a92": {
+      "artifact_id": "artifact_f148f088d54e1f946a92",
+      "artifact_type": "canonical_input",
+      "stage": "canonical_input",
+      "parent_artifact_ids": [],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "3a440454b9a341d680ac6872b6a2e3cc9f8c8b0c02655ef7debfc8e1f68effdc",
+      "prompt_version": null,
+      "model": null,
+      "response_id": null,
+      "payload": {
+        "case": {
+          "case_id": "case_example",
+          "session_id": "session_example",
+          "source_file_id": "file_example",
+          "report_type": "NGS",
+          "disease": {
+            "name": "Example sarcoma",
+            "stage": null,
+            "setting": null,
+            "histology": "Example sarcoma"
+          },
+          "specimen": {
+            "site": "Soft tissue",
+            "collection_date": null,
+            "tumor_percentage": 70.0,
+            "specimen_type": null
+          },
+          "prior_therapies": [],
+          "line_of_therapy": null,
+          "performance_status": null,
+          "organ_function": {},
+          "measurable_disease": null,
+          "biopsy_feasibility": null,
+          "location": null,
+          "matched_normal_available": null,
+          "validation_status": "needs_review",
+          "report_date": null,
+          "missing_context": [
+            "disease.stage",
+            "disease.setting",
+            "prior_therapies",
+            "line_of_therapy",
+            "performance_status",
+            "organ_function",
+            "measurable_disease",
+            "biopsy_feasibility",
+            "location"
+          ]
+        },
+        "actionable_findings": [
+          {
+            "finding_id": "finding_6d74c0639829df2fb13f",
+            "raw_finding_ids": [
+              "raw_mtap"
+            ],
+            "gene_or_marker": "MTAP",
+            "display_label": "MTAP copy number loss",
+            "alteration": "copy number loss",
+            "alteration_type": "loss",
+            "molecular_layers": [
+              "DNA"
+            ],
+            "priority": "PRIMARY",
+            "reported_category": "biologically_relevant",
+            "clinical_roles": [
+              "tumor_biology",
+              "therapeutic_biomarker",
+              "trial_biomarker"
+            ],
+            "source_pages": [
+              2
+            ],
+            "source_chunk_ids": [
+              "chunk_mtap"
+            ],
+            "source_texts": [
+              "MTAP Copy number loss"
+            ],
+            "patient_evidence_ids": [
+              "pev_7cae556746a9e1223e6e"
+            ],
+            "confidence": 1.0,
+            "needs_human_review": true,
+            "research_use_only": false,
+            "related_finding_ids": [],
+            "contradictions": [],
+            "missing_validation": [
+              "confirm absolute copy number",
+              "clarify homozygous versus heterozygous loss"
+            ],
+            "existing_drug_mentions": [],
+            "existing_trial_ids": [
+              "NCT05094336"
+            ]
+          }
+        ],
+        "secondary_findings": [],
+        "context_findings": [],
+        "technical_limitations": [
+          {
+            "limitation_id": "lim_3e6e74be89f92b3d2ac4",
+            "label": "TAF1 low coverage",
+            "description": "LOW COVERAGE REGIONS TAF1",
+            "source_pages": [
+              3
+            ],
+            "source_chunk_ids": [
+              "chunk_taf1"
+            ],
+            "patient_evidence_ids": [
+              "pev_e23de9e0d38967322879"
+            ],
+            "clinical_effect": "Do not interpret a non-call or low-coverage region as a true negative.",
+            "conditional_follow_up": "Orthogonal testing should be considered only if TAF1 is clinically relevant."
+          }
+        ],
+        "negative_findings": [],
+        "existing_context": {
+          "phenotype_axes": [],
+          "treatment_matrix": [],
+          "confirmatory_tests": [],
+          "must_not_assume": [],
+          "tumor_behavior": {},
+          "ranked_treatment_hints": [],
+          "treatment_pressure_hints": [],
+          "resistance_hints": [],
+          "biomarker_watch_hints": [],
+          "retesting_triggers": [],
+          "next_test_hints": [],
+          "evidence_limitations": [],
+          "missing_evidence": [],
+          "conflicting_evidence": [],
+          "reasoning_warnings": [],
+          "existing_trial_mentions": [
+            {
+              "trial_id": "NCT05094336",
+              "title_or_context": "Study in MTAP-deleted solid tumors (NCT05094336)",
+              "url": "https://clinicaltrials.gov/study/NCT05094336",
+              "source_chunk_id": "chunk_trial",
+              "source_page": 2
+            }
+          ]
+        },
+        "patient_evidence": [
+          {
+            "evidence_id": "pev_7cae556746a9e1223e6e",
+            "source_kind": "finding",
+            "source_id": "raw_mtap",
+            "page": 2,
+            "text": "MTAP Copy number loss"
+          },
+          {
+            "evidence_id": "pev_e23de9e0d38967322879",
+            "source_kind": "finding",
+            "source_id": "raw_taf1",
+            "page": 3,
+            "text": "LOW COVERAGE REGIONS TAF1"
+          }
+        ],
+        "provenance": {
+          "evidence_sentences": [],
+          "claims": [],
+          "artifact_records": []
+        }
+      }
+    },
+    "artifact_fcafb49fee6c6d689966": {
+      "artifact_id": "artifact_fcafb49fee6c6d689966",
+      "artifact_type": "cross_source_synthesis",
+      "stage": "cross_source_synthesis",
+      "parent_artifact_ids": [
+        "syn_94d07606b28819c2a5e4",
+        "fit_d5ca4259642d9f7f1235"
+      ],
+      "created_at": "2026-07-10T22:52:18+00:00",
+      "input_hash": "37f38fdfa3fb6120281ab0e1536665c60b166148f9cc70b0d40b9dee689d4a74",
+      "prompt_version": "2026-07-10.1.cross_source",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_cross_source_synthesis",
+      "payload": {
+        "synthesis_id": "crosssyn_56141af09670157ad42f",
+        "summary": "MTAP-directed evidence supports trial screening, not standard care.",
+        "themes": [
+          {
+            "theme": "MTAP / PRMT5",
+            "cross_source_conclusion": "Confirm MTAP loss and review current trials.",
+            "evidence_maturity": "investigational",
+            "clinical_role": "trial screening"
+          }
+        ],
+        "practical_bottom_line": [
+          "Protocol eligibility and patient context remain unresolved."
+        ],
+        "source_ids": [
+          "src_bc4e9490b29ca9200039"
+        ]
+      }
+    },
+    "artifact_fec954787d3766afd834": {
+      "artifact_id": "artifact_fec954787d3766afd834",
+      "artifact_type": "source_fit_assessment",
+      "stage": "source_fit",
+      "parent_artifact_ids": [
+        "src_bc4e9490b29ca9200039",
+        "hyp_7b140b887334436de174"
+      ],
+      "created_at": "2026-07-10T22:52:17+00:00",
+      "input_hash": "7be196ca5c70dc22b9f2c9f4ccdb3045b45a7492bf3ae60e0e8990070b149de9",
+      "prompt_version": "2026-07-10.1.source_fit",
+      "model": "gpt-5.6-luna",
+      "response_id": "resp_source_fit",
+      "payload": {
+        "assessment_id": "fit_d5ca4259642d9f7f1235",
+        "source_id": "src_bc4e9490b29ca9200039",
+        "hypothesis_id": "hyp_7b140b887334436de174",
+        "appendix_title": "ClinicalTrials.gov - AMG 193 MTAP-null trial",
+        "url": "https://clinicaltrials.gov/study/NCT05094336",
+        "source_type": "trial_record",
+        "relevant_marker_or_pathway": [
+          "MTAP",
+          "PRMT5",
+          "AMG 193"
+        ],
+        "opening_assessment": "Strong molecular trial-screening lead, not standard care.",
+        "standardized_scores": {
+          "molecular_fit": {
+            "score": 8,
+            "reason": "The trial is MTAP directed."
+          },
+          "population_fit": {
+            "score": 5,
+            "reason": "Exact histology fit is unresolved."
+          },
+          "evidence_maturity": {
+            "score": 3,
+            "reason": "Official trial record, not efficacy evidence."
+          },
+          "standard_care_readiness": {
+            "score": 1,
+            "reason": "Investigational therapy."
+          },
+          "trial_screening_value": {
+            "score": 8,
+            "reason": "Biomarker-directed protocol."
+          }
+        },
+        "bottom_line_score_rows": [
+          {
+            "question": "Does the tumor biology match the trial biomarker?",
+            "strength_label": "Strong",
+            "score_min": 8,
+            "score_max": 8,
+            "why": "MTAP loss aligns with the protocol concept."
+          }
+        ],
+        "why_the_fit_is_strong": [
+          "Direct MTAP biomarker logic."
+        ],
+        "matching_features": [
+          "MTAP copy-number loss"
+        ],
+        "mismatching_features": [],
+        "unknown_alignment_fields": [
+          "stage",
+          "ECOG",
+          "organ function"
+        ],
+        "what_would_make_the_patient_a_stronger_candidate": [
+          "Protocol-acceptable MTAP confirmation."
+        ],
+        "what_weakens_the_case": [
+          "Eligibility context is incomplete."
+        ],
+        "my_read_on_this_case": "Appropriate for protocol-level screening if clinically relevant.",
+        "clinical_framing_to_use": "Confirm MTAP loss and review the current protocol.",
+        "do_not_say": "The patient is eligible or should receive AMG 193.",
+        "say_instead": "The biomarker supports a trial-screening discussion.",
+        "source_specific_follow_up": [
+          {
+            "follow_up": "Confirm MTAP loss using a protocol-acceptable assay.",
+            "why": "The trial may require a specific biomarker definition.",
+            "priority": "high"
+          }
+        ],
+        "source_specific_conclusion": [
+          "Strong trial-screening lead; investigational only."
+        ],
+        "patient_evidence_ids": [
+          "pev_7cae556746a9e1223e6e"
+        ],
+        "external_support_claims": [
+          "The official record describes an MTAP-null solid-tumor trial."
+        ],
+        "confidence": "moderate"
+      }
+    }
+  },
+  "validations": [
+    {
+      "validator_id": "validator_449c7caa01dae8e5b09d",
+      "validator_type": "deterministic_integrity",
+      "passed": true,
+      "findings": []
+    }
+  ],
+  "usage_records": [
+    {
+      "call_id": "usage_236f93b982eea79cb4e2",
+      "stage": "hypothesis_builder",
+      "artifact_id": "artifact_9b10ef53680947e29205",
+      "response_id": "resp_hypothesis_builder",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_bbf1891b4d826117c426",
+      "stage": "research_planner",
+      "artifact_id": "artifact_ec7194cf19f2f5623ef3",
+      "response_id": "resp_research_planner",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_f341e457a93883319186",
+      "stage": "source_discovery",
+      "artifact_id": "artifact_13f0ae450d635ebd34fc",
+      "response_id": "resp_source_discovery",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 1,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_90674347243cde3932af",
+      "stage": "source_extractor",
+      "artifact_id": "artifact_4a0b4549c17970dda385",
+      "response_id": "resp_source_extractor",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 1,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_2847af446962cbcbaaf6",
+      "stage": "source_fit",
+      "artifact_id": "artifact_fec954787d3766afd834",
+      "response_id": "resp_source_fit",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_193281556e5b86ca3028",
+      "stage": "trial_prescreen",
+      "artifact_id": "artifact_86b7bbe4cc43a9282e06",
+      "response_id": "resp_trial_prescreen",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_f1f5f04ff72b593b820f",
+      "stage": "hypothesis_synthesis",
+      "artifact_id": "artifact_de9b46f5d3670cd29440",
+      "response_id": "resp_hypothesis_synthesis",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_50c3c6d2e0578960a299",
+      "stage": "report_compiler",
+      "artifact_id": "artifact_960d383f3d211df98db1",
+      "response_id": "resp_report_compiler",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    },
+    {
+      "call_id": "usage_dbf7b3078b695c756edb",
+      "stage": "cross_source_synthesis",
+      "artifact_id": "artifact_fcafb49fee6c6d689966",
+      "response_id": "resp_cross_source_synthesis",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 10
+      },
+      "web_source_count": 0,
+      "cache_hit": false
+    }
+  ],
+  "warnings": [
+    "Missing clinical context: disease.stage, disease.setting, prior_therapies, line_of_therapy, performance_status, organ_function, measurable_disease, biopsy_feasibility, location",
+    "Source src_bc4e9490b29ca9200039 verification status: identifier_verified."
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "case_id": "case_example",
+  "session_id": "session_example",
+  "source_file_id": "file_example",
+  "chunks": [
+    {
+      "chunk_id": "chunk_case",
+      "report_type": "NGS",
+      "page_start": 1,
+      "page_end": 1,
+      "section": "case_metadata",
+      "chunk_type": "case_metadata",
+      "source_text": "Diagnosis Example sarcoma Tumor specimen Soft tissue Tumor Percentage: 70%",
+      "needs_human_review": false
+    },
+    {
+      "chunk_id": "chunk_mtap",
+      "report_type": "NGS",
+      "page_start": 2,
+      "page_end": 2,
+      "section": "biologically_relevant",
+      "chunk_type": "molecular_finding",
+      "source_text": "MTAP Copy number loss",
+      "needs_human_review": false
+    },
+    {
+      "chunk_id": "chunk_trial",
+      "report_type": "NGS",
+      "page_start": 2,
+      "page_end": 2,
+      "section": "clinical_trials",
+      "chunk_type": "clinical_trial_context",
+      "source_text": "Study in MTAP-deleted solid tumors (NCT05094336)",
+      "needs_human_review": false
+    },
+    {
+      "chunk_id": "chunk_taf1",
+      "report_type": "NGS",
+      "page_start": 3,
+      "page_end": 3,
+      "section": "low_coverage_regions",
+      "chunk_type": "low_coverage",
+      "source_text": "LOW COVERAGE REGIONS TAF1",
+      "needs_human_review": false
+    }
+  ],
+  "bundle": {
+    "case_id": "case_example",
+    "session_id": "session_example",
+    "extraction": {
+      "report_type": "NGS",
+      "disease": "Example sarcoma",
+      "specimen": "Soft tissue",
+      "tumor_percentage": 70,
+      "molecular_findings": [
+        {
+          "finding_id": "raw_mtap",
+          "gene": "MTAP",
+          "alteration": "copy number loss",
+          "alteration_type": "loss",
+          "source_page": 2,
+          "source_text": "MTAP Copy number loss",
+          "source_chunk_id": "chunk_mtap",
+          "confidence": 1.0,
+          "needs_human_review": true,
+          "research_use_only": false
+        },
+        {
+          "finding_id": "raw_taf1",
+          "gene": "TAF1",
+          "alteration": "low coverage",
+          "alteration_type": "low coverage",
+          "source_page": 3,
+          "source_text": "LOW COVERAGE REGIONS TAF1",
+          "source_chunk_id": "chunk_taf1",
+          "confidence": 1.0,
+          "needs_human_review": true,
+          "research_use_only": false
+        }
+      ],
+      "negative_findings": [],
+      "assay_limitations": [],
+      "source_file_id": "file_example",
+      "needs_human_review": true
+    },
+    "phenotype": {"axes": []},
+    "matrix": {"rows": []},
+    "confirmatory": {"tests": [], "must_not_assume": []},
+    "tumor_behavior": {},
+    "decision_brief": {
+      "validation_status": "needs_review",
+      "actionable_biology": [],
+      "ranked_treatment_options": [],
+      "treatment_pressure_map": [],
+      "resistance_forecast": [],
+      "biomarker_watch_list": [],
+      "retesting_triggers": [],
+      "next_test_recommendations": [],
+      "evidence_limitations": [],
+      "evidence_sentence_map": []
+    },
+    "evidence_context": {
+      "missing_evidence": [],
+      "conflicting_evidence": [],
+      "medea_reasoning": {"warnings": []}
+    },
+    "claims": [],
+    "provenance": []
+  }
+}
