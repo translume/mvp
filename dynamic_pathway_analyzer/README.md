@@ -197,10 +197,10 @@ search tool; the two Markdown documents are its complete evidence boundary.
 
 ```bash
 python tumor_board_causal_synthesis.py \
-  --pathway-analysis pathway_output/state_after_trial_prescreens.pathway_analysis.md \
-  --research-memo pathway_output/state_after_trial_prescreens.research_memo.md \
+  --pathway-analysis ./outputs/pathway_output/state_after_trial_prescreens.pathway_analysis.md \
+  --research-memo ./outputs/pathway_output/state_after_trial_prescreens.research_memo.md \
   --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir tumor_board_output
+  --output-dir ./outputs/tumor_board_output
 ```
 
 The script looks for `tumor_board_causal_synthesis_prompt.md` beside the Python
@@ -209,11 +209,11 @@ attachment. A prompt can always be selected explicitly:
 
 ```bash
 python tumor_board_causal_synthesis.py \
-  --pathway-analysis pathway_output/state_after_trial_prescreens.pathway_analysis.md \
-  --research-memo pathway_output/state_after_trial_prescreens.research_memo.md \
+  --pathway-analysis ./outputs/pathway_output/state_after_trial_prescreens.pathway_analysis.md \
+  --research-memo ./outputs/pathway_output/state_after_trial_prescreens.research_memo.md \
+  --system-prompt ./fallback-prompt.md \
   --diagnosis "dedifferentiated chondrosarcoma" \
-  --system-prompt /path/to/tumor_board_prompt.md \
-  --output-dir tumor_board_output
+  --output-dir ./outputs/tumor_board_output
 ```
 
 Outputs:
