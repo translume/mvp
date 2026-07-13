@@ -152,6 +152,12 @@ python precision_oncology_pipeline.py \
   --output-dir ./precision_oncology_outputs \
   --model gpt-5.6-luna \
   --quick-test
+
+python /app/precision_oncology_pipeline.py \
+  --input ./translume_review_packet.json \
+  --output-dir ./outputs \
+  --model gpt-5.4-mini \
+  --quick-test
 ```
 
 `--quick-test` limits the run to:

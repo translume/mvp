@@ -218,8 +218,7 @@ services:
       PRECISION_ONCOLOGY_GID: ${PRECISION_ONCOLOGY_GID:-1000}
     volumes:
       - "./precision_oncology_json_pipeline:/app"
-      - "${PRECISION_ONCOLOGY_INPUT_PATH:-./precision_oncology_json_pipeline/examples/minimal_translume_input.example.json}:/inputs/review_packet.json:ro"
-      - "${PRECISION_ONCOLOGY_OUTPUT_DIR:-./precision_oncology_outputs}:/outputs"
+      - "./data/artifacts:/app/outputs"
 
   dynamic-pathway-analyzer:
     build:
@@ -237,6 +236,7 @@ services:
       DYNAMIC_PATHWAY_GID: ${DYNAMIC_PATHWAY_GID:-1000}
     volumes:
       - "./dynamic_pathway_analyzer:/app"
+      - "./data/artifacts:/app/outputs"
 
 volumes:
   postgres-data:

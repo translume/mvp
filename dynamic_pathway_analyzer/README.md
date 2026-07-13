@@ -103,9 +103,9 @@ For a faster, narrower run:
 export MAX_RESEARCH_PATHWAYS=3
 
 python dynamic_pathway_analyzer.py \
-  state_after_trial_prescreens.json \
+  ./outputs/run_17247c3e6168a540870b0b3dc641/state_after_trial_prescreens.json \
   --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir pathway_output_fast
+  --output-dir ./outputs/pathway_output_comprehensive
 ```
 
 The required `--diagnosis` value is prepended to every model prompt as:
