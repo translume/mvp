@@ -1,0 +1,534 @@
+{
+  "case": {
+    "disease": "dedifferentiated chondrosarcoma",
+    "histology": "dedifferentiated chondrosarcoma",
+    "stage": null,
+    "setting": null,
+    "specimen_site": "chest wall",
+    "specimen_type": "soft-tissue tumor specimen",
+    "tumor_percentage": 80.0,
+    "report_date": "06/05/2024",
+    "prior_therapies": [],
+    "line_of_therapy": null,
+    "performance_status": null,
+    "location": null,
+    "matched_normal_available": false,
+    "missing_context": [
+      "stage",
+      "localized versus recurrent or metastatic setting",
+      "prior therapies",
+      "line of therapy",
+      "performance status",
+      "measurable disease",
+      "biopsy feasibility",
+      "anatomic location beyond chest-wall specimen site"
+    ]
+  },
+  "findings": [
+    {
+      "finding_id": "finding_c2f64b7e5d35eb27d8e9",
+      "gene_or_marker": "CHEK2",
+      "display_label": "CHEK2 c.846+4_846+7del splice-region variant reported as loss of function",
+      "alteration": "c.846+4_846+7del splice-region variant, reported LOF",
+      "alteration_type": "splice-region variant",
+      "molecular_layers": [
+        "DNA"
+      ],
+      "priority": "PRIMARY",
+      "confidence": 1.0,
+      "source_texts": [
+        "GENOMIC VARIANTS Potentially Actionable CHEK2 ¢.846+4_846+7del Splice region variant-LOF",
+        "CHEK2 is a tumor suppressor gene involved in regulating cellular responses to DNA damage including DNA repair, cell cycle arrest, and apopto"
+      ],
+      "source_pages": [
+        1,
+        3
+      ],
+      "missing_validation": [
+        "confirm the applicable transcript and current pathogenicity classification",
+        "confirm functional splice effect",
+        "determine variant allele fraction, zygosity, and second-hit or copy-number context",
+        "consider dedicated germline confirmation and genetic counseling if clinically appropriate"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [
+        "NCT02693535"
+      ],
+      "evidence_status": "reported_but_unconfirmed"
+    },
+    {
+      "finding_id": "finding_c730f2f013b3207c44e0",
+      "gene_or_marker": "CDKN2A",
+      "display_label": "CDKN2A RNA underexpression",
+      "alteration": "underexpression",
+      "alteration_type": "RNA underexpression",
+      "molecular_layers": [
+        "RNA"
+      ],
+      "priority": "PRIMARY",
+      "confidence": 1.0,
+      "source_texts": [
+        "CDKN2A encodes two proteins, p16{INK4a) and p14(ARF), that function in regulating cell growth. The p16(INK4a) protein regulates the cell cyc"
+      ],
+      "source_pages": [
+        3
+      ],
+      "missing_validation": [
+        "confirm RNA result and assay quality",
+        "determine CDKN2A DNA copy-number and sequence status; no definitive deletion is established by RNA underexpression",
+        "assess p16INK4A protein expression and RB-pathway function if clinically relevant"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [
+        "NCT02693535"
+      ],
+      "evidence_status": "reported_but_unconfirmed"
+    },
+    {
+      "finding_id": "finding_85859ee08b906c8bbc56",
+      "gene_or_marker": "MTAP",
+      "display_label": "MTAP DNA copy-number loss with RNA underexpression",
+      "alteration": "DNA copy-number loss and RNA underexpression reported; absolute copy number and functional completeness unknown",
+      "alteration_type": "copy-number loss plus RNA underexpression",
+      "molecular_layers": [
+        "DNA",
+        "RNA"
+      ],
+      "priority": "PRIMARY",
+      "confidence": 1.0,
+      "source_texts": [
+        "MTAP encodes an enzyme involved in polyamine metabolism and the regeneration of methionine and adenine. MTAP is often co-deleted with CDKN2;"
+      ],
+      "source_pages": [
+        3
+      ],
+      "missing_validation": [
+        "confirm absolute MTAP copy number",
+        "distinguish heterozygous loss from homozygous deletion",
+        "confirm MTAP protein loss by an orthogonal method if biomarker eligibility depends on MTAP-null status",
+        "establish whether the RNA result reflects functionally complete MTAP loss"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [
+        "NCT05275478",
+        "NCT05094336"
+      ],
+      "evidence_status": "reported_but_unconfirmed"
+    },
+    {
+      "finding_id": "finding_5ecfc482ad10110a1f71",
+      "gene_or_marker": "AKT2",
+      "display_label": "AKT2 RNA overexpression",
+      "alteration": "overexpressed",
+      "alteration_type": "RNA overexpression",
+      "molecular_layers": [
+        "RNA"
+      ],
+      "priority": "SECONDARY",
+      "confidence": 1.0,
+      "source_texts": [
+        "EXPRESSION DETAILS MCW - Froedtert Hospital Cancer Center £2304021 4 AKT2 Overexpressed"
+      ],
+      "source_pages": [
+        9
+      ],
+      "missing_validation": [
+        "confirm AKT2 protein abundance",
+        "assess downstream pathway activation rather than inferring activation from RNA expression alone"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [],
+      "evidence_status": "reported_but_unconfirmed"
+    },
+    {
+      "finding_id": "finding_eb0e58fdc8cf018ec263",
+      "gene_or_marker": "CDKN2B",
+      "display_label": "Discordant CDKN2B RNA expression annotation",
+      "alteration": "metadata labels overexpression, while the available source text states underexpression",
+      "alteration_type": "discordant RNA expression",
+      "molecular_layers": [
+        "RNA"
+      ],
+      "priority": "SECONDARY",
+      "confidence": 1.0,
+      "source_texts": [
+        "e TEMPUS | RNA Overexpressed ax ul Transcriptome ~) CDKN2B Underexpressed Tumor specimen Soft tissue, chest wall Wisconsin Diagnostics Laboratories - Patho"
+      ],
+      "source_pages": [
+        9
+      ],
+      "missing_validation": [
+        "inspect the original report page to resolve whether CDKN2B was underexpressed or overexpressed",
+        "repeat or orthogonally confirm expression if clinically relevant",
+        "assess p15INK4B protein expression independently of RNA"
+      ],
+      "contradictions": [
+        "The structured display label says CDKN2B overexpressed, but the quoted report text says CDKN2B underexpressed."
+      ],
+      "existing_trial_ids": [],
+      "evidence_status": "discordant"
+    },
+    {
+      "finding_id": "finding_c0606750c532688552ff",
+      "gene_or_marker": "CDKN2B",
+      "display_label": "Low-confidence CDKN2B copy-number loss",
+      "alteration": "copy-number loss",
+      "alteration_type": "copy-number loss",
+      "molecular_layers": [
+        "DNA"
+      ],
+      "priority": "SECONDARY",
+      "confidence": 0.25,
+      "source_texts": [],
+      "source_pages": [],
+      "missing_validation": [
+        "recover source-page evidence",
+        "confirm absolute copy number and assay quality",
+        "distinguish heterozygous loss from homozygous deletion",
+        "reconcile the DNA call with the discordant RNA annotation"
+      ],
+      "contradictions": [
+        "The DNA loss call lacks source documentation and cannot resolve the discordant CDKN2B RNA result."
+      ],
+      "existing_trial_ids": [],
+      "evidence_status": "low_confidence"
+    },
+    {
+      "finding_id": "finding_acc8e46048971ffe0f29",
+      "gene_or_marker": "LYN",
+      "display_label": "Low-confidence LYN copy-number gain",
+      "alteration": "copy-number gain",
+      "alteration_type": "copy-number gain",
+      "molecular_layers": [
+        "DNA"
+      ],
+      "priority": "SECONDARY",
+      "confidence": 0.25,
+      "source_texts": [],
+      "source_pages": [],
+      "missing_validation": [
+        "recover source-page evidence",
+        "confirm focality, absolute copy number, and assay quality",
+        "confirm LYN protein abundance or kinase-pathway activity if biologically relevant"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [],
+      "evidence_status": "low_confidence"
+    },
+    {
+      "finding_id": "finding_ffbad5663b0156bc3d47",
+      "gene_or_marker": "TP53",
+      "display_label": "Low-confidence unspecified TP53 splice-region variant",
+      "alteration": "splice-region variant; exact nucleotide change not supplied",
+      "alteration_type": "splice-region variant",
+      "molecular_layers": [
+        "DNA"
+      ],
+      "priority": "SECONDARY",
+      "confidence": 0.25,
+      "source_texts": [],
+      "source_pages": [],
+      "missing_validation": [
+        "recover the exact variant, transcript, variant allele fraction, and source-page evidence",
+        "confirm pathogenicity and functional splice effect",
+        "determine allele and copy-number context",
+        "consider germline assessment only if the confirmed variant and clinical context warrant it"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [],
+      "evidence_status": "low_confidence"
+    },
+    {
+      "finding_id": "finding_af3bfc827b5260a4277a",
+      "gene_or_marker": "HLA-A, HLA-B, HLA-C",
+      "display_label": "HLA class I genotype status reported without allele results",
+      "alteration": "genotype status; complete allele calls not supplied",
+      "alteration_type": "HLA genotyping",
+      "molecular_layers": [
+        "immune",
+        "DNA"
+      ],
+      "priority": "CONTEXT",
+      "confidence": 1.0,
+      "source_texts": [
+        "human aaieeyce SER: class | (HLA-A, HLA-B, HLA-C) reflects the genotype status of the patient and is assessed from DNA sequencing reads. The: Tenis vice analyzes reads m"
+      ],
+      "source_pages": [
+        4
+      ],
+      "missing_validation": [
+        "obtain complete validated HLA allele calls before any HLA-restricted clinical use"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [],
+      "evidence_status": "reported_but_unconfirmed"
+    },
+    {
+      "finding_id": "finding_787ba774b2e5f4a04696",
+      "gene_or_marker": "RPS15",
+      "display_label": "RPS15 p.Y44C variant of uncertain significance",
+      "alteration": "c.131A>G (p.Y44C), VAF 5.1%, transcript NM_001308226",
+      "alteration_type": "missense variant of uncertain significance",
+      "molecular_layers": [
+        "DNA"
+      ],
+      "priority": "CONTEXT",
+      "confidence": 1.0,
+      "source_texts": [
+        "VARIANTS OF UNKNOWN SIGNIFICANCE (CONTINUED) Alan Linquist | TL-24-AU2DMEAY Gene Mutation effect Variant allele fraction RPS15 ¢.131A>G p.Y44C Missense variant NM_001308226 5.1%"
+      ],
+      "source_pages": [
+        3
+      ],
+      "missing_validation": [
+        "formal current variant classification if a specific clinical question arises"
+      ],
+      "contradictions": [],
+      "existing_trial_ids": [],
+      "evidence_status": "reported"
+    }
+  ],
+  "pathway_hypotheses": [
+    {
+      "pathway_id": "pathway_mtap_metabolism",
+      "title": "MTAP-associated methionine-salvage and methylation vulnerability",
+      "pathway_type": "metabolic",
+      "involved_findings": [
+        "finding_85859ee08b906c8bbc56"
+      ],
+      "patient_specific_basis": "The tumor is reported to have MTAP DNA copy-number loss and RNA underexpression. These are supportive but do not establish homozygous deletion, absent protein, or a functionally MTAP-null state.",
+      "simplified_pathway": [
+        "MTAP normally metabolizes methylthioadenosine within the methionine-salvage pathway.",
+        "Functionally complete MTAP loss can cause methylthioadenosine accumulation and alter methylation-pathway biochemistry.",
+        "That biochemical state may create context-dependent dependence on PRMT5-pathway or related metabolic functions.",
+        "This dependency cannot be inferred in this patient until complete MTAP loss and its biochemical consequences are confirmed."
+      ],
+      "potential_vulnerabilities": [
+        "Investigational dependency associated with confirmed MTAP-null status",
+        "Potential PRMT5-pathway dependence, contingent on complete MTAP loss and relevant pharmacodynamic evidence"
+      ],
+      "potential_bypass_or_escape_routes": [
+        "Residual MTAP activity from heterozygous loss or incomplete protein suppression",
+        "Metabolic compensation that prevents sufficient methylthioadenosine accumulation",
+        "Pathway adaptation downstream of PRMT5 or related methionine-cycle processes",
+        "Intratumoral heterogeneity in MTAP deletion or protein expression"
+      ],
+      "potential_combination_or_recombination_paths": [
+        "Mechanistic and investigational hypothesis: pair an MTAP-context dependency approach with a second intervention only where preclinical evidence demonstrates complementary stress and acceptable therapeutic index; this is not a treatment recommendation.",
+        "Mechanistic and investigational hypothesis: evaluate whether the cell-cycle abnormalities in this case modify MTAP-associated dependency, without assuming synergy from genomic proximity alone."
+      ],
+      "required_companion_markers": [
+        "MTAP absolute copy number and homozygous-deletion status",
+        "MTAP protein expression by a validated assay",
+        "Tumor methylthioadenosine or another validated pharmacodynamic measure",
+        "CDKN2A DNA status to define the neighboring 9p21 locus",
+        "PRMT5 pathway expression or activity where required by the investigational protocol"
+      ],
+      "confirmation_questions": [
+        "Is MTAP loss homozygous, heterozygous, or subclonal?",
+        "Is MTAP protein absent in tumor cells?",
+        "Is there biochemical evidence consistent with functional MTAP loss?",
+        "Do NCT05094336 or NCT05275478 accept the assay method and biomarker definition available for this patient?",
+        "Are disease stage, prior treatment, organ function, and trial-site availability compatible with eligibility?"
+      ],
+      "research_queries": [
+        "MTAP loss biochemical mechanism methylthioadenosine PRMT5 dependency",
+        "MTAP loss metabolomics methylthioadenosine pharmacodynamic biomarkers",
+        "MTAP deletion dedifferentiated chondrosarcoma disease-specific evidence",
+        "MTAP-null combination rationale preclinical evidence",
+        "MTAP-null solid tumors human clinical evidence",
+        "MTAP-null solid tumors current clinical trials",
+        "MTAP loss high-quality translational commentary biomarker validation"
+      ],
+      "caution": "This is a mechanistic, investigational hypothesis rather than a treatment recommendation. DNA copy-number loss, RNA underexpression, homozygous deletion, protein loss, and functional MTAP loss are not interchangeable."
+    },
+    {
+      "pathway_id": "pathway_cell_cycle_9p21",
+      "title": "Unresolved 9p21 cell-cycle suppressor dysregulation",
+      "pathway_type": "cell_cycle",
+      "involved_findings": [
+        "finding_c730f2f013b3207c44e0",
+        "finding_eb0e58fdc8cf018ec263",
+        "finding_c0606750c532688552ff",
+        "finding_85859ee08b906c8bbc56"
+      ],
+      "patient_specific_basis": "CDKN2A RNA underexpression is reported. CDKN2B has contradictory RNA annotation and a low-confidence, undocumented DNA copy-number loss call. MTAP loss may indicate involvement of the neighboring 9p21 region, but it does not prove CDKN2A or CDKN2B deletion.",
+      "simplified_pathway": [
+        "p16INK4A and p15INK4B normally restrain CDK4/6-mediated RB phosphorylation.",
+        "Reduced suppressor function could permit RB-pathway cell-cycle progression.",
+        "CDKN2A RNA underexpression alone does not establish loss of p16 protein or functional RB-pathway dependence.",
+        "The CDKN2B direction of expression and DNA status remain unresolved."
+      ],
+      "potential_vulnerabilities": [
+        "Possible dependence on an intact downstream RB cell-cycle axis, requiring confirmation",
+        "Potential biomarker-defined clinical-trial relevance if a qualifying CDK-pathway alteration is verified"
+      ],
+      "potential_bypass_or_escape_routes": [
+        "RB1 loss or dysfunction",
+        "Cyclin or CDK pathway alterations that bypass p16 or p15 regulation",
+        "Parallel proliferative signaling, potentially including PI3K-AKT activity",
+        "Tumor heterogeneity or preservation of protein despite altered RNA expression"
+      ],
+      "potential_combination_or_recombination_paths": [
+        "Mechanistic and investigational hypothesis: if RB function is retained, study whether confirmed 9p21 suppressor loss and independently demonstrated AKT-pathway activation create parallel cell-cycle and survival dependencies; this is not a treatment recommendation.",
+        "Mechanistic and investigational hypothesis: evaluate MTAP-associated metabolism and 9p21 cell-cycle dysregulation as separate consequences of a possible regional event rather than assuming that one biomarker validates the other."
+      ],
+      "required_companion_markers": [
+        "CDKN2A absolute copy number and sequence status",
+        "p16INK4A protein expression",
+        "CDKN2B absolute copy number",
+        "p15INK4B protein expression",
+        "RB1 genomic and protein status",
+        "RB phosphorylation or another validated RB-pathway activity measure",
+        "CDK4, CDK6, and cyclin-D status"
+      ],
+      "confirmation_questions": [
+        "Does the original report show CDKN2B underexpression or overexpression?",
+        "Is CDKN2A underexpression accompanied by p16 protein loss?",
+        "Are CDKN2A or CDKN2B homozygously deleted?",
+        "Is RB1 retained and functionally intact?",
+        "Does any referenced trial accept RNA underexpression, or does it require a defined DNA or protein alteration?"
+      ],
+      "research_queries": [
+        "CDKN2A underexpression dedifferentiated chondrosarcoma",
+        "CDKN2A protein loss RB pathway biomarker validation",
+        "CDKN2B copy-number loss chondrosarcoma",
+        "CDKN2B RNA expression discordance copy-number loss",
+        "CDKN2A-altered bone soft tissue sarcoma current clinical trials"
+      ],
+      "caution": "RNA underexpression is not equivalent to copy-number loss, homozygous deletion, protein loss, or functional pathway loss. The CDKN2B evidence is discordant and must not be used as a definitive biomarker."
+    },
+    {
+      "pathway_id": "pathway_ddr_checkpoint",
+      "title": "Possible checkpoint and genome-surveillance impairment",
+      "pathway_type": "dna_damage_repair",
+      "involved_findings": [
+        "finding_c2f64b7e5d35eb27d8e9",
+        "finding_ffbad5663b0156bc3d47"
+      ],
+      "patient_specific_basis": "CHEK2 c.846+4_846+7del is reported as a loss-of-function splice-region variant, but transcript, splice effect, zygosity, and second-hit status require confirmation. A separate TP53 splice-region call is low confidence and lacks the exact variant and source documentation.",
+      "simplified_pathway": [
+        "CHEK2 participates in DNA-damage checkpoint signaling and can promote repair, cell-cycle arrest, or apoptosis.",
+        "A functionally inactivating CHEK2 alteration may weaken checkpoint signaling, particularly if both alleles are affected.",
+        "TP53 dysfunction could further impair arrest or apoptosis, but TP53 loss is not established here.",
+        "Neither CHEK2 alteration alone nor the present combination proves homologous-recombination deficiency."
+      ],
+      "potential_vulnerabilities": [
+        "Investigational checkpoint or DNA-damage-response dependence, contingent on functional confirmation",
+        "Potential trial eligibility based on a confirmed CHEK2 pathogenic alteration"
+      ],
+      "potential_bypass_or_escape_routes": [
+        "Retention of a functional CHEK2 allele",
+        "Alternative checkpoint signaling through ATM, ATR, TP53, or related effectors",
+        "Reversion or splice rescue preserving CHEK2 function",
+        "Absence of a broader homologous-recombination-deficient phenotype"
+      ],
+      "potential_combination_or_recombination_paths": [
+        "Mechanistic and investigational hypothesis: evaluate whether confirmed biallelic CHEK2 loss creates a checkpoint dependency that can be paired with a DNA-damaging or checkpoint-directed strategy in an appropriate study; this is not a treatment recommendation.",
+        "Mechanistic and investigational recombination hypothesis: assess CHEK2 status alongside BRCA1, BRCA2, PALB2, RAD51 function, and genomic HRD measures before proposing any homologous-recombination interaction."
+      ],
+      "required_companion_markers": [
+        "CHEK2 transcript-specific pathogenicity and functional splice evidence",
+        "CHEK2 variant allele fraction, second-hit status, and copy number",
+        "BRCA1 and BRCA2 status",
+        "PALB2 status",
+        "ATM and ATR pathway status",
+        "RAD51 functional readout where appropriate",
+        "genomic scar or other validated HRD assessment",
+        "exact TP53 variant and p53 protein pattern"
+      ],
+      "confirmation_questions": [
+        "Does c.846+4_846+7del disrupt splicing on the clinically relevant CHEK2 transcript?",
+        "Is CHEK2 inactivation monoallelic or biallelic?",
+        "Is the CHEK2 finding somatic or germline?",
+        "Is the TP53 call real and pathogenic?",
+        "Is there independent evidence of homologous-recombination deficiency?",
+        "What current eligibility criteria apply to NCT02693535?"
+      ],
+      "research_queries": [
+        "CHEK2 c.846+4_846+7del biochemical splice mechanism",
+        "CHEK2 loss pharmacodynamic markers DNA damage checkpoint",
+        "CHEK2 alteration dedifferentiated chondrosarcoma disease-specific evidence",
+        "CHEK2 loss combination rationale checkpoint inhibition",
+        "CHEK2 pathogenic variants human therapeutic evidence",
+        "CHEK2-altered solid tumors current clinical trials",
+        "CHEK2 loss high-quality translational commentary actionability"
+      ],
+      "caution": "This is a mechanistic, investigational hypothesis, not a treatment recommendation. CHEK2 loss must not be treated as synonymous with homologous-recombination deficiency, and the TP53 call is presently low confidence."
+    },
+    {
+      "pathway_id": "pathway_survival_kinase",
+      "title": "Exploratory AKT2 and LYN signaling observations",
+      "pathway_type": "signaling",
+      "involved_findings": [
+        "finding_5ecfc482ad10110a1f71",
+        "finding_acc8e46048971ffe0f29"
+      ],
+      "patient_specific_basis": "AKT2 RNA overexpression is documented, while LYN copy-number gain is a low-confidence call without source-page evidence. Neither observation establishes kinase activation.",
+      "simplified_pathway": [
+        "AKT2 can support growth, metabolism, and survival when the pathway is activated.",
+        "LYN can participate in receptor and non-receptor tyrosine-kinase signaling.",
+        "RNA abundance or copy-number gain may not translate into active protein signaling.",
+        "Protein and phosphoprotein evidence is needed before inferring a functional dependency."
+      ],
+      "potential_vulnerabilities": [
+        "Possible AKT-pathway dependence if protein and downstream phosphorylation confirm activation",
+        "Possible LYN-associated signaling dependence only if the gain is validated and kinase activity is demonstrated"
+      ],
+      "potential_bypass_or_escape_routes": [
+        "Parallel PI3K-AKT isoforms or MAPK signaling",
+        "Upstream receptor redundancy",
+        "Lack of protein-level translation from RNA overexpression",
+        "Nonfocal or passenger LYN copy-number gain"
+      ],
+      "potential_combination_or_recombination_paths": [
+        "Mechanistic and investigational hypothesis: if AKT2 activation and an intact RB axis are independently confirmed, evaluate whether survival signaling and cell-cycle progression represent parallel dependencies; this is not a treatment recommendation.",
+        "No LYN combination hypothesis is supportable until the copy-number call and functional activation are confirmed."
+      ],
+      "required_companion_markers": [
+        "AKT2 protein abundance and phosphorylation",
+        "downstream AKT-pathway phosphoproteins",
+        "PIK3CA, PTEN, and upstream receptor status",
+        "LYN absolute copy number and focality",
+        "LYN protein abundance and phosphorylation",
+        "MAPK-pathway activity",
+        "RB1 status for any cell-cycle interaction hypothesis"
+      ],
+      "confirmation_questions": [
+        "Is AKT2 protein increased and phosphorylated?",
+        "Is downstream AKT signaling active?",
+        "Is LYN gain reproducible, focal, and high-level?",
+        "Are either findings clonal and biologically active in the dedifferentiated component?"
+      ],
+      "research_queries": [
+        "AKT2 overexpression dedifferentiated chondrosarcoma",
+        "AKT2 RNA protein concordance solid tumors",
+        "LYN copy-number gain chondrosarcoma",
+        "LYN amplification protein kinase activation"
+      ],
+      "caution": "These findings are exploratory. RNA overexpression and low-confidence copy-number gain do not establish pathway activation or clinical actionability."
+    }
+  ],
+  "excluded_or_unreliable_sections": [
+    "Duplicate hypothesis records under artifacts.1.payload were excluded as duplicate model-generated artifacts.",
+    "Existing treatment rankings, therapy-class suggestions, source-selection scores, and biomarker-watch hints were not treated as patient findings or evidence of actionability.",
+    "The cluster of low-confidence TPMT calls was excluded as likely contaminated or malformed graph context: most calls lack source text and pages, several protein positions are incompatible with a credible normalized TPMT protein annotation, and allele configuration is absent.",
+    "The low-confidence HLA-C C*07:02 call was excluded because it lacks source documentation and conflicts with the absence of complete allele results in the supported HLA context finding.",
+    "NCT02725684 was excluded from therapeutic interpretation because the supplied extraction describes an analytical assay-validation study, not a therapeutic efficacy trial.",
+    "NCT04040205 was not assigned to a patient finding because the bundle supplies a trial source but does not establish that this patient's RNA-only or discordant cell-cycle findings satisfy its biomarker criteria.",
+    "Generic technical-limitations entries containing only entity identifiers and boilerplate impact statements were excluded as non-informative.",
+    "Future-dated source-discovery artifacts and source summaries were not used to overwrite the molecular report dated 06/05/2024.",
+    "Analytical sensitivity, assay validation, or source-selection scores were not interpreted as evidence of clinical actionability."
+  ],
+  "global_cautions": [
+    "The diagnosis supplied by the user is dedifferentiated chondrosarcoma; no conflicting diagnosis is present in the discovered bundle.",
+    "No matched normal sample was available. Tumor-only variants cannot be reliably classified as somatic versus germline from this input alone.",
+    "The report validation status is needs_review.",
+    "Stage, disease setting, prior therapy, line of therapy, performance status, and current trial eligibility are missing.",
+    "RNA underexpression, DNA copy-number loss, homozygous deletion, protein loss, and functional pathway loss are distinct states and have not been conflated.",
+    "RNA overexpression and copy-number gain do not by themselves demonstrate protein abundance, phosphorylation, or pathway dependence.",
+    "Existing trial identifiers are preserved only as reported mentions; trial status, cohort availability, geographic access, and patient eligibility require current independent verification.",
+    "A variant of uncertain significance, discordant annotation, or low-confidence unsupported call should not guide anticancer treatment.",
+    "All combination, synthetic-lethal, metabolic, and recombination concepts above are mechanistic and investigational hypotheses, not treatment recommendations."
+  ]
+}

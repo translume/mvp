@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-07-12T18:54:35+00:00",
+  "diagnosis": "dedifferentiated chondrosarcoma",
+  "model": "gpt-5.6-sol",
+  "response_id": "resp_041467aa2064e2fe006a53e21cea0c819688813db20ca90e5e",
+  "reasoning_effort": "high",
+  "web_search_enabled": false,
+  "system_prompt": "/Users/jennab/Desktop/prompts/precision_oncology_json_pipeline/precision_oncology_outputs/run_413db6bd63b56e57045f266ce591/dynamic_pathway_analyzer/fallback-prompt.txt",
+  "system_prompt_sha256": "bdf4153be64aad4e38b2f51090bb6679c15281b7edba4d8d2964ae6fb8f6f37a",
+  "pathway_analysis": "/Users/jennab/Desktop/prompts/precision_oncology_json_pipeline/precision_oncology_outputs/run_413db6bd63b56e57045f266ce591/dynamic_pathway_analyzer/pathway_output/state_after_trial_prescreens.pathway_analysis.md",
+  "pathway_analysis_sha256": "73a8d0aab1d5a4c685c50a4214b315f29b517a2f34cc4dcf37a2212f454037dd",
+  "research_memo": "/Users/jennab/Desktop/prompts/precision_oncology_json_pipeline/precision_oncology_outputs/run_413db6bd63b56e57045f266ce591/dynamic_pathway_analyzer/pathway_output/state_after_trial_prescreens.research_memo.md",
+  "research_memo_sha256": "83dbf12fad234e726116e168eee6f857a5c63634b350f4bc0aee49d077b5058a",
+  "report": "/Users/jennab/Desktop/prompts/precision_oncology_json_pipeline/precision_oncology_outputs/run_413db6bd63b56e57045f266ce591/dynamic_pathway_analyzer/tumor_board_output/onco_board_summar.md",
+  "usage": {
+    "input_tokens": 35557,
+    "input_tokens_details": {
+      "cache_write_tokens": 35554,
+      "cached_tokens": 0
+    },
+    "output_tokens": 14931,
+    "output_tokens_details": {
+      "reasoning_tokens": 3689
+    },
+    "total_tokens": 50488
+  }
+}

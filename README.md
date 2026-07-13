@@ -104,6 +104,38 @@ The host `./precision_oncology_json_pipeline` directory is bind-mounted at
 The service is an independent container and does not start or depend on the
 Translume API, database, search, vLLM, or MIMS services.
 
+## Dynamic pathway analyzer service
+
+The standalone `dynamic_pathway_analyzer` directory is available as a
+persistent Docker Compose command container. Configure `OPENAI_API_KEY` in
+`.env`, then start it with:
+
+```bash
+docker compose up --build -d dynamic-pathway-analyzer
+```
+
+Run a pathway analysis against a JSON file inside the bind-mounted directory:
+
+```bash
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/dynamic_pathway_analyzer.py \
+  /app/state_after_trial_prescreens.json \
+  --diagnosis "dedifferentiated chondrosarcoma" \
+  --output-dir /app/pathway_output
+```
+
+The host `./dynamic_pathway_analyzer` directory is mounted at `/app`, so input,
+source, and generated output files are shared with the container. Configure
+`DYNAMIC_PATHWAY_UID` and `DYNAMIC_PATHWAY_GID` when the host user does not use
+UID/GID `1000`. Stop the service with:
+
+```bash
+docker compose stop dynamic-pathway-analyzer
+```
+
+The analyzer is independent of the Translume application stack. Its live model
+and web-search operations use the OpenAI API and may incur usage charges.
+
 ## MVP invariant
 
 Every clinical statement must be traceable to source report text, a structured artifact, graph/tool/Medea evidence, or a human validation decision.

@@ -40,6 +40,50 @@ Pass `--user pipeline` to `compose exec` so output files use the configured
 host UID/GID. Stop the persistent container with
 `docker compose stop precision-oncology-pipeline`.
 
+The standalone `dynamic_pathway_analyzer` is packaged with
+`docker/dynamic-pathway-analyzer.Dockerfile`. The
+`dynamic-pathway-analyzer` Compose service installs the directory's existing
+`requirements.txt`, bind-mounts the host directory at `/app`, and remains
+running as a command container. It has no dependency on the Translume API,
+database, search, vLLM, or MIMS services.
+
+Start the service with:
+
+```bash
+docker compose up --build -d dynamic-pathway-analyzer
+```
+
+Run the pathway analyzer with:
+
+```bash
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/dynamic_pathway_analyzer.py \
+  /app/state_after_trial_prescreens.json \
+  --diagnosis "dedifferentiated chondrosarcoma" \
+  --output-dir /app/pathway_output
+```
+
+Run the no-web tumor-board synthesis with:
+
+```bash
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/tumor_board_causal_synthesis.py \
+  --pathway-analysis \
+  /app/pathway_output/state_after_trial_prescreens.pathway_analysis.md \
+  --research-memo \
+  /app/pathway_output/state_after_trial_prescreens.research_memo.md \
+  --diagnosis "dedifferentiated chondrosarcoma" \
+  --output-dir /app/tumor_board_output
+```
+
+The service receives `OPENAI_API_KEY`, `OPENAI_MODEL`,
+`OPENAI_NORMALIZER_MODEL`, `MAX_JSON_CHARS`, `MAX_FINDINGS`,
+`MAX_SOURCE_RECORDS`, and `MAX_RESEARCH_PATHWAYS` from Compose. The
+`DYNAMIC_PATHWAY_UID` and `DYNAMIC_PATHWAY_GID` variables control the runtime
+user identity and default to `1000`. Use `--user analyzer` with `compose exec`
+so generated files retain that identity on the host bind mount. Stop the
+container with `docker compose stop dynamic-pathway-analyzer`.
+
 ## Dependency direction
 
 Allowed:

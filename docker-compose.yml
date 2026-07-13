@@ -221,6 +221,23 @@ services:
       - "${PRECISION_ONCOLOGY_INPUT_PATH:-./precision_oncology_json_pipeline/examples/minimal_translume_input.example.json}:/inputs/review_packet.json:ro"
       - "${PRECISION_ONCOLOGY_OUTPUT_DIR:-./precision_oncology_outputs}:/outputs"
 
+  dynamic-pathway-analyzer:
+    build:
+      context: .
+      dockerfile: docker/dynamic-pathway-analyzer.Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6}
+      OPENAI_NORMALIZER_MODEL: ${OPENAI_NORMALIZER_MODEL:-gpt-5.6}
+      MAX_JSON_CHARS: ${MAX_JSON_CHARS:-180000}
+      MAX_FINDINGS: ${MAX_FINDINGS:-40}
+      MAX_SOURCE_RECORDS: ${MAX_SOURCE_RECORDS:-40}
+      MAX_RESEARCH_PATHWAYS: ${MAX_RESEARCH_PATHWAYS:-5}
+      DYNAMIC_PATHWAY_UID: ${DYNAMIC_PATHWAY_UID:-1000}
+      DYNAMIC_PATHWAY_GID: ${DYNAMIC_PATHWAY_GID:-1000}
+    volumes:
+      - "./dynamic_pathway_analyzer:/app"
+
 volumes:
   postgres-data:
   opensearch-data:
