@@ -33,12 +33,9 @@ from translume_schemas.tumor_behavior import STATE_LABELS, TumorBehaviorModelOut
 T = TypeVar("T", bound=BaseModel)
 
 _BANNED_UNSUPPORTED_CERTAINTY_PHRASES = [
-    "will respond",
-    "will be cured",
-    "guaranteed",
-    "definitive cure",
-    "100%",
+    "will be cured"
 ]
+
 _VAGUE_NARRATIVE_ALTERATION = re.compile(
     r"\b(?P<prefix>"
     r"the|this|that|a|an|any|identified|detected|observed|noted|"

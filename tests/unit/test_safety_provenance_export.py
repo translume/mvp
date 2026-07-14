@@ -16,6 +16,7 @@ from translume_core.safety.containment import (
     require_narrative_fact_containment,
     validate_narrative_fact_containment,
 )
+from translume_schemas.decision_brief import OncologistDecisionBrief
 from translume_schemas.export import (
     ClinicalArtifactBundle,
     ClinicalNarrativeCompilerOutput,
@@ -162,6 +163,24 @@ def test_narrative_containment_ignores_vague_alteration_fragments() -> None:
     assert report.unsupported_findings == []
 
 
+def test_narrative_containment_ignores_grammatical_loss_phrase() -> None:
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown=(
+            "The evidence remains subject to loss during review and must be "
+            "confirmed from the source artifacts."
+        ),
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = require_narrative_fact_containment(narrative, bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
+
+
 def test_narrative_containment_rejects_unsupported_anchored_alteration() -> None:
     bundle = _containment_bundle()
     narrative = ClinicalNarrativeCompilerOutput(
@@ -172,6 +191,24 @@ def test_narrative_containment_rejects_unsupported_anchored_alteration() -> None
     )
     report = validate_narrative_fact_containment(narrative, bundle)
     assert "EGFR mutation" in {
+        finding.term for finding in report.unsupported_findings
+    }
+    with pytest.raises(NarrativeContainmentError):
+        require_narrative_fact_containment(narrative, bundle)
+
+
+def test_narrative_containment_rejects_unsupported_anchored_loss() -> None:
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown="CDKN2A loss appears here but is absent from the artifacts.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = validate_narrative_fact_containment(narrative, bundle)
+
+    assert "CDKN2A loss" in {
         finding.term for finding in report.unsupported_findings
     }
     with pytest.raises(NarrativeContainmentError):
@@ -210,6 +247,27 @@ def test_narrative_containment_rejects_unknown_source_artifact_id() -> None:
     )
     with pytest.raises(NarrativeContainmentError):
         require_narrative_fact_containment(narrative, bundle)
+
+
+def test_narrative_containment_accepts_decision_brief_artifact_id() -> None:
+    bundle = _containment_bundle().model_copy(
+        update={
+            "decision_brief": OncologistDecisionBrief.model_construct(
+                artifact_id="artifact_decision_brief"
+            )
+        }
+    )
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown="The decision brief remains subject to clinician review.",
+        source_artifact_ids=["artifact_decision_brief"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = require_narrative_fact_containment(narrative, bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
 
 
 def _planned_artifact_id(user_prompt: str) -> str:

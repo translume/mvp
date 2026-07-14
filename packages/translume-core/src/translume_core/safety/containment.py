@@ -121,6 +121,18 @@ _VAGUE_ALTERATION_ANCHORS = {
     "this",
     "those",
 }
+_GRAMMATICAL_ALTERATION_ANCHORS = frozenset({
+    "at",
+    "by",
+    "for",
+    "from",
+    "in",
+    "of",
+    "on",
+    "to",
+    "with",
+    "without",
+})
 
 
 class NarrativeContainmentError(ValueError):
@@ -301,9 +313,10 @@ def _alteration_phrase_is_specific(term: str) -> bool:
         2. No mutation: Caller-owned values are not mutated.
         3. Specificity: Gene-like, biomarker-like, or assay-like alteration
            phrases remain containment candidates.
-        4. Fragment handling: Determiner-led or modifier-led fragments such as
-           `the mutation`, `This amplification`, and `identified variant` are
-           not treated as specific molecular claims.
+        4. Fragment handling: Determiner-led, modifier-led, and
+           preposition-led fragments such as `the mutation`,
+           `This amplification`, `identified variant`, and `to loss` are not
+           treated as specific molecular claims.
 
     Args:
         term: Candidate alteration phrase matched from narrative text.
@@ -315,7 +328,10 @@ def _alteration_phrase_is_specific(term: str) -> bool:
     if not tokens:
         return False
     anchor = _normalize_term(tokens[0])
-    return anchor not in _VAGUE_ALTERATION_ANCHORS
+    non_specific_anchors = (
+        _VAGUE_ALTERATION_ANCHORS | _GRAMMATICAL_ALTERATION_ANCHORS
+    )
+    return anchor not in non_specific_anchors
 
 
 def _term_is_allowed(
@@ -357,6 +373,7 @@ def _source_artifact_ids_from_bundle(bundle: ClinicalArtifactBundle) -> list[str
         bundle.sankey,
         bundle.confirmatory,
         bundle.tumor_behavior,
+        bundle.decision_brief,
     ):
         artifact_id = getattr(artifact, "artifact_id", None)
         if artifact_id:
