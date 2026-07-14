@@ -209,7 +209,9 @@ gradio-up: check-vllm-model check-ui-dockerfile prepare-full-stack
 	$(MAKE) wait-foundation-services
 	$(MAKE) init-postgres
 	$(MAKE) init-opensearch
-	$(COMPOSE) --profile gpu --profile docling up --build -d
+	$(COMPOSE) --profile gpu --profile docling up --build -d \
+		precision-oncology-pipeline dynamic-pathway-analyzer \
+		translume-api translume-ui
 	$(MAKE) wait-ui
 	@echo ""
 	@echo "Translume Gradio UI is ready here:"
@@ -224,7 +226,9 @@ gradio-up: check-vllm-model check-ui-dockerfile prepare-full-stack
 gradio-rebuild: check-vllm-model check-ui-dockerfile
 	$(COMPOSE) --profile gpu --profile docling down --remove-orphans
 	$(COMPOSE) --profile gpu --profile docling build --no-cache
-	$(COMPOSE) --profile gpu --profile docling up -d
+	$(COMPOSE) --profile gpu --profile docling up -d \
+		precision-oncology-pipeline dynamic-pathway-analyzer \
+		translume-api translume-ui
 	$(MAKE) wait-ui
 	@echo ""
 	@echo "Translume Gradio UI is ready here:"

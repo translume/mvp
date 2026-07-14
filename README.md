@@ -87,7 +87,7 @@ docker compose up --build -d precision-oncology-pipeline
 
 Set `PRECISION_ONCOLOGY_INPUT_PATH` and
 `PRECISION_ONCOLOGY_OUTPUT_DIR` in `.env` to use other host paths. For a
-cost-controlled live run, also set `OPENAI_API_KEY`, then execute:
+cost-controlled live run, also set `DOWNSTREAM_OPENAI_API_KEY`, then execute:
 
 ```bash
 docker compose exec --user pipeline precision-oncology-pipeline \
@@ -107,8 +107,8 @@ Translume API, database, search, vLLM, or MIMS services.
 ## Dynamic pathway analyzer service
 
 The standalone `dynamic_pathway_analyzer` directory is available as a
-persistent Docker Compose command container. Configure `OPENAI_API_KEY` in
-`.env`, then start it with:
+persistent Docker Compose command container. Configure
+`DOWNSTREAM_OPENAI_API_KEY` in `.env`, then start it with:
 
 ```bash
 docker compose up --build -d dynamic-pathway-analyzer
@@ -135,6 +135,49 @@ docker compose stop dynamic-pathway-analyzer
 
 The analyzer is independent of the Translume application stack. Its live model
 and web-search operations use the OpenAI API and may incur usage charges.
+
+## UI-driven downstream pathway analysis
+
+The Gradio cockpit accepts a required diagnosis together with the oncology PDF.
+After Translume persists the review packet, it runs the precision-oncology
+pipeline and both dynamic pathway-analysis stages through internal services.
+The cockpit then displays the pathway analysis, research memo, and tumor-board
+causal summary in its **Pathway analysis** tab.
+
+Artifacts are isolated below `data/artifacts/<session_id>/`. The precision
+pipeline writes its `run_<id>` directory under `precision_oncology_outputs`,
+then the pathway and tumor-board outputs are written beneath the same session
+directory. The UI and external callers must use the Translume API; neither is
+given Docker-socket access or a direct command-execution interface.
+
+Start the full workflow services with:
+
+```bash
+make gradio-up
+```
+
+Set `DOWNSTREAM_OPENAI_API_KEY` for the downstream model calls. The defaults
+for internal runner URLs and timeouts are documented in `.env.example`. This
+target starts the precision-oncology and dynamic-pathway runners alongside the
+API and UI. Do not set `OPENAI_API_KEY`; demo and production API containers
+reject remote-provider credentials.
+
+### Structured-output request budgets
+
+The local vLLM workflow bounds every structured response with
+`VLLM_STRUCTURED_OUTPUT_MAX_TOKENS`. Report extraction additionally uses
+`REPORT_EXTRACTION_BATCH_MAX_CHUNKS` page-ordered chunks per call and
+`REPORT_EXTRACTION_MAX_TOKENS` output tokens. The defaults process every
+retrieved chunk in five-chunk batches, then merge the validated outputs; they
+do not discard source pages to shorten a prompt.
+
+### Pathway-source availability
+
+`pathway_context` uses Reactome, PathwayCommons, and KEGG. If an external
+source is temporarily unavailable, its status, source name, HTTP status, and
+reason are preserved as unavailable-source evidence while the remaining
+pathway sources continue. At least one pathway source must return real output;
+otherwise processing fails without fabricating pathway evidence.
 
 ## MVP invariant
 
@@ -310,6 +353,14 @@ download controls, and the distinction between the full provisioned snapshot
 and the DepMap resource currently used for automatic report enrichment.
 
 Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, `trial_context_review`, `therapy_context`, `resistance_mechanism_context`, `biomarker_retesting_context`, `guideline_context`, `clinical_trial_context`, `lineage_transformation_context`, and `recent_therapy_agent_backfill_context`.
+
+When current-case MIMS evidence is available, tumor-behavior output must cite at
+least one current-case OptimusKG, ToolUniverse, or Medea artifact/node/edge ID.
+Free-text Medea hypotheses are evidence content, not prompt-side citation IDs.
+If a local structured-model response omits valid support, Translume sends one
+constrained correction request containing only the valid current-case IDs. A
+second omission fails explicitly; the workflow never fabricates MIMS support or
+silently weakens the validation requirement.
 
 ## Human validation-card workflow
 

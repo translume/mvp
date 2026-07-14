@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 import pytest
 
 from translume_core.compiler.structured_model_artifacts import (
     StructuredArtifactGenerationError,
+    compact_tumor_behavior_inputs_for_prompt,
     generate_claim_evidence_with_model,
     generate_mechanism_sankey_with_model,
     generate_tumor_behavior_model_with_model,
@@ -833,6 +835,158 @@ async def test_tumor_behavior_repairs_unsupported_support_artifacts() -> None:
     ]
     assert "allowed_supporting_artifact_ids" in provider.user_prompts[1]
     assert "artifact_graph" in provider.user_prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_repairs_missing_required_mims_support() -> None:
+    first_output = _valid_output()
+    first_output["state_evidence"][0]["graph_support"] = []
+    first_output["state_evidence"][0]["tool_support"] = []
+    first_output["state_evidence"][0]["medea_support"] = []
+    first_output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "finding_mtap"
+    ]
+    repaired_output = _valid_output()
+    provider = SequencedTumorBehaviorModelProvider(
+        [first_output, repaired_output]
+    )
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.state_evidence[0].graph_support == [
+        "edge_mtap_prmt5"
+    ]
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+    assert '"required": true' in provider.user_prompts[0]
+    assert "required_mims_support_ids" in provider.user_prompts[1]
+    assert "edge_mtap_prmt5" in provider.user_prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_rejects_repeated_missing_mims_support() -> None:
+    output = _valid_output()
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "finding_mtap"
+    ]
+    provider = SequencedTumorBehaviorModelProvider([output, output])
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="ignored available MIMS evidence support",
+    ):
+        await generate_tumor_behavior_model_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            sankey=_sankey(),
+            confirmatory=_confirmatory(),
+            model_provider=provider,
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_does_not_require_mims_when_none_is_available() -> None:
+    context = _context().model_copy(
+        update={
+            "graph_evidence": GraphEvidenceArtifact(
+                artifact_id="artifact_graph",
+                source_entity_ids=[],
+                nodes=[],
+                edges=[],
+            ),
+            "tool_outputs": [],
+            "medea_reasoning": MedeaReasoningArtifact(
+                artifact_id="artifact_medea",
+                reasoning_mode="bounded_review_support",
+                summary="",
+                supported_hypotheses=[],
+                weakened_hypotheses=[],
+            ),
+        }
+    )
+    output = _valid_output()
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "finding_mtap"
+    ]
+    provider = TumorBehaviorModelProvider(output)
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=context,
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.transition_hypotheses[0].supporting_artifacts == [
+        "finding_mtap"
+    ]
+    assert provider.schema_names == ["TumorBehaviorModelOutput"]
+
+
+def test_tumor_behavior_payload_excludes_free_text_medea_hypotheses() -> None:
+    context = _context().model_copy(
+        update={
+            "medea_reasoning": MedeaReasoningArtifact(
+                artifact_id="artifact_medea",
+                reasoning_mode="bounded_review_support",
+                summary="Medea evidence is available for review.",
+                supported_hypotheses=["M" * 60000],
+                weakened_hypotheses=[],
+            )
+        }
+    )
+
+    payload = compact_tumor_behavior_inputs_for_prompt(
+        context=context,
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+    )
+
+    requirement = payload["mims_support_requirement"]
+    assert requirement["required"] is True
+    assert requirement["allowed_support_ids"] == [
+        "artifact_graph",
+        "artifact_medea",
+        "artifact_tool_literature_validation",
+        "edge_mtap_prmt5",
+        "node_mtap",
+        "node_prmt5",
+    ]
+    assert len(json.dumps(payload, sort_keys=True)) < 40000
 
 
 @pytest.mark.asyncio

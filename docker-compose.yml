@@ -82,6 +82,9 @@ services:
       context: .
       dockerfile: docker/docling.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
+    environment:
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
     ports:
       - "8090:8090"
     healthcheck:
@@ -96,6 +99,8 @@ services:
       dockerfile: docker/optimuskg-service.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
     environment:
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
       OPTIMUSKG_CACHE_DIR: /app/data/optimuskg_cache
       OPTIMUSKG_USE_LCC: ${OPTIMUSKG_USE_LCC:-true}
       OPTIMUSKG_FORCE_DOWNLOAD: ${OPTIMUSKG_FORCE_DOWNLOAD:-false}
@@ -114,6 +119,9 @@ services:
       context: .
       dockerfile: docker/tooluniverse-service.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
+    environment:
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
     ports:
       - "8092:8092"
     healthcheck:
@@ -128,6 +136,8 @@ services:
       dockerfile: docker/medea-service.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
     environment:
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
       MEDEADB_PATH: /app/data/medea_cache/MedeaDB
       MEDEA_REQUIRE_DATABASE: ${MEDEA_REQUIRE_DATABASE:-true}
       MEDEA_DB_MAX_GENE_PAIRS: ${MEDEA_DB_MAX_GENE_PAIRS:-10}
@@ -151,6 +161,10 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
+    environment:
+      # Remote credentials are intentionally scoped to downstream runners.
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
     ports:
       - "8080:8080"
     volumes:
@@ -168,6 +182,10 @@ services:
         condition: service_healthy
       medea-service:
         condition: service_healthy
+      precision-oncology-pipeline:
+        condition: service_healthy
+      dynamic-pathway-analyzer:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5).read()"]
       interval: 15s
@@ -180,10 +198,13 @@ services:
       dockerfile: docker/ui.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
     environment:
-      - TRANSLUME_API_BASE_URL=http://translume-api:8080
-      - TRANSLUME_UI_HOST=0.0.0.0
-      - TRANSLUME_UI_PORT=7860
-      - TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS=3600
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
+      TRANSLUME_API_BASE_URL: http://translume-api:8080
+      TRANSLUME_UI_HOST: 0.0.0.0
+      TRANSLUME_UI_PORT: 7860
+      TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS: 3600
+      TRANSLUME_UI_DOWNSTREAM_TIMEOUT_SECONDS: 7200
     ports:
       - "7860:7860"
     depends_on:
@@ -200,6 +221,9 @@ services:
       context: .
       dockerfile: docker/worker.Dockerfile
     env_file: ${TRANSLUME_ENV_FILE:-.env}
+    environment:
+      OPENAI_API_KEY: ""
+      DOWNSTREAM_OPENAI_API_KEY: ""
     depends_on:
       postgres:
         condition: service_healthy
@@ -211,21 +235,27 @@ services:
       context: .
       dockerfile: docker/precision-oncology-pipeline.Dockerfile
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ${DOWNSTREAM_OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
       OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-medium}
       PRECISION_ONCOLOGY_UID: ${PRECISION_ONCOLOGY_UID:-1000}
       PRECISION_ONCOLOGY_GID: ${PRECISION_ONCOLOGY_GID:-1000}
+      PIPELINE_ARTIFACT_ROOT: /app/outputs
     volumes:
       - "./precision_oncology_json_pipeline:/app"
       - "./data/artifacts:/app/outputs"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8094/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
 
   dynamic-pathway-analyzer:
     build:
       context: .
       dockerfile: docker/dynamic-pathway-analyzer.Dockerfile
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ${DOWNSTREAM_OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6}
       OPENAI_NORMALIZER_MODEL: ${OPENAI_NORMALIZER_MODEL:-gpt-5.6}
       MAX_JSON_CHARS: ${MAX_JSON_CHARS:-180000}
@@ -234,9 +264,16 @@ services:
       MAX_RESEARCH_PATHWAYS: ${MAX_RESEARCH_PATHWAYS:-5}
       DYNAMIC_PATHWAY_UID: ${DYNAMIC_PATHWAY_UID:-1000}
       DYNAMIC_PATHWAY_GID: ${DYNAMIC_PATHWAY_GID:-1000}
+      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-medium}
+      PIPELINE_ARTIFACT_ROOT: /app/outputs
     volumes:
       - "./dynamic_pathway_analyzer:/app"
       - "./data/artifacts:/app/outputs"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8095/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
 
 volumes:
   postgres-data:

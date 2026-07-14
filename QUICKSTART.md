@@ -19,6 +19,8 @@ If `uv` is missing:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source "$HOME/.local/bin/env"
+
+export COMPOSE_PROFILES=gpu,docling
 ```
 
 ## 2. Install the host-side CLI and test dependencies
@@ -147,6 +149,11 @@ Do not set real remote-model credentials in this shell or `.env`. Clear inherite
 unset OPENAI_API_KEY OPENROUTER_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY GOOGLE_API_KEY AZURE_OPENAI_API_KEY AZURE_OPENAI_ENDPOINT NVIDIA_API_KEY NVIDIA_API_BASE
 ```
 
+For the optional downstream oncology analysis, set
+`DOWNSTREAM_OPENAI_API_KEY` instead. Compose maps it only into the two
+downstream runner containers, so the demo-mode Translume API retains its
+local-vLLM-only credential policy.
+
 Load `.env` for host-side CLI commands:
 
 ```bash
@@ -177,30 +184,21 @@ Fix the first reported error instead of disabling a required service.
 
 ## 7. Start the real MVP stack
 
-The command below intentionally starts one GPU-backed vLLM service. It does not start the unused `vllm-docling` or worker services.
+Use the root Makefile to provision required data, start the foundation
+services, initialize persistence, and launch the UI workflow services.
 
 ```bash
-export COMPOSE_PROFILES=gpu,docling
-
-docker compose up --build -d --wait --wait-timeout 1800 \
-  postgres \
-  opensearch \
-  vllm-clinical \
-  docling-service \
-  optimuskg-service \
-  tooluniverse-service \
-  medea-service \
-  translume-api \
-  translume-ui
+make gradio-up
 ```
 
 Check container state:
 
 ```bash
-docker compose ps
+make gradio-status
 ```
 
-Initialize and verify persistence through host-accessible endpoints:
+`make gradio-up` initializes Postgres and OpenSearch. Verify persistence
+through host-accessible endpoints:
 
 ```bash
 OPENSEARCH_URL="$OPENSEARCH_PUBLIC_URL" uv run python scripts/init_opensearch.py

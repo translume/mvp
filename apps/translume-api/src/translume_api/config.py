@@ -47,6 +47,9 @@ class Settings(BaseModel):
     vllm_base_url: str = "http://vllm:8000/v1"
     vllm_model: str = ""
     vllm_timeout_seconds: float = 240.0
+    vllm_structured_output_max_tokens: int = Field(default=3000, ge=1)
+    report_extraction_max_tokens: int = Field(default=2500, ge=1)
+    report_extraction_batch_max_chunks: int = Field(default=5, ge=1)
     prompts_root: Path = Path("configs/prompts")
     require_local_vllm: bool = True
     enable_provider_cache: bool = True
@@ -56,6 +59,9 @@ class Settings(BaseModel):
     async_stage_latency_budget_seconds: float | None = None
     decision_brief_stage_latency_budget_seconds: float | None = None
     stage_latency_budgets_seconds: dict[str, float] = Field(default_factory=dict)
+    precision_oncology_service_url: str = "http://precision-oncology-pipeline:8094"
+    dynamic_pathway_service_url: str = "http://dynamic-pathway-analyzer:8095"
+    downstream_timeout_seconds: float = 7200.0
 
 
 def get_settings() -> Settings:
@@ -122,6 +128,15 @@ def get_settings() -> Settings:
         vllm_base_url=os.getenv("VLLM_BASE_URL", "http://vllm:8000/v1"),
         vllm_model=os.getenv("VLLM_MODEL", ""),
         vllm_timeout_seconds=float(os.getenv("VLLM_TIMEOUT_SECONDS", "240")),
+        vllm_structured_output_max_tokens=int(
+            os.getenv("VLLM_STRUCTURED_OUTPUT_MAX_TOKENS", "3000")
+        ),
+        report_extraction_max_tokens=int(
+            os.getenv("REPORT_EXTRACTION_MAX_TOKENS", "2500")
+        ),
+        report_extraction_batch_max_chunks=int(
+            os.getenv("REPORT_EXTRACTION_BATCH_MAX_CHUNKS", "5")
+        ),
         prompts_root=Path(os.getenv("TRANSLUME_PROMPTS_ROOT", "configs/prompts")),
         require_local_vllm=os.getenv(
             "TRANSLUME_REQUIRE_LOCAL_VLLM",
@@ -150,6 +165,17 @@ def get_settings() -> Settings:
         ),
         stage_latency_budgets_seconds=_parse_latency_budget_map(
             os.getenv("TRANSLUME_STAGE_LATENCY_BUDGETS_SECONDS", "")
+        ),
+        precision_oncology_service_url=os.getenv(
+            "PRECISION_ONCOLOGY_SERVICE_URL",
+            "http://precision-oncology-pipeline:8094",
+        ),
+        dynamic_pathway_service_url=os.getenv(
+            "DYNAMIC_PATHWAY_SERVICE_URL",
+            "http://dynamic-pathway-analyzer:8095",
+        ),
+        downstream_timeout_seconds=float(
+            os.getenv("TRANSLUME_DOWNSTREAM_TIMEOUT_SECONDS", "7200")
         ),
     )
 

@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY dynamic_pathway_analyzer/requirements.txt /tmp/requirements.txt
+COPY dynamic_pathway_analyzer/dynamic_pathway_runner.py /app/
 COPY docker/dynamic-pathway-analyzer-entrypoint.sh \
     /usr/local/bin/dynamic-pathway-analyzer-entrypoint
 
@@ -14,4 +15,4 @@ RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt \
     && chmod 0755 /usr/local/bin/dynamic-pathway-analyzer-entrypoint
 
 ENTRYPOINT ["dynamic-pathway-analyzer-entrypoint"]
-CMD ["sleep", "infinity"]
+CMD ["python", "-m", "uvicorn", "dynamic_pathway_runner:app", "--host", "0.0.0.0", "--port", "8095"]

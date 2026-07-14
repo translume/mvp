@@ -17,3 +17,4 @@ from translume_schemas.provenance import *
 from translume_schemas.ledger import *
 from translume_schemas.export import *
 from translume_schemas.session import *
+from translume_schemas.downstream import *

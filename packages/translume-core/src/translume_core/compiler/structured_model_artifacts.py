@@ -55,7 +55,7 @@ _MAX_PROMPT_TOOL_OUTPUTS = 8
 _MAX_PROMPT_TOOL_EVIDENCE_ITEMS = 5
 _MAX_PROMPT_EVIDENCE_ITEM_FIELDS = 6
 _MAX_PROMPT_RETRIEVED_CHUNKS = 20
-_REPORT_EXTRACTION_BATCH_MAX_CHUNKS = 20
+_REPORT_EXTRACTION_BATCH_MAX_CHUNKS = 5
 _REPORT_EXTRACTION_CRITICAL_CHUNK_MIN_SCORE = 25
 _MAX_PROMPT_SOURCE_TEXT_CHARS = 700
 _MAX_PROMPT_SUMMARY_CHARS = 1200
@@ -118,6 +118,8 @@ _MAX_PROMPT_TUMOR_INPUT_SANKEY_LINKS = 10
 _MAX_PROMPT_TUMOR_INPUT_CONFIRMATORY_TESTS = 4
 _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS = 140
 _MAX_PROMPT_TUMOR_INPUT_SUMMARY_CHARS = 360
+_MAX_PROMPT_TUMOR_SUPPORT_ID_CHARS = 160
+_MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS = 40000
 _MAX_PROMPT_NARRATIVE_FINDINGS = 6
 _MAX_PROMPT_NARRATIVE_AXES = 3
 _MAX_PROMPT_NARRATIVE_MATRIX_ROWS = 2
@@ -184,6 +186,7 @@ async def generate_report_extraction_with_model(
     model_name: str,
     prompts_root: Path,
     created_at: datetime,
+    batch_max_chunks: int = _REPORT_EXTRACTION_BATCH_MAX_CHUNKS,
 ) -> StructuredArtifactResult[ReportExtractionOutput]:
     """Generate source-grounded ReportExtractionOutput through local vLLM.
 
@@ -204,7 +207,10 @@ async def generate_report_extraction_with_model(
     """
     source_chunks = _require_retrieved_source_chunks(retrieved_chunks)
     planned_artifact_id = _artifact_id(source_file_id, "ReportExtractionOutput")
-    prompt_batches = _plan_report_extraction_prompt_batches(source_chunks)
+    prompt_batches = _plan_report_extraction_prompt_batches(
+        source_chunks,
+        batch_max_chunks=batch_max_chunks,
+    )
     batch_artifacts: list[ReportExtractionOutput] = []
     for batch_index, prompt_chunks in enumerate(prompt_batches):
         payload = {
@@ -272,7 +278,11 @@ async def generate_report_extraction_with_model(
         schema_name="ReportExtractionOutput",
         model_name=model_name,
         prompt_text=json.dumps(
-            _report_extraction_planner_summary(source_chunks, prompt_batches),
+            _report_extraction_planner_summary(
+                source_chunks,
+                prompt_batches,
+                batch_max_chunks=batch_max_chunks,
+            ),
             sort_keys=True,
         ),
         schema_json=ReportExtractionOutput.model_json_schema(),
@@ -709,6 +719,7 @@ async def generate_tumor_behavior_model_with_model(
             sankey=sankey,
             confirmatory=confirmatory,
         )
+        required_mims_support_ids = _available_mims_support_ids(context)
         allowed_evidence_ids = _tumor_behavior_allowed_evidence_ids(
             context=context,
             phenotype=phenotype,
@@ -725,6 +736,7 @@ async def generate_tumor_behavior_model_with_model(
                 error=error,
                 case_terms=case_terms,
                 allowed_evidence_ids=allowed_evidence_ids,
+                required_mims_support_ids=required_mims_support_ids,
             ),
             source_artifact_ids=source_artifact_ids,
             source_chunk_ids=_context_source_chunk_ids(context),
@@ -941,14 +953,82 @@ def _is_missing_or_speculative_class(value: str) -> bool:
 
 
 def _mims_evidence_available(context: EvidenceContextBundle) -> bool:
-    return bool(
-        context.graph_evidence.edges
-        or context.graph_evidence.nodes
-        or context.tool_outputs
-        or context.medea_reasoning.summary.strip()
-        or context.medea_reasoning.supported_hypotheses
-        or context.medea_reasoning.weakened_hypotheses
-    )
+    """Return whether the case has valid MIMS support identifiers.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same availability result.
+        2. No mutation: Does not mutate the evidence context.
+        3. Evidence scope: Counts only graph, tool, or Medea evidence present in
+           the current case.
+
+    Args:
+        context: Current evidence context bundle.
+
+    Returns:
+        Whether one or more MIMS support identifiers are available.
+    """
+    return bool(_available_mims_support_ids(context))
+
+
+def _available_mims_support_ids(context: EvidenceContextBundle) -> list[str]:
+    """Return sorted current-case MIMS identifiers valid for direct citation.
+
+    Acceptance criteria:
+        1. Determinism: Same context returns the same sorted identifiers.
+        2. No mutation: Does not mutate the evidence context or nested values.
+        3. Evidence scope: Includes graph IDs only with graph evidence, tool IDs
+           only for current tool outputs, and the Medea artifact ID only with
+           Medea content.
+        4. Validation: Excludes free-text Medea hypotheses and oversized IDs
+           that are not safe prompt-side citations.
+
+    Args:
+        context: Current evidence context bundle.
+
+    Returns:
+        Sorted direct identifiers that the tumor-behavior model may cite as
+        MIMS support.
+    """
+    support_ids: set[str] = set()
+    if context.graph_evidence.nodes or context.graph_evidence.edges:
+        support_ids.add(context.graph_evidence.artifact_id)
+        support_ids.update(node.node_id for node in context.graph_evidence.nodes)
+        support_ids.update(edge.edge_id for edge in context.graph_evidence.edges)
+    support_ids.update(tool.artifact_id for tool in context.tool_outputs)
+    medea = context.medea_reasoning
+    if (
+        medea.summary.strip()
+        or medea.supported_hypotheses
+        or medea.weakened_hypotheses
+    ):
+        support_ids.add(medea.artifact_id)
+    return _compact_tumor_support_ids(support_ids)
+
+
+def _compact_tumor_support_ids(values: Sequence[str] | set[str]) -> list[str]:
+    """Return bounded direct support IDs without truncating identifiers.
+
+    Acceptance criteria:
+        1. Determinism: Same input identifiers return the same ordered IDs.
+        2. No mutation: Does not mutate the caller-owned collection.
+        3. Validation: Omits blank and oversized identifiers rather than
+           truncating them into invalid citations.
+        4. Boundedness: Returns no more than the prompt support-ID cap.
+
+    Args:
+        values: Direct current-case support identifiers.
+
+    Returns:
+        Prompt-safe support identifiers.
+    """
+    return sorted(
+        {
+            value
+            for value in values
+            if value.strip()
+            and len(value) <= _MAX_PROMPT_TUMOR_SUPPORT_ID_CHARS
+        }
+    )[:_MAX_PROMPT_SUPPORT_IDS]
 
 
 def _tumor_behavior_allowed_evidence_ids(
@@ -1115,16 +1195,18 @@ def _is_repairable_tumor_behavior_validation_error(error: BaseException) -> bool
 
     Acceptance criteria:
         1. Determinism: Same exception message returns the same boolean.
-        2. Scope: Matches only transition-rationale or transition-support ID
-           validation failures.
+        2. Scope: Matches only transition-rationale, transition-support ID, or
+           missing required MIMS-support validation failures.
         3. No mutation: Does not mutate exception state.
     """
     message = str(error)
-    return _is_transition_rationale_case_terms_error(
-        error
-    ) or (
+    return (
+        _is_transition_rationale_case_terms_error(error)
+        or str(error) == "TumorBehaviorModelOutput ignored available MIMS evidence support"
+        or (
         "transition_hypotheses.supporting_artifacts references unsupported IDs"
         in message
+        )
     )
 
 
@@ -1141,6 +1223,7 @@ def _tumor_behavior_validation_repair_payload(
     error: BaseException,
     case_terms: set[str],
     allowed_evidence_ids: set[str],
+    required_mims_support_ids: Sequence[str],
 ) -> dict[str, object]:
     """Return a tumor-behavior payload with validation repair instructions.
 
@@ -1153,6 +1236,8 @@ def _tumor_behavior_validation_repair_payload(
         4. Safety: Requires concrete case terms and whitelisted support IDs
            without allowing new facts, probabilities, or treatment
            recommendations.
+        5. MIMS support: Requires a direct current-case MIMS identifier when
+           the previous output omitted available MIMS evidence.
     """
     return {
         **dict(payload),
@@ -1166,10 +1251,14 @@ def _tumor_behavior_validation_repair_payload(
                 "in allowed_supporting_artifact_ids. Do not add new facts, "
                 "treatment recommendations, probabilities, or deterministic "
                 "outcome claims. If no allowed support applies to a transition, "
-                "omit that transition."
+                "omit that transition. When required_mims_support_ids is "
+                "non-empty, cite at least one of those IDs in graph_support, "
+                "tool_support, medea_support, or transition "
+                "supporting_artifacts."
             ),
             "allowed_case_terms": sorted(case_terms)[:_MAX_PROMPT_SUPPORT_IDS],
             "allowed_supporting_artifact_ids": sorted(allowed_evidence_ids),
+            "required_mims_support_ids": list(required_mims_support_ids),
         },
     }
 
@@ -2359,7 +2448,11 @@ def compact_tumor_behavior_inputs_for_prompt(
     Returns:
         JSON-serializable payload for the tumor-behavior structured-output call.
     """
-    return {
+    payload = {
+        "mims_support_requirement": {
+            "required": _mims_evidence_available(context),
+            "allowed_support_ids": _available_mims_support_ids(context),
+        },
         "evidence_context": compact_evidence_context_for_tumor_behavior_prompt(
             context
         ),
@@ -2375,6 +2468,40 @@ def compact_tumor_behavior_inputs_for_prompt(
         ),
         "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
     }
+    return _require_tumor_behavior_payload_bound(payload)
+
+
+def _require_tumor_behavior_payload_bound(
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    """Return a tumor-behavior payload within the configured prompt budget.
+
+    Acceptance criteria:
+        1. Determinism: Same payload returns the same result or error.
+        2. No mutation: Does not mutate the caller-owned payload mapping.
+        3. Validation: Rejects payloads exceeding the hard prompt budget.
+        4. Safety: Does not truncate IDs or evidence text after domain-specific
+           compaction has selected the prompt evidence.
+
+    Args:
+        payload: Fully compacted tumor-behavior prompt payload.
+
+    Returns:
+        Copy of the bounded prompt payload.
+
+    Raises:
+        StructuredArtifactGenerationError: If domain-specific compaction did
+            not produce a payload within the safe prompt budget.
+    """
+    bounded = dict(payload)
+    payload_chars = len(json.dumps(bounded, sort_keys=True))
+    if payload_chars > _MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS:
+        raise StructuredArtifactGenerationError(
+            "TumorBehaviorModelOutput prompt payload exceeds the configured "
+            f"character budget: {payload_chars} > "
+            f"{_MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS}"
+        )
+    return bounded
 
 
 def compact_phenotype_for_prompt(
@@ -5706,6 +5833,8 @@ _CRITICAL_REPORT_SECTION_TERMS = (
 
 def _plan_report_extraction_prompt_batches(
     retrieved_chunks: Sequence[RetrievedDocumentChunk],
+    *,
+    batch_max_chunks: int = _REPORT_EXTRACTION_BATCH_MAX_CHUNKS,
 ) -> list[list[RetrievedDocumentChunk]]:
     """Return report-extraction batches that cover the full report.
 
@@ -5713,14 +5842,16 @@ def _plan_report_extraction_prompt_batches(
         1. Every retrieved source chunk appears in exactly one batch.
         2. Batch order follows report page order so long NGS reports are parsed
            from start to finish.
-        3. No batch exceeds the local-model chunk budget.
+        3. No batch exceeds the positive local-model chunk budget.
         4. Critical NGS sections are tagged, not preferentially dropped.
         5. The function is pure and deterministic.
     """
+    if batch_max_chunks <= 0:
+        raise ValueError("batch_max_chunks must be positive")
     ordered = sorted(retrieved_chunks, key=_retrieved_chunk_page_order)
     batches: list[list[RetrievedDocumentChunk]] = []
-    for index in range(0, len(ordered), _REPORT_EXTRACTION_BATCH_MAX_CHUNKS):
-        batch = ordered[index : index + _REPORT_EXTRACTION_BATCH_MAX_CHUNKS]
+    for index in range(0, len(ordered), batch_max_chunks):
+        batch = ordered[index : index + batch_max_chunks]
         if batch:
             batches.append(batch)
     return batches
@@ -5772,13 +5903,15 @@ def _critical_section_tags(
 def _report_extraction_planner_summary(
     source_chunks: Sequence[RetrievedDocumentChunk],
     prompt_batches: Sequence[Sequence[RetrievedDocumentChunk]],
+    *,
+    batch_max_chunks: int,
 ) -> dict[str, object]:
     """Return prompt-planner metadata for provenance and debugging."""
     return {
         "planner": "full_report_batched_extraction",
         "source_chunks": len(source_chunks),
         "batches": len(prompt_batches),
-        "batch_max_chunks": _REPORT_EXTRACTION_BATCH_MAX_CHUNKS,
+        "batch_max_chunks": batch_max_chunks,
         "pages": sorted({item.chunk.page_start for item in source_chunks}),
         "critical_section_tags": _critical_section_tags(source_chunks),
         "all_source_chunk_ids": [item.chunk.chunk_id for item in source_chunks],

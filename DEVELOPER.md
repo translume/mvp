@@ -35,7 +35,7 @@ docker compose exec --user pipeline precision-oncology-pipeline \
 
 Host input/output paths and container UID/GID are configured by the
 `PRECISION_ONCOLOGY_*` variables documented in `.env.example`. Live runs also
-require `OPENAI_API_KEY`; dry runs do not.
+require `DOWNSTREAM_OPENAI_API_KEY`; dry runs do not.
 Pass `--user pipeline` to `compose exec` so output files use the configured
 host UID/GID. Stop the persistent container with
 `docker compose stop precision-oncology-pipeline`.
@@ -76,13 +76,74 @@ docker compose exec --user analyzer dynamic-pathway-analyzer \
   --output-dir /app/tumor_board_output
 ```
 
-The service receives `OPENAI_API_KEY`, `OPENAI_MODEL`,
+The service receives `DOWNSTREAM_OPENAI_API_KEY` as `OPENAI_API_KEY`, plus
+`OPENAI_MODEL`,
 `OPENAI_NORMALIZER_MODEL`, `MAX_JSON_CHARS`, `MAX_FINDINGS`,
 `MAX_SOURCE_RECORDS`, and `MAX_RESEARCH_PATHWAYS` from Compose. The
 `DYNAMIC_PATHWAY_UID` and `DYNAMIC_PATHWAY_GID` variables control the runtime
 user identity and default to `1000`. Use `--user analyzer` with `compose exec`
 so generated files retain that identity on the host bind mount. Stop the
 container with `docker compose stop dynamic-pathway-analyzer`.
+
+## Downstream pathway-analysis orchestration
+
+Gradio remains an API-only client. The UI submits the PDF to `translume-api`,
+reloads the persisted review packet, then posts the user-entered diagnosis to:
+
+```text
+POST /api/v1/review-packets/{session_id}/downstream-analysis
+```
+
+The API loads the exact packet from Postgres and calls the internal
+`precision-oncology-pipeline` runner at port `8094`. That runner writes the
+packet and executes the existing precision CLI. The API next calls the internal
+`dynamic-pathway-analyzer` runner at port `8095`, which executes both existing
+dynamic analyzer commands and verifies all expected Markdown files.
+
+All artifacts are stored below:
+
+```text
+data/artifacts/<session_id>/
+  translume_review_packet.json
+  precision_oncology_outputs/run_<run_id>/
+  pathway_output_comprehensive/<run_id>/
+  tumor_board_output/<run_id>/
+```
+
+The services share that host directory as `/app/outputs`, but accept only
+validated session and run identifiers. Do not add Docker-socket mounts or let
+the UI execute shell commands. Configure runner URLs and bounded execution
+times through `PRECISION_ONCOLOGY_SERVICE_URL`,
+`DYNAMIC_PATHWAY_SERVICE_URL`, and `TRANSLUME_DOWNSTREAM_TIMEOUT_SECONDS`.
+
+For the integrated UI workflow, use the root Makefile rather than starting the
+four application services manually:
+
+```bash
+make gradio-up
+```
+
+The target starts `precision-oncology-pipeline`, `dynamic-pathway-analyzer`,
+`translume-api`, and `translume-ui` after its existing foundation-service
+startup and initialization steps. The remote credential is mapped only into
+the two runner containers; set `DOWNSTREAM_OPENAI_API_KEY`, not
+`OPENAI_API_KEY`, in `.env`. Use `make gradio-down` to stop the stack.
+
+## Structured-output request budgets
+
+`VLLM_STRUCTURED_OUTPUT_MAX_TOKENS` bounds every local structured-output
+request. `REPORT_EXTRACTION_BATCH_MAX_CHUNKS` and
+`REPORT_EXTRACTION_MAX_TOKENS` bound each page-ordered report-extraction call.
+The extraction planner processes all retrieved chunks and deterministically
+merges the validated batch artifacts, rather than dropping report content.
+
+## Pathway-source availability
+
+The `pathway_context` workflow permits its configured external pathway sources
+to report temporary unavailability. It records the source, HTTP status, and
+reason in the tool artifact, then continues to the remaining sources. The
+workflow requires at least one successful source and fails explicitly if none
+can provide real evidence.
 
 ## Dependency direction
 
@@ -485,6 +546,13 @@ Full path and endpoint details are in
 ## Evidence-derived tumor behavior validation
 
 TumorBehaviorModelOutput is generated through the local vLLM structured-output path and then validated for case-derived evidence support. The fixed state vocabulary is allowed, but selected states, transition hypotheses, rationale, and supporting artifacts must come from the current report extraction, normalized entities, OptimusKG graph evidence, ToolUniverse artifacts, Medea reasoning, molecular phenotype, molecular-fit matrix, mechanism Sankey, and confirmatory testing gaps. Generic hardcoded transitions, unsupported support IDs, transition probabilities, outcome predictions, and treatment-directing language fail the production workflow instead of being returned as a polished review packet.
+
+When the current case contains OptimusKG, ToolUniverse, or Medea evidence, the
+tumor-behavior model must cite at least one valid direct MIMS support ID. The
+prompt exposes bounded artifact/node/edge IDs directly and never uses free-text
+Medea hypotheses as citation IDs. An initial omission receives one constrained
+correction request; a repeated omission fails explicitly rather than fabricating
+evidence or relaxing the requirement.
 
 ## Provenance requirements
 

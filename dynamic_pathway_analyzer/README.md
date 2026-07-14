@@ -65,9 +65,9 @@ usage: dynamic_pathway_analyzer.py [-h]
 
 ```bash
 python dynamic_pathway_analyzer.py \
-  state_after_trial_prescreens.json \
+  ./outputs/run_17247c3e6168a540870b0b3dc641/state_after_trial_prescreens.json \
   --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir pathway_output
+  --output-dir ./outputs/pathway_output_comprehensive
 ```
 
 Complete example with explicit models:
@@ -197,8 +197,8 @@ search tool; the two Markdown documents are its complete evidence boundary.
 
 ```bash
 python tumor_board_causal_synthesis.py \
-  --pathway-analysis ./outputs/pathway_output/state_after_trial_prescreens.pathway_analysis.md \
-  --research-memo ./outputs/pathway_output/state_after_trial_prescreens.research_memo.md \
+  --pathway-analysis ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.pathway_analysis.md \
+  --research-memo ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.research_memo.md \
   --diagnosis "dedifferentiated chondrosarcoma" \
   --output-dir ./outputs/tumor_board_output
 ```
@@ -209,9 +209,9 @@ attachment. A prompt can always be selected explicitly:
 
 ```bash
 python tumor_board_causal_synthesis.py \
-  --pathway-analysis ./outputs/pathway_output/state_after_trial_prescreens.pathway_analysis.md \
-  --research-memo ./outputs/pathway_output/state_after_trial_prescreens.research_memo.md \
-  --system-prompt ./fallback-prompt.md \
+  --pathway-analysis ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.pathway_analysis.md \
+  --research-memo ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.research_memo.md \
+  --system-prompt ./fallback-prompt.txt \
   --diagnosis "dedifferentiated chondrosarcoma" \
   --output-dir ./outputs/tumor_board_output
 ```

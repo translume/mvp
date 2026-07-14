@@ -11,6 +11,8 @@ from typing import Any
 
 import gradio as gr
 
+from translume_schemas.downstream import DownstreamAnalysisResult
+
 from translume_ui.api_client import (
     TranslumeAPIClient,
     TranslumeAPIClientConfig,
@@ -93,6 +95,11 @@ def build_api_client(environment: Mapping[str, str]) -> TranslumeAPIClient:
                 "TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS",
                 DEFAULT_PROCESS_TIMEOUT_SECONDS,
             ),
+            downstream_timeout_seconds=_positive_float_from_environment(
+                environment,
+                "TRANSLUME_UI_DOWNSTREAM_TIMEOUT_SECONDS",
+                7200.0,
+            ),
         )
     )
 
@@ -105,15 +112,21 @@ def export_root_from_environment(environment: Mapping[str, str]) -> Path:
     return Path(tempfile.gettempdir()) / "translume-ui-exports"
 
 
-def process_pdf(file_path: str | None, report_type: str) -> tuple[Any, ...]:
-    """Run the real API workflow and render the exact persisted review packet.
+def process_pdf(
+    file_path: str | None,
+    report_type: str,
+    diagnosis: str,
+) -> tuple[Any, ...]:
+    """Run the persisted review and downstream pathway workflows.
 
     The UI intentionally performs a second API read through the persisted export
-    endpoint after processing. This prevents the cockpit from rendering an
-    unpersisted or locally reconstructed packet.
+    endpoint after processing. It then requests the downstream services through
+    FastAPI, never by invoking Docker or local pipeline commands.
     """
     if not file_path:
         return _empty_process_outputs("Upload a PDF before processing.")
+    if not diagnosis.strip():
+        return _empty_process_outputs("Enter a diagnosis before processing.")
     try:
         client = build_api_client(os.environ)
         processed_packet = client.process_report(Path(file_path), report_type)
@@ -132,7 +145,20 @@ def process_pdf(file_path: str | None, report_type: str) -> tuple[Any, ...]:
     ) as error:
         logger.exception("Report processing could not be rendered in the cockpit")
         return _empty_process_outputs(str(error))
-    return _process_outputs(persisted_packet.session_id, panels)
+    try:
+        downstream = client.run_downstream_analysis(
+            persisted_packet.session_id,
+            diagnosis,
+        )
+    except (OSError, TranslumeUIAPIError, TranslumeUIConfigError, ValueError) as error:
+        logger.exception("Downstream pathway analysis could not be rendered")
+        return _process_outputs(
+            persisted_packet.session_id,
+            panels,
+            None,
+            _error_html(f"Downstream pathway analysis failed: {error}"),
+        )
+    return _process_outputs(persisted_packet.session_id, panels, downstream, "")
 
 
 def submit_validation(
@@ -279,8 +305,12 @@ def build_app() -> gr.Blocks:
                     value="NGS",
                     label="Report type",
                 )
+                diagnosis = gr.Textbox(
+                    label="Diagnosis",
+                    placeholder="e.g. dedifferentiated chondrosarcoma",
+                )
                 run = gr.Button(
-                    "Generate Translume report",
+                    "Generate report and pathway analysis",
                     variant="primary",
                 )
                 case_summary = gr.HTML(
@@ -683,6 +713,23 @@ def build_app() -> gr.Blocks:
                             language="json",
                         )
 
+                    with gr.Tab("Pathway analysis"):
+                        pathway_analysis_markdown = gr.Markdown(
+                            "",
+                            label="Pathway analysis",
+                            sanitize_html=True,
+                        )
+                        research_memo_markdown = gr.Markdown(
+                            "",
+                            label="Research memo",
+                            sanitize_html=True,
+                        )
+                        tumor_board_summary_markdown = gr.Markdown(
+                            "",
+                            label="Tumor board causal summary",
+                            sanitize_html=True,
+                        )
+
         process_outputs = [
             run_status,
             session_state,
@@ -721,10 +768,13 @@ def build_app() -> gr.Blocks:
             provenance_table,
             ledger_table,
             raw_packet,
+            pathway_analysis_markdown,
+            research_memo_markdown,
+            tumor_board_summary_markdown,
         ]
         run.click(
             process_pdf,
-            inputs=[report, report_type],
+            inputs=[report, report_type, diagnosis],
             outputs=process_outputs,
         )
         validate_button.click(
@@ -774,9 +824,14 @@ def main() -> int:
     return 0
 
 
-def _process_outputs(session_id: str, panels: ClinicalPanelData) -> tuple[Any, ...]:
+def _process_outputs(
+    session_id: str,
+    panels: ClinicalPanelData,
+    downstream: DownstreamAnalysisResult | None,
+    downstream_status: str,
+) -> tuple[Any, ...]:
     return (
-        panels.status_markdown,
+        panels.status_markdown + downstream_status,
         session_id,
         panels.case_summary_html,
         panels.decision_snapshot_html,
@@ -816,6 +871,9 @@ def _process_outputs(session_id: str, panels: ClinicalPanelData) -> tuple[Any, .
         panels.provenance_rows,
         panels.ledger_rows,
         panels.raw_json,
+        "" if downstream is None else downstream.pathway_analysis_markdown,
+        "" if downstream is None else downstream.research_memo_markdown,
+        "" if downstream is None else downstream.tumor_board_summary_markdown,
     )
 
 
@@ -859,6 +917,9 @@ def _empty_process_outputs(error_message: str) -> tuple[Any, ...]:
         empty_tables[23],
         empty_tables[24],
         json_error_payload(error_message),
+        "",
+        "",
+        "",
     )
 
 

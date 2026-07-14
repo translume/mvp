@@ -140,6 +140,8 @@ class TranslumeWorkflowConfig:
         require_local_vllm: Whether local vLLM structured outputs are required.
         vllm_model: Model identifier served by local vLLM.
         prompts_root: Directory containing structured-output prompt files.
+        report_extraction_batch_max_chunks: Maximum source chunks per
+            page-ordered report-extraction request.
     """
 
     storage_root: Path
@@ -153,6 +155,7 @@ class TranslumeWorkflowConfig:
     require_local_vllm: bool = True
     vllm_model: str = ""
     prompts_root: Path = Path("configs/prompts")
+    report_extraction_batch_max_chunks: int = 5
     tool_workflows: tuple[str, ...] = (
         "literature_validation",
         "pathway_context",
@@ -312,6 +315,7 @@ async def process_report_pdf(
                 model_name=_require_vllm_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
+                batch_max_chunks=config.report_extraction_batch_max_chunks,
             ),
         )
         report = report_result.artifact

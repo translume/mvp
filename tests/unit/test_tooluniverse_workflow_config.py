@@ -26,6 +26,11 @@ def test_default_tooluniverse_config_covers_required_mvp_workflows() -> None:
     assert set(catalog.required_workflows) == set(REQUIRED_MVP_WORKFLOWS)
     assert set(REQUIRED_MVP_WORKFLOWS) <= set(catalog.workflows)
     pathway_steps = catalog.workflows["pathway_context"]["steps"]
+    assert catalog.workflows["pathway_context"]["minimum_successful_steps"] == 1
+    assert all(
+        step["failure_policy"] == "record_unavailable"
+        for step in pathway_steps
+    )
     pathway_commons_step = next(
         step
         for step in pathway_steps

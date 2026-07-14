@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import sys
 from datetime import date, timedelta
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ REQUIRED_MVP_WORKFLOWS: tuple[str, ...] = (
 )
 MAX_TOOL_QUERY_TERMS = 8
 MAX_GRAPH_QUERY_TERMS = 3
+STEP_FAILURE_POLICIES = frozenset({"fail", "record_unavailable"})
 
 
 class ToolUniverseWorkflowError(ProviderUnavailableError):
@@ -188,6 +190,7 @@ def load_workflow_catalog(path: Path) -> ToolUniverseWorkflowCatalog:
         3. All MVP-required workflows must be configured.
         4. Every workflow must have one or more executable steps.
         5. Every step must name a ToolUniverse tool and argument template.
+        6. Step failure policies and minimum-success requirements are valid.
     """
     if not path.exists():
         raise ToolUniverseWorkflowError(f"ToolUniverse workflow config missing: {path}")
@@ -240,6 +243,24 @@ def validate_workflow_spec(workflow: str, spec: Any) -> None:
             raise ToolUniverseWorkflowError(
                 f"ToolUniverse step required_context must be a string list: {workflow}[{index}]"
             )
+        failure_policy = str(step.get("failure_policy", "fail")).strip()
+        if failure_policy not in STEP_FAILURE_POLICIES:
+            allowed = ", ".join(sorted(STEP_FAILURE_POLICIES))
+            raise ToolUniverseWorkflowError(
+                f"ToolUniverse step has invalid failure_policy: "
+                f"{workflow}[{index}]: {failure_policy!r}; allowed: {allowed}"
+            )
+    minimum_successful_steps = spec.get("minimum_successful_steps", 0)
+    if (
+        not isinstance(minimum_successful_steps, int)
+        or isinstance(minimum_successful_steps, bool)
+        or minimum_successful_steps < 0
+        or minimum_successful_steps > len(steps)
+    ):
+        raise ToolUniverseWorkflowError(
+            "ToolUniverse workflow minimum_successful_steps must be an integer "
+            f"between 0 and {len(steps)}: {workflow}"
+        )
 
 
 def validate_requested_workflows(
@@ -331,7 +352,14 @@ def run_workflow(
     entities: NormalizedEntitySet,
     graph: GraphEvidenceArtifact,
 ) -> ToolRunArtifact:
-    """Execute one configured workflow and normalize real tool outputs."""
+    """Execute one configured workflow and normalize real tool outputs.
+
+    Acceptance criteria:
+        1. Required step failures stop the workflow.
+        2. Optional unavailable steps create explicit evidence and warnings.
+        3. Configured minimum successful steps are enforced.
+        4. Successful tool outputs remain normalized as evidence items.
+    """
     spec = catalog.workflows[workflow]
     context = template_context(entities, graph)
     missing_context = missing_required_context(spec, context)
@@ -343,18 +371,48 @@ def run_workflow(
         )
     evidence_items: list[dict[str, str]] = []
     summaries: list[str] = []
+    warnings: list[str] = []
+    successful_steps = 0
+    unavailable_steps: list[str] = []
     for index, step in enumerate(spec["steps"]):
-        result = run_workflow_step(
-            workflow=workflow,
-            step_index=index,
-            step=step,
-            engine=engine,
-            context=context,
-        )
+        try:
+            result = run_workflow_step(
+                workflow=workflow,
+                step_index=index,
+                step=step,
+                engine=engine,
+                context=context,
+            )
+        except ToolUniverseWorkflowError as error:
+            if (
+                step_failure_policy(step) != "record_unavailable"
+                or not is_external_source_unavailability(error)
+            ):
+                raise
+            unavailable = unavailable_step_evidence_item(
+                workflow=workflow,
+                step_index=index,
+                step=step,
+                error=error,
+            )
+            evidence_items.append(unavailable)
+            warnings.append(unavailable["warning"])
+            summaries.append(unavailable["summary"])
+            unavailable_steps.append(unavailable["tool_name"])
+            continue
         evidence_items.extend(result_to_evidence_items(workflow, index, step, result))
         summary = summary_from_result(result)
         if summary:
             summaries.append(summary)
+        successful_steps += 1
+    required_successes = workflow_minimum_successful_steps(spec)
+    if successful_steps < required_successes:
+        unavailable = ", ".join(unavailable_steps) or "none"
+        raise ToolUniverseWorkflowError(
+            f"ToolUniverse workflow {workflow} requires at least "
+            f"{required_successes} successful source step(s); got "
+            f"{successful_steps}. Unavailable sources: {unavailable}"
+        )
     artifact_id = f"artifact_{uuid5(NAMESPACE_URL, entities.artifact_id + workflow + ':tooluniverse').hex[:16]}"
     return ToolRunArtifact(
         artifact_id=artifact_id,
@@ -362,9 +420,102 @@ def run_workflow(
         input_entity_ids=[entity.entity_id for entity in entities.entities],
         summary="\n".join(summaries).strip(),
         evidence_items=evidence_items,
-        warnings=[],
+        warnings=warnings,
         requires_human_review=True,
     )
+
+
+def step_failure_policy(step: dict[str, Any]) -> str:
+    """Return a validated failure policy for one workflow step.
+
+    Acceptance criteria:
+        1. Missing policy defaults to fail.
+        2. Returned policy is in STEP_FAILURE_POLICIES.
+        3. Invalid policies raise ToolUniverseWorkflowError.
+    """
+    policy = str(step.get("failure_policy", "fail")).strip()
+    if policy not in STEP_FAILURE_POLICIES:
+        raise ToolUniverseWorkflowError(f"invalid ToolUniverse failure policy: {policy!r}")
+    return policy
+
+
+def workflow_minimum_successful_steps(spec: dict[str, Any]) -> int:
+    """Return the minimum number of successful steps required by a workflow.
+
+    Acceptance criteria:
+        1. Missing configuration defaults to zero successful steps.
+        2. Returned value is a nonnegative integer.
+        3. Invalid configuration raises ToolUniverseWorkflowError.
+    """
+    value = spec.get("minimum_successful_steps", 0)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ToolUniverseWorkflowError(
+            "ToolUniverse minimum_successful_steps must be a nonnegative integer"
+        )
+    return value
+
+
+def unavailable_step_evidence_item(
+    *,
+    workflow: str,
+    step_index: int,
+    step: dict[str, Any],
+    error: ToolUniverseWorkflowError,
+) -> dict[str, str]:
+    """Return explicit evidence that an optional external source was unavailable.
+
+    Acceptance criteria:
+        1. Preserves workflow, tool, source, status, and reason.
+        2. Captures an HTTP status code when the provider exposes one.
+        3. Does not fabricate scientific evidence.
+    """
+    tool_name = str(step["tool_name"])
+    reason = str(error)
+    status_code = external_http_status_code(reason)
+    summary = f"{tool_name} unavailable: {reason}"
+    warning = f"external_source_unavailable:{tool_name}:{status_code or 'unknown'}"
+    return {
+        "workflow": workflow,
+        "tool_name": tool_name,
+        "step_index": str(step_index),
+        "status": "unavailable_external_source",
+        "source": tool_name,
+        "http_status": status_code or "unknown",
+        "reason": reason,
+        "summary": summary,
+        "warning": warning,
+    }
+
+
+def is_external_source_unavailability(error: ToolUniverseWorkflowError) -> bool:
+    """Return whether a workflow error represents an unavailable external source.
+
+    Acceptance criteria:
+        1. HTTP, timeout, and connection failures are treated as unavailable.
+        2. Configuration and programming failures remain fatal.
+        3. Same error message returns the same result.
+    """
+    message = str(error).casefold()
+    markers = (
+        "http error",
+        "timed out",
+        "timeout",
+        "failed to connect",
+        "connection error",
+    )
+    return any(marker in message for marker in markers)
+
+
+def external_http_status_code(value: str) -> str | None:
+    """Return the first three-digit HTTP status code in an error message.
+
+    Acceptance criteria:
+        1. Same input returns the same status code or None.
+        2. Does not mutate caller-owned strings.
+        3. Only standalone three-digit status codes are returned.
+    """
+    match = re.search(r"\b([1-5][0-9]{2})\b", value)
+    return match.group(1) if match else None
 
 
 def missing_required_context(

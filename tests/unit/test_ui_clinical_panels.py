@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from translume_schemas.export import ReviewPacketExport
+from translume_schemas.downstream import DownstreamAnalysisResult
 from translume_ui.api_client import (
     TranslumeAPIClient,
     TranslumeAPIClientConfig,
@@ -637,6 +638,7 @@ def test_build_api_client_uses_one_hour_process_timeout_by_default() -> None:
 
     assert client._config.request_timeout_seconds == 120.0
     assert client._config.process_timeout_seconds == 3600.0
+    assert client._config.downstream_timeout_seconds == 7200.0
 
 
 def test_build_api_client_allows_process_timeout_override() -> None:
@@ -693,6 +695,8 @@ def test_gradio_app_exposes_clinical_panel_labels() -> None:
     assert "Case-derived state evidence" in config
     assert "Artifact provenance" in config
     assert "Exact persisted review packet JSON" in config
+    assert "Diagnosis" in config
+    assert "Tumor board causal summary" in config
 
 
 def test_process_handler_renders_persisted_export_not_unpersisted_response(
@@ -723,13 +727,42 @@ def test_process_handler_renders_persisted_export_not_unpersisted_response(
             assert session_id == "session-ui"
             return persisted
 
+        def run_downstream_analysis(
+            self,
+            session_id: str,
+            diagnosis: str,
+        ) -> DownstreamAnalysisResult:
+            assert session_id == "session-ui"
+            assert diagnosis == "Example sarcoma"
+            return DownstreamAnalysisResult.model_validate(
+                {
+                    "session_id": session_id,
+                    "diagnosis": diagnosis,
+                    "precision_run": {
+                        "session_id": session_id,
+                        "run_id": "run-ui",
+                        "run_directory": "session-ui/precision/run-ui",
+                        "trial_prescreens_path": "session-ui/trial.json",
+                    },
+                    "pathway_analysis_markdown": "# Pathway",
+                    "research_memo_markdown": "# Research",
+                    "tumor_board_summary_markdown": "# Tumor board",
+                    "pathway_analysis_path": "session-ui/pathway.md",
+                    "research_memo_path": "session-ui/research.md",
+                    "tumor_board_summary_path": "session-ui/summary.md",
+                }
+            )
+
     monkeypatch.setattr(
         "translume_ui.app.build_api_client",
         lambda _environment: TestOnlyClient(),
     )
     pdf = tmp_path / "report.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    outputs = process_pdf(str(pdf), "NGS")
+    outputs = process_pdf(str(pdf), "NGS", "Example sarcoma")
     assert outputs[1] == "session-ui"
     assert "Persisted disease context" in outputs[2]
     assert "Example sarcoma" not in outputs[2]
+    assert outputs[-3] == "# Pathway"
+    assert outputs[-2] == "# Research"
+    assert outputs[-1] == "# Tumor board"

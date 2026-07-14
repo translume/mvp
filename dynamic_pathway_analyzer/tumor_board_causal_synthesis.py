@@ -212,7 +212,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--output-dir", type=Path, default=Path("tumor_board_output"))
-    parser.add_argument("--output-name", default="onco_board_summar")
+    parser.add_argument("--output-name", default="onco_board_summary")
     parser.add_argument("--model", default=OPENAI_MODEL)
     parser.add_argument(
         "--reasoning-effort",

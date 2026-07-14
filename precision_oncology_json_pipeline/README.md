@@ -171,8 +171,8 @@ Full run:
 
 ```bash
 python precision_oncology_pipeline.py \
-  --input "/path/to/translume_review_packet.json" \
-  --output-dir ./precision_oncology_outputs \
+  --input ./translume_review_packet.json \
+  --output-dir ./outputs/precision_oncology_outputs \
   --model gpt-5.6-luna \
   --reasoning-effort medium
 ```

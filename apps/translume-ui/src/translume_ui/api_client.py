@@ -9,6 +9,7 @@ import httpx
 from pydantic import ValidationError
 
 from translume_schemas.decision_brief import OncologistDecisionBrief
+from translume_schemas.downstream import DownstreamAnalysisResult
 from translume_schemas.export import ReviewPacketExport
 
 
@@ -23,6 +24,7 @@ class TranslumeAPIClientConfig:
     base_url: str
     request_timeout_seconds: float = 120.0
     process_timeout_seconds: float = 3600.0
+    downstream_timeout_seconds: float = 7200.0
 
     def normalized_base_url(self) -> str:
         value = self.base_url.strip().rstrip("/")
@@ -34,6 +36,8 @@ class TranslumeAPIClientConfig:
             raise ValueError("request_timeout_seconds must be positive")
         if self.process_timeout_seconds <= 0:
             raise ValueError("process_timeout_seconds must be positive")
+        if self.downstream_timeout_seconds <= 0:
+            raise ValueError("downstream_timeout_seconds must be positive")
         return value
 
 
@@ -80,6 +84,33 @@ class TranslumeAPIClient:
             response,
             operation="fetch persisted review packet",
         )
+
+    def run_downstream_analysis(
+        self,
+        session_id: str,
+        diagnosis: str,
+    ) -> DownstreamAnalysisResult:
+        """Run downstream pathway analysis for one persisted review packet."""
+        normalized_session_id = _required_identifier(session_id, "session_id")
+        normalized_diagnosis = diagnosis.strip()
+        if not normalized_diagnosis:
+            raise TranslumeUIAPIError("Diagnosis is required")
+        response = self._request(
+            "POST",
+            (
+                "/api/v1/review-packets/"
+                f"{normalized_session_id}/downstream-analysis"
+            ),
+            timeout=self._config.downstream_timeout_seconds,
+            json={"diagnosis": normalized_diagnosis},
+        )
+        payload = _response_json_object(response, operation="run downstream analysis")
+        try:
+            return DownstreamAnalysisResult.model_validate(payload)
+        except ValidationError as error:
+            raise TranslumeUIAPIError(
+                f"Translume API returned invalid downstream analysis: {error}"
+            ) from error
 
     def fetch_decision_brief(self, session_id: str) -> OncologistDecisionBrief:
         """Fetch the exact persisted oncologist decision brief for a session.
