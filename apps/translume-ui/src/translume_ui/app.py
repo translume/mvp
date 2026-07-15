@@ -26,6 +26,7 @@ from translume_ui.panels import (
     build_clinical_panel_data,
     empty_mechanism_figure,
 )
+from translume_ui.session_import import SessionImportError, load_pathway_session_zip
 from translume_ui.styles import TRANSLUME_CSS, header_html
 
 
@@ -159,6 +160,43 @@ def process_pdf(
             _error_html(f"Downstream pathway analysis failed: {error}"),
         )
     return _process_outputs(persisted_packet.session_id, panels, downstream, "")
+
+
+def load_saved_pathway_session(
+    zip_path: str | None,
+) -> tuple[str, str, str, str]:
+    """Load saved pathway artifacts without running backend workflows.
+
+    Acceptance criteria:
+        1. Requires one valid completed-session ZIP.
+        2. Populates only the three Pathway analysis Markdown components.
+        3. Does not call FastAPI, persistence, or model services.
+        4. Returns a visible bounded error when import validation fails.
+    """
+    if not zip_path:
+        return (
+            _error_html("Upload a saved session ZIP before loading."),
+            "",
+            "",
+            "",
+        )
+    try:
+        imported = load_pathway_session_zip(Path(zip_path))
+    except (OSError, SessionImportError, ValueError) as error:
+        logger.exception("Saved pathway session could not be loaded")
+        return _error_html(str(error)), "", "", ""
+    status = (
+        '<div class="translume-status">'
+        f"Loaded saved pathway session <strong>{html.escape(imported.session_id)}</strong> "
+        f"from run <strong>{html.escape(imported.run_id)}</strong>."
+        "</div>"
+    )
+    return (
+        status,
+        imported.pathway_analysis_markdown,
+        imported.research_memo_markdown,
+        imported.tumor_board_summary_markdown,
+    )
 
 
 def submit_validation(
@@ -308,6 +346,20 @@ def build_app() -> gr.Blocks:
                     "Generate report and pathway analysis",
                     variant="primary",
                 )
+                with gr.Accordion("Load completed session", open=False):
+                    session_zip = gr.File(
+                        label="Completed session ZIP",
+                        file_types=[".zip"],
+                        type="filepath",
+                    )
+                    load_session = gr.Button(
+                        "Load saved pathway session",
+                        variant="secondary",
+                    )
+                    session_import_status = gr.HTML(
+                        "",
+                        elem_id="session-import-status",
+                    )
             with gr.Column(scale=9):
                 with gr.Tabs():
                     with gr.Tab("Pathway analysis"):
@@ -765,6 +817,16 @@ def build_app() -> gr.Blocks:
             process_pdf,
             inputs=[report, report_type, diagnosis],
             outputs=process_outputs,
+        )
+        load_session.click(
+            load_saved_pathway_session,
+            inputs=[session_zip],
+            outputs=[
+                session_import_status,
+                pathway_analysis_markdown,
+                research_memo_markdown,
+                tumor_board_summary_markdown,
+            ],
         )
         validate_button.click(
             submit_validation,

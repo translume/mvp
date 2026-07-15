@@ -700,6 +700,10 @@ def test_gradio_app_exposes_clinical_panel_labels() -> None:
     assert "Artifact provenance" in config
     assert "Exact persisted review packet JSON" in config
     assert "Diagnosis" in config
+    assert "Load completed session" in config
+    assert "Completed session ZIP" in config
+    assert "Load saved pathway session" in config
+    assert "session-import-status" in config
     assert "Tumor board causal summary" in config
 
 
@@ -765,7 +769,7 @@ def test_process_handler_renders_persisted_export_not_unpersisted_response(
     pdf.write_bytes(b"%PDF-1.4\n")
     outputs = process_pdf(str(pdf), "NGS", "Example sarcoma")
     assert outputs[0] == "session-ui"
-    assert not any(
+    assert any(
         "Persisted disease context" in output
         for output in outputs
         if isinstance(output, str)

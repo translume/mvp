@@ -144,6 +144,15 @@ pipeline and both dynamic pathway-analysis stages through internal services.
 The cockpit then displays the pathway analysis, research memo, and tumor-board
 causal summary in its **Pathway analysis** tab.
 
+To display a previously completed run without rerunning any service, ZIP one
+`data/artifacts/session_*` directory. In the cockpit sidebar, open **Load
+completed session**, upload the ZIP, and click **Load saved pathway session**.
+The importer reads the pathway analysis, research memo, tumor-board summary,
+and tumor-board manifest directly from one coherent `run_*` artifact set. It
+populates only the **Pathway analysis** tab and does not restore or synthesize
+the clinical-review tabs. Archives with missing, ambiguous, unsafe, empty, or
+hash-mismatched artifacts are rejected.
+
 Artifacts are isolated below `data/artifacts/<session_id>/`. The precision
 pipeline writes its `run_<id>` directory under `precision_oncology_outputs`,
 then the pathway and tumor-board outputs are written beneath the same session

@@ -1,0 +1,10 @@
+{
+  "branch": "main",
+  "commit": "ad8e2be94c5941233dd5778e05327dc7c0e92a8a",
+  "name": "ToolUniverse",
+  "remote_url": "https://github.com/mims-harvard/ToolUniverse.git",
+  "target": "/home/ubuntu/mvp/third_party/upstream/ToolUniverse",
+  "update_mode": "git",
+  "updateable": true,
+  "url": "https://github.com/mims-harvard/ToolUniverse.git"
+}

@@ -1,0 +1,10 @@
+{
+  "branch": "main",
+  "commit": "b4ff6cb24feae527672631e0511508b62987f541",
+  "name": "Medea",
+  "remote_url": "https://github.com/mims-harvard/Medea.git",
+  "target": "/home/ubuntu/mvp/third_party/upstream/Medea",
+  "update_mode": "git",
+  "updateable": true,
+  "url": "https://github.com/mims-harvard/Medea.git"
+}

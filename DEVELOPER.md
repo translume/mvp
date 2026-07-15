@@ -388,6 +388,23 @@ TRANSLUME_UI_PORT=7860
 The live VM validation path runs `scripts/check_ui_health.py` after container
 startup to prove the Gradio app is actually reachable.
 
+### Saved pathway-session ZIP import
+
+`apps/translume-ui/src/translume_ui/session_import.py` is the read-only boundary
+for displaying completed pathway runs. It accepts a ZIP containing a
+`session_*` directory, or that directory's contents at the archive root. The
+importer requires one coherent `run_*` set containing the pathway-analysis
+Markdown, research-memo Markdown, tumor-board Markdown, and tumor-board JSON
+manifest. It validates paths, links, member counts, expanded sizes,
+compression ratios, UTF-8 content, manifest JSON, and declared SHA-256 hashes.
+It reads required members directly and never extracts the archive.
+
+`load_saved_pathway_session()` in `translume_ui.app` binds that importer to the
+sidebar. The callback updates only the three Markdown components in the first
+**Pathway analysis** tab. It does not call FastAPI, persistence, or model
+services and does not reconstruct any clinical-review artifact. Focused tests
+live in `tests/unit/test_ui_session_import.py`.
+
 ## Human validation-card workflow
 
 Human validation is now part of the production MVP workflow. The core pure logic
