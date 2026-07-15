@@ -7,6 +7,24 @@ class LocalVLLMClientError(RuntimeError):
     """Raised when local vLLM cannot produce usable structured output."""
 
 
+class LocalVLLMTruncationError(LocalVLLMClientError):
+    """Raised when vLLM stops structured generation at its token limit.
+
+    Acceptance criteria:
+        1. Carries the server-provided finish reason.
+        2. Reports only content length, never generated clinical content.
+        3. Remains catchable as `LocalVLLMClientError`.
+    """
+
+    def __init__(self, *, finish_reason: str, content_chars: int) -> None:
+        self.finish_reason = finish_reason
+        self.content_chars = content_chars
+        super().__init__(
+            "vLLM structured output was truncated: "
+            f"finish_reason={finish_reason!r}, content_chars={content_chars}"
+        )
+
+
 class LocalVLLMClient:
     def __init__(self, base_url: str, timeout_seconds: float = 120.0) -> None:
         self._base_url = base_url.rstrip("/")
@@ -36,11 +54,21 @@ class LocalVLLMClient:
             raise LocalVLLMClientError(f"vLLM error {response.status_code}: {response.text}")
         data = response.json()
         try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as error:
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
+            finish_reason = choice.get("finish_reason")
+        except (AttributeError, KeyError, IndexError, TypeError) as error:
             raise LocalVLLMClientError("invalid vLLM response shape") from error
+        if finish_reason == "length":
+            content_chars = len(content) if isinstance(content, str) else 0
+            raise LocalVLLMTruncationError(
+                finish_reason=finish_reason,
+                content_chars=content_chars,
+            )
         if isinstance(content, dict):
             return content
+        if not isinstance(content, str):
+            raise LocalVLLMClientError("invalid vLLM response shape")
         import json
         try:
             parsed = json.loads(_strip_json_fence(content))

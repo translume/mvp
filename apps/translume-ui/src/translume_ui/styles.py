@@ -3,6 +3,9 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
+pre {
+  background: #ccc !important;
+}
 
 TRANSLUME_CSS = """
 :root {
@@ -11,10 +14,10 @@ TRANSLUME_CSS = """
   --translume-blue: #2563eb;
   --translume-cyan: #0891b2;
   --translume-teal: #0d9488;
-  --translume-ink: #172033;
+  --translume-ink: #000;
   --translume-muted: #5f6b7a;
-  --translume-line: #dbe4ef;
-  --translume-soft: #f7f9fc;
+  --translume-line: #333;
+  --translume-soft: #333;
   --translume-warning: #9a6700;
   --translume-danger: #b42318;
 }

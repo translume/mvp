@@ -1,0 +1,23 @@
+{
+  "status": "success",
+  "data": {
+    "query": "TP53",
+    "species": "Homo sapiens",
+    "types_searched": "Pathway",
+    "total_results": 1,
+    "results": [
+      {
+        "type": "Pathway",
+        "stId": "R-HSA-000000",
+        "name": "Example pathway",
+        "species": ["Homo sapiens"],
+        "compartments": [],
+        "is_disease": false
+      }
+    ]
+  },
+  "metadata": {
+    "source": "Reactome Content Service - Search",
+    "query": "TP53"
+  }
+}

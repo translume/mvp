@@ -85,6 +85,13 @@ def test_tooluniverse_template_context_bounds_external_queries() -> None:
                 normalized_label="internal tandem duplication",
                 source_artifact_id="artifact_report",
             ),
+            NormalizedEntity(
+                entity_id="entity_copy_loss",
+                entity_type="copy_number_loss",
+                original_text="copy-number loss",
+                normalized_label="copy_number_loss",
+                source_artifact_id="artifact_report",
+            ),
         ],
     )
     graph = GraphEvidenceArtifact(
@@ -115,6 +122,10 @@ def test_tooluniverse_template_context_bounds_external_queries() -> None:
     assert len(context["graph_nodes"]) == 30
     assert context["first_gene"] == "FLT3"
     assert context["first_disease"] == "acute myeloid leukemia"
+    assert context["pathway_genes"] == ["FLT3"]
+    assert "copy_number_loss" not in context["pathway_genes"]
+    assert "acute myeloid leukemia" in context["pathway_terms"]
+    assert "participates_in" not in context["pathway_terms"]
     assert "acute myeloid leukemia" in context["literature_query"]
     assert f"expanded graph term {MAX_GRAPH_QUERY_TERMS - 1}" in context["literature_query"]
     assert f"expanded graph term {MAX_GRAPH_QUERY_TERMS}" not in context["literature_query"]

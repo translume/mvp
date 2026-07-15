@@ -7,15 +7,34 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 _ARTIFACT_ROOT = Path(os.getenv("PIPELINE_ARTIFACT_ROOT", "/app/outputs"))
+_PIPELINE_FAILED_MARKER = "Pipeline failed:"
+_SECRET_PATTERNS = (
+    re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"(?i)\b(Bearer)\s+\S+"),
+    re.compile(r"(?i)\b(api[_-]?key)\s*[=:]\s*\S+"),
+)
+_STAGE_ORDER = (
+    "canonical_input",
+    "hypotheses",
+    "research_plan",
+    "sources",
+    "source_extractions",
+    "source_fit_assessments",
+    "trial_prescreens",
+    "hypothesis_syntheses",
+    "report_draft",
+    "cross_source_synthesis",
+    "validations",
+)
 
 app = FastAPI(title="Precision Oncology Pipeline Runner")
 
@@ -34,6 +53,16 @@ class PrecisionRunResponse(BaseModel):
     run_id: str
     run_directory: str
     trial_prescreens_path: str
+
+
+@dataclass(frozen=True)
+class PipelineFailureDiagnostic:
+    """Bounded, non-sensitive diagnostic for one failed pipeline subprocess."""
+
+    exit_code: int
+    inferred_stage: str | None
+    error: str
+    pydantic_warnings_summarized: bool
 
 
 @app.get("/health")
@@ -79,9 +108,11 @@ def run_precision_pipeline(
         text=True,
     )
     if result.returncode != 0:
+        diagnostic = _pipeline_failure_diagnostic(result, output_root)
+        _persist_failure_diagnostic(diagnostic, session_root, output_root)
         raise HTTPException(
             status_code=422,
-            detail=_command_error("precision-oncology pipeline", result),
+            detail=_command_error("precision-oncology pipeline", diagnostic),
         )
 
     run_directory = _run_directory_from_stdout(result.stdout, output_root)
@@ -89,9 +120,7 @@ def run_precision_pipeline(
     if not trial_prescreens.is_file():
         raise HTTPException(
             status_code=422,
-            detail=(
-                "Precision-oncology pipeline did not produce trial prescreens."
-            ),
+            detail=("Precision-oncology pipeline did not produce trial prescreens."),
         )
     return PrecisionRunResponse(
         session_id=session_id,
@@ -140,6 +169,97 @@ def _relative_path(path: Path) -> str:
     return str(path.resolve().relative_to(_ARTIFACT_ROOT.resolve()))
 
 
-def _command_error(label: str, result: subprocess.CompletedProcess[str]) -> str:
-    detail = result.stderr.strip() or result.stdout.strip() or "no output"
-    return f"{label} failed with exit code {result.returncode}: {detail[:2000]}"
+def _pipeline_failure_diagnostic(
+    result: subprocess.CompletedProcess[str],
+    output_root: Path,
+) -> PipelineFailureDiagnostic:
+    """Extract the final actionable subprocess error without leaking payloads.
+
+    Acceptance criteria:
+        1. Prefers the final `Pipeline failed:` message over preceding warnings.
+        2. Falls back to bounded stderr, then stdout, then `no output`.
+        3. Redacts common API credential shapes.
+        4. Infers the next pipeline stage from the latest checkpoint file.
+        5. Does not mutate the completed process or filesystem.
+    """
+    stderr = result.stderr.strip()
+    stdout = result.stdout.strip()
+    failed_lines = [
+        line.strip() for line in stderr.splitlines() if _PIPELINE_FAILED_MARKER in line
+    ]
+    raw_error = failed_lines[-1] if failed_lines else stderr or stdout or "no output"
+    return PipelineFailureDiagnostic(
+        exit_code=result.returncode,
+        inferred_stage=_infer_failed_stage(output_root),
+        error=_bounded_redacted_text(raw_error, max_chars=2000),
+        pydantic_warnings_summarized=(
+            "Pydantic serializer warnings" in stderr
+            or "PydanticSerializationUnexpectedValue" in stderr
+        ),
+    )
+
+
+def _command_error(label: str, diagnostic: PipelineFailureDiagnostic) -> str:
+    stage = diagnostic.inferred_stage or "unknown"
+    warning_note = (
+        " Pydantic serializer warnings were omitted."
+        if diagnostic.pydantic_warnings_summarized
+        else ""
+    )
+    return (
+        f"{label} failed with exit code {diagnostic.exit_code} "
+        f"during stage {stage}: {diagnostic.error}{warning_note}"
+    )
+
+
+def _bounded_redacted_text(value: str, *, max_chars: int) -> str:
+    """Return whitespace-normalized, secret-redacted text bounded from the tail."""
+    redacted = value
+    for pattern in _SECRET_PATTERNS:
+        redacted = pattern.sub(
+            lambda match: (
+                f"{match.group(1)} [REDACTED]" if match.lastindex else "[REDACTED]"
+            ),
+            redacted,
+        )
+    normalized = " ".join(redacted.split())
+    if len(normalized) <= max_chars:
+        return normalized
+    return f"...{normalized[-(max_chars - 3) :]}"
+
+
+def _infer_failed_stage(output_root: Path) -> str | None:
+    run_directory = _latest_run_directory(output_root)
+    if run_directory is None:
+        return None
+    completed = {
+        path.stem.removeprefix("state_after_")
+        for path in run_directory.glob("state_after_*.json")
+        if path.is_file()
+    }
+    for index, stage in enumerate(_STAGE_ORDER[:-1]):
+        if stage in completed and _STAGE_ORDER[index + 1] not in completed:
+            return _STAGE_ORDER[index + 1]
+    return None
+
+
+def _latest_run_directory(output_root: Path) -> Path | None:
+    if not output_root.is_dir():
+        return None
+    candidates = [
+        path
+        for path in output_root.glob("run_*")
+        if path.is_dir() and path.parent.resolve() == output_root.resolve()
+    ]
+    return max(candidates, key=lambda path: path.stat().st_mtime, default=None)
+
+
+def _persist_failure_diagnostic(
+    diagnostic: PipelineFailureDiagnostic,
+    session_root: Path,
+    output_root: Path,
+) -> None:
+    """Atomically persist a bounded diagnostic within the authorized session."""
+    run_directory = _latest_run_directory(output_root)
+    destination = (run_directory or session_root) / "pipeline_failure.json"
+    _write_json(destination, asdict(diagnostic))

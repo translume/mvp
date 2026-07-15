@@ -4,10 +4,12 @@ import importlib
 import json
 import re
 import sys
+from collections.abc import Mapping
 from datetime import date, timedelta
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid5
 
 from translume_adapters.errors import ProviderUnavailableError
@@ -36,6 +38,25 @@ STEP_FAILURE_POLICIES = frozenset({"fail", "record_unavailable"})
 
 class ToolUniverseWorkflowError(ProviderUnavailableError):
     """Raised when ToolUniverse cannot execute a real configured workflow."""
+
+
+class LocalToolOverride(Protocol):
+    """Generic exact-name local tool route owned by the governed runtime."""
+
+    tool_name: str
+
+    def run(
+        self,
+        *,
+        arguments: Mapping[str, Any],
+        context: Mapping[str, Any],
+        use_cache: bool,
+        validate: bool,
+    ) -> Any: ...
+
+    def health_report(self) -> Mapping[str, object]: ...
+
+    def close(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -67,10 +88,15 @@ class ToolUniverseRuntime:
         repo_path: Path,
         workflow_config_path: Path,
         module_names: tuple[str, ...] = ("tooluniverse",),
+        local_tool_overrides: Mapping[str, LocalToolOverride] | None = None,
     ) -> None:
         self._repo_path = repo_path
         self._workflow_config_path = workflow_config_path
         self._module_names = module_names
+        self._local_tool_overrides = MappingProxyType(
+            dict(local_tool_overrides or {})
+        )
+        validate_local_tool_overrides(self._local_tool_overrides)
 
     def health_report(self) -> dict[str, object]:
         """Return real ToolUniverse availability and workflow coverage.
@@ -84,27 +110,70 @@ class ToolUniverseRuntime:
         """
         try:
             catalog = load_workflow_catalog(self._workflow_config_path)
-            tool_names = workflow_tool_names(catalog, catalog.required_workflows)
+            validate_override_names_in_catalog(
+                catalog=catalog,
+                overrides=self._local_tool_overrides,
+            )
+            required_names = workflow_tool_names(
+                catalog,
+                catalog.required_workflows,
+            )
+            vendor_names = vendor_tool_names(
+                required_names,
+                frozenset(self._local_tool_overrides),
+            )
             engine = load_tooluniverse_engine(
                 repo_path=self._repo_path,
                 module_names=self._module_names,
-                tool_names=tool_names,
+                tool_names=vendor_names,
             )
+            vendor_loaded = loaded_tool_names(engine)
+            required_set = set(required_names)
+            local_health = {
+                name: handler.health_report()
+                for name, handler in self._local_tool_overrides.items()
+                if name in required_set
+            }
+            local_loaded = {
+                name
+                for name, report in local_health.items()
+                if report.get("status") == "healthy"
+            }
+            loaded_union = vendor_loaded | local_loaded
+            missing_tools = sorted(required_set - loaded_union)
+            unhealthy_local = sorted(
+                name
+                for name, report in local_health.items()
+                if report.get("status") != "healthy"
+            )
+            runtime_ready = not missing_tools and not unhealthy_local
             return {
                 "vendor_available": True,
                 "workflow_config_valid": True,
+                "runtime_ready": runtime_ready,
                 "configured_workflows": sorted(catalog.workflows),
                 "required_workflows": list(catalog.required_workflows),
-                "loaded_tools": sorted(loaded_tool_names(engine)),
+                "missing_required_workflows": [],
+                "vendor_loaded_tools": sorted(vendor_loaded),
+                "local_tool_overrides": sorted(self._local_tool_overrides),
+                "local_tool_health": local_health,
+                "loaded_tools": sorted(loaded_union),
+                "missing_configured_tools": missing_tools,
                 "error": None,
             }
         except ToolUniverseWorkflowError as error:
             return {
                 "vendor_available": False,
                 "workflow_config_valid": False,
+                "runtime_ready": False,
                 "configured_workflows": [],
                 "required_workflows": list(REQUIRED_MVP_WORKFLOWS),
+                "missing_required_workflows": list(REQUIRED_MVP_WORKFLOWS),
+                "vendor_loaded_tools": [],
+                "local_tool_overrides": sorted(self._local_tool_overrides),
+                "local_tool_health": {},
                 "loaded_tools": [],
+                "missing_configured_tools": [],
                 "error": str(error),
             }
 
@@ -126,9 +195,17 @@ class ToolUniverseRuntime:
             6. Missing configuration and tool execution failures fail loudly.
         """
         catalog = load_workflow_catalog(self._workflow_config_path)
+        validate_override_names_in_catalog(
+            catalog=catalog,
+            overrides=self._local_tool_overrides,
+        )
         requested = tuple(workflows)
         validate_requested_workflows(requested, catalog)
-        tool_names = workflow_tool_names(catalog, requested)
+        configured_names = workflow_tool_names(catalog, requested)
+        tool_names = vendor_tool_names(
+            configured_names,
+            frozenset(self._local_tool_overrides),
+        )
         engine = load_tooluniverse_engine(
             repo_path=self._repo_path,
             module_names=self._module_names,
@@ -141,9 +218,20 @@ class ToolUniverseRuntime:
                 engine=engine,
                 entities=entities,
                 graph=graph,
+                local_tool_overrides=self._local_tool_overrides,
             )
             for workflow in requested
         ]
+
+    def close(self) -> None:
+        """Close each distinct local override exactly once."""
+        seen: set[int] = set()
+        for handler in self._local_tool_overrides.values():
+            identity = id(handler)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            handler.close()
 
 
 def add_tooluniverse_repo_to_path(repo_path: Path) -> None:
@@ -294,6 +382,55 @@ def workflow_tool_names(
     return tuple(names)
 
 
+def validate_local_tool_overrides(
+    overrides: Mapping[str, LocalToolOverride],
+) -> None:
+    """Validate immutable exact-name local dispatch entries.
+
+    Acceptance criteria:
+        1. Names are non-empty and contain no surrounding whitespace.
+        2. Mapping keys exactly match handler tool names.
+        3. Validation performs no I/O and does not mutate the mapping.
+    """
+    for name, handler in overrides.items():
+        if not name or name != name.strip():
+            raise ToolUniverseWorkflowError(
+                f"invalid local override name: {name!r}"
+            )
+        if getattr(handler, "tool_name", None) != name:
+            raise ToolUniverseWorkflowError(
+                "local override key does not match handler.tool_name: "
+                f"{name!r}"
+            )
+
+
+def validate_override_names_in_catalog(
+    *,
+    catalog: ToolUniverseWorkflowCatalog,
+    overrides: Mapping[str, LocalToolOverride],
+) -> None:
+    """Reject local override names absent from governed workflows."""
+    configured = set(
+        workflow_tool_names(catalog, tuple(catalog.workflows))
+    )
+    unknown = sorted(set(overrides) - configured)
+    if unknown:
+        raise ToolUniverseWorkflowError(
+            "local override names are not present in governed workflows: "
+            + ", ".join(unknown)
+        )
+
+
+def vendor_tool_names(
+    configured_names: tuple[str, ...],
+    override_names: frozenset[str],
+) -> tuple[str, ...]:
+    """Return configured names not routed through local overrides."""
+    return tuple(
+        name for name in configured_names if name not in override_names
+    )
+
+
 def load_tooluniverse_engine(
     *,
     repo_path: Path,
@@ -313,6 +450,8 @@ def load_tooluniverse_engine(
     if engine_cls is None:
         raise ToolUniverseWorkflowError("ToolUniverse class is unavailable")
     engine = engine_cls()
+    if not tool_names:
+        return engine
     load_tools = getattr(engine, "load_tools", None)
     if load_tools is None:
         raise ToolUniverseWorkflowError("ToolUniverse.load_tools is unavailable")
@@ -351,6 +490,7 @@ def run_workflow(
     engine: Any,
     entities: NormalizedEntitySet,
     graph: GraphEvidenceArtifact,
+    local_tool_overrides: Mapping[str, LocalToolOverride] | None = None,
 ) -> ToolRunArtifact:
     """Execute one configured workflow and normalize real tool outputs.
 
@@ -382,6 +522,7 @@ def run_workflow(
                 step=step,
                 engine=engine,
                 context=context,
+                local_tool_overrides=local_tool_overrides or {},
             )
         except ToolUniverseWorkflowError as error:
             if (
@@ -613,27 +754,47 @@ def run_workflow_step(
     step: dict[str, Any],
     engine: Any,
     context: dict[str, Any],
+    local_tool_overrides: Mapping[str, LocalToolOverride] | None = None,
 ) -> Any:
-    """Execute one ToolUniverse step through the real engine."""
+    """Execute one step through an exact local route or the real engine."""
     validate_required_context(workflow, step_index, step, context)
     tool_name = str(step["tool_name"]).strip()
     arguments = render_arguments(step.get("arguments", {}), context)
     if bool(step.get("omit_empty", False)):
         arguments = omit_empty_arguments(arguments)
-    function_call = {"name": tool_name, "arguments": arguments}
-    runner = getattr(engine, "run_one_function", None)
-    if runner is None:
-        raise ToolUniverseWorkflowError("ToolUniverse.run_one_function is unavailable")
-    try:
-        result = runner(
-            function_call,
-            use_cache=bool(step.get("use_cache", False)),
-            validate=bool(step.get("validate", True)),
-        )
-    except Exception as error:
-        raise ToolUniverseWorkflowError(
-            f"ToolUniverse tool failed: {workflow}[{step_index}] {tool_name}: {error}"
-        ) from error
+    overrides = local_tool_overrides or {}
+    override = overrides.get(tool_name)
+    if override is not None:
+        try:
+            result = override.run(
+                arguments=arguments,
+                context=context,
+                use_cache=bool(step.get("use_cache", False)),
+                validate=bool(step.get("validate", True)),
+            )
+        except (ValueError, ProviderUnavailableError) as error:
+            raise ToolUniverseWorkflowError(
+                "Local ToolUniverse override failed: "
+                f"{workflow}[{step_index}] {tool_name}: {error}"
+            ) from error
+    else:
+        function_call = {"name": tool_name, "arguments": arguments}
+        runner = getattr(engine, "run_one_function", None)
+        if runner is None:
+            raise ToolUniverseWorkflowError(
+                "ToolUniverse.run_one_function is unavailable"
+            )
+        try:
+            result = runner(
+                function_call,
+                use_cache=bool(step.get("use_cache", False)),
+                validate=bool(step.get("validate", True)),
+            )
+        except Exception as error:
+            raise ToolUniverseWorkflowError(
+                "ToolUniverse tool failed: "
+                f"{workflow}[{step_index}] {tool_name}: {error}"
+            ) from error
     reject_tool_error_result(workflow, step_index, tool_name, result)
     return result
 
@@ -701,6 +862,10 @@ def template_context(
     pathway_terms = bounded_query_terms(
         priority_terms=gene_terms,
         secondary_terms=[*graph_nodes, *graph_relations],
+    )
+    local_pathway_terms = bounded_query_terms(
+        priority_terms=[*genes, *diseases],
+        secondary_terms=graph_nodes,
     )
     target_terms = bounded_query_terms(
         priority_terms=[*diseases, *gene_terms],
@@ -783,6 +948,8 @@ def template_context(
         "graph_retrieval_modes": list(graph.retrieval_modes),
         "literature_query": join_terms(literature_terms),
         "pathway_query": join_terms(pathway_terms),
+        "pathway_genes": list(genes[:MAX_TOOL_QUERY_TERMS]),
+        "pathway_terms": local_pathway_terms,
         "target_query": join_terms(target_terms),
         "variant_context_query": join_terms(variant_terms),
         "variant_query": join_terms(variant_terms),

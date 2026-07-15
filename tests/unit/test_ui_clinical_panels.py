@@ -545,7 +545,6 @@ def test_build_clinical_panels_uses_persisted_packet_content() -> None:
     assert panels.tool_evidence_rows[0][3] == "12345678"
     assert "Checkpoint-state pressure" in panels.medea_markdown
     assert panels.claim_choices == ["claim-1"]
-    assert "Example sarcoma" in panels.case_summary_html
     assert "cell-cycle pathway clinical trial category" in list(panels.sankey_figure.data[0].node.label)
 
 
@@ -686,6 +685,11 @@ def test_download_persisted_decision_brief_uses_focused_endpoint(
 def test_gradio_app_exposes_clinical_panel_labels() -> None:
     app = build_app()
     config = str(app.get_config_file())
+    assert config.index("Pathway analysis") < config.index("Clinical review")
+    assert "Translume tumor-behavior report loaded" not in config
+    assert "Upload a report to begin a real persisted review workflow" not in config
+    assert "Case summary" not in config
+    assert "No persisted case is loaded" not in config
     assert "Oncologist decision brief" in config
     assert "Fast decision snapshot" in config
     assert "Fetch decision brief JSON" in config
@@ -760,9 +764,12 @@ def test_process_handler_renders_persisted_export_not_unpersisted_response(
     pdf = tmp_path / "report.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
     outputs = process_pdf(str(pdf), "NGS", "Example sarcoma")
-    assert outputs[1] == "session-ui"
-    assert "Persisted disease context" in outputs[2]
-    assert "Example sarcoma" not in outputs[2]
+    assert outputs[0] == "session-ui"
+    assert not any(
+        "Persisted disease context" in output
+        for output in outputs
+        if isinstance(output, str)
+    )
     assert outputs[-3] == "# Pathway"
     assert outputs[-2] == "# Research"
     assert outputs[-1] == "# Tumor board"

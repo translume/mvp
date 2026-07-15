@@ -43,8 +43,19 @@
         "status": "ok",
         "vendor_available": true,
         "workflow_config_valid": true,
+        "runtime_ready": true,
         "required_workflows_configured": true,
         "missing_required_workflows": [],
+        "reactome_local_enabled": true,
+        "reactome_graphdb_available": true,
+        "reactome_graphdb_database": "graph.db",
+        "reactome_graphdb_configured_release": "97",
+        "reactome_graphdb_actual_release": "97",
+        "reactome_graphdb_release_matches": true,
+        "remote_reactome_enabled": false,
+        "local_tool_overrides": [
+          "ReactomeContent_search"
+        ],
         "configured_workflows": [
           "literature_validation",
           "pathway_context",

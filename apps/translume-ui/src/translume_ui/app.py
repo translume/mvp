@@ -206,11 +206,9 @@ def submit_validation(
             gr.update(),
             gr.update(),
             gr.update(),
-            gr.update(),
         )
     return (
         status_html,
-        panels.case_summary_html,
         panels.claim_rows,
         gr.update(
             choices=panels.claim_choices,
@@ -287,9 +285,6 @@ def build_app() -> gr.Blocks:
         fill_width=True,
     ) as demo:
         gr.HTML(header_html())
-        run_status = gr.HTML(
-            '<div class="translume-status">Upload a report to begin a real persisted review workflow.</div>'
-        )
         session_state = gr.State("")
 
         with gr.Row(equal_height=False):
@@ -313,12 +308,25 @@ def build_app() -> gr.Blocks:
                     "Generate report and pathway analysis",
                     variant="primary",
                 )
-                case_summary = gr.HTML(
-                    '<div class="translume-safety-note">No persisted case is loaded.</div>',
-                    label="Case summary",
-                )
             with gr.Column(scale=9):
                 with gr.Tabs():
+                    with gr.Tab("Pathway analysis"):
+                        pathway_analysis_markdown = gr.Markdown(
+                            "",
+                            label="Pathway analysis",
+                            sanitize_html=True,
+                        )
+                        research_memo_markdown = gr.Markdown(
+                            "",
+                            label="Research memo",
+                            sanitize_html=True,
+                        )
+                        tumor_board_summary_markdown = gr.Markdown(
+                            "",
+                            label="Tumor board causal summary",
+                            sanitize_html=True,
+                        )
+
                     with gr.Tab("Clinical review"):
                         with gr.Accordion("1. Oncologist decision brief", open=True):
                             decision_snapshot = gr.HTML(
@@ -713,27 +721,8 @@ def build_app() -> gr.Blocks:
                             language="json",
                         )
 
-                    with gr.Tab("Pathway analysis"):
-                        pathway_analysis_markdown = gr.Markdown(
-                            "",
-                            label="Pathway analysis",
-                            sanitize_html=True,
-                        )
-                        research_memo_markdown = gr.Markdown(
-                            "",
-                            label="Research memo",
-                            sanitize_html=True,
-                        )
-                        tumor_board_summary_markdown = gr.Markdown(
-                            "",
-                            label="Tumor board causal summary",
-                            sanitize_html=True,
-                        )
-
         process_outputs = [
-            run_status,
             session_state,
-            case_summary,
             decision_snapshot,
             decision_summary,
             translational_checks_table,
@@ -788,7 +777,6 @@ def build_app() -> gr.Blocks:
             ],
             outputs=[
                 validation_status_message,
-                case_summary,
                 claims_table,
                 claim_selector,
                 validation_decisions_table,
@@ -831,9 +819,7 @@ def _process_outputs(
     downstream_status: str,
 ) -> tuple[Any, ...]:
     return (
-        panels.status_markdown + downstream_status,
         session_id,
-        panels.case_summary_html,
         panels.decision_snapshot_html,
         panels.decision_summary_markdown,
         panels.translational_check_rows,
@@ -871,7 +857,11 @@ def _process_outputs(
         panels.provenance_rows,
         panels.ledger_rows,
         panels.raw_json,
-        "" if downstream is None else downstream.pathway_analysis_markdown,
+        (
+            downstream_status
+            if downstream is None
+            else downstream.pathway_analysis_markdown
+        ),
         "" if downstream is None else downstream.research_memo_markdown,
         "" if downstream is None else downstream.tumor_board_summary_markdown,
     )
@@ -880,10 +870,8 @@ def _process_outputs(
 def _empty_process_outputs(error_message: str) -> tuple[Any, ...]:
     empty_tables = [[] for _ in range(25)]
     return (
-        _error_html(error_message),
         "",
-        '<div class="translume-safety-note">No persisted case is loaded.</div>',
-        '<div class="translume-safety-note">No decision brief is loaded.</div>',
+        _error_html(error_message),
         "",
         empty_tables[0],
         empty_tables[1],

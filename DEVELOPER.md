@@ -116,6 +116,19 @@ the UI execute shell commands. Configure runner URLs and bounded execution
 times through `PRECISION_ONCOLOGY_SERVICE_URL`,
 `DYNAMIC_PATHWAY_SERVICE_URL`, and `TRANSLUME_DOWNSTREAM_TIMEOUT_SECONDS`.
 
+When the precision-oncology subprocess fails, the runner returns the final
+`Pipeline failed:` message instead of leading serializer warnings, infers the
+failing stage from completed checkpoints, and redacts credential-shaped text.
+The same bounded diagnostic is written atomically to:
+
+```text
+data/artifacts/<session_id>/precision_oncology_outputs/run_<run_id>/pipeline_failure.json
+```
+
+If no run directory was created, the fallback location is
+`data/artifacts/<session_id>/pipeline_failure.json`. Known Pydantic serializer
+warnings are summarized in the HTTP error rather than returned verbatim.
+
 For the integrated UI workflow, use the root Makefile rather than starting the
 four application services manually:
 
@@ -136,6 +149,21 @@ request. `REPORT_EXTRACTION_BATCH_MAX_CHUNKS` and
 `REPORT_EXTRACTION_MAX_TOKENS` bound each page-ordered report-extraction call.
 The extraction planner processes all retrieved chunks and deterministically
 merges the validated batch artifacts, rather than dropping report content.
+`TumorBehaviorModelOutput` retries once after `finish_reason=length`, using
+the larger `VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` bound. A repeated truncation is
+surfaced without logging or returning the partial clinical response.
+Narrative containment excludes normalized administrative missing values and
+requires slash-delimited candidates to have a biomedical-symbol anchor.
+Consequently, `N/A` and `and/or` are ignored while `BRAF/MEK` remains checked
+against the source artifact corpus.
+Mechanism Sankey domain validation runs inside the structured-output repair
+loop. Conflicting node IDs and missing endpoints are retried once; repeated
+graph-invariant failures use the existing deterministic, source-backed Sankey
+generator with `deterministic_fallback` provenance.
+The ranked-treatment normalizer populates empty `required_before_use_tests` and
+`limitations` for every option row. It prioritizes matrix limitations,
+actionable-biology uncertainty, and row-level unresolved evidence before using
+conservative clinician-review fallback text.
 
 ## Pathway-source availability
 
@@ -144,6 +172,15 @@ to report temporary unavailability. It records the source, HTTP status, and
 reason in the tool artifact, then continues to the remaining sources. The
 workflow requires at least one successful source and fails explicitly if none
 can provide real evidence.
+
+### Local Reactome GraphDB override
+
+`ReactomeContent_search` is intercepted inside `ToolUniverseRuntime` and
+served by `reactome_graphdb.py`; every other configured name remains a vendor
+ToolUniverse call. Service composition lives in
+`tooluniverse_service/local_tool_overrides.py`. One runtime and Neo4j pool are
+cached per worker and closed on lifespan shutdown. Release validation and
+rollback are documented in `docs/architecture/reactome_local_graphdb.md`.
 
 ## Dependency direction
 

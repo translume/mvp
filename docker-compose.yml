@@ -114,6 +114,15 @@ services:
       timeout: 10s
       retries: 20
 
+  reactome-graphdb:
+    image: ${REACTOME_GRAPHDB_IMAGE:-public.ecr.aws/reactome/graphdb:Release97}
+    restart: unless-stopped
+    expose:
+      - "7474"
+      - "7687"
+    environment:
+      NEO4J_dbms_memory_heap_maxSize: ${REACTOME_NEO4J_HEAP_MAX_SIZE:-8g}
+
   tooluniverse-service:
     build:
       context: .
@@ -124,11 +133,15 @@ services:
       DOWNSTREAM_OPENAI_API_KEY: ""
     ports:
       - "8092:8092"
+    depends_on:
+      reactome-graphdb:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8092/health', timeout=5).read()"]
       interval: 15s
       timeout: 10s
-      retries: 20
+      retries: 40
+      start_period: 300s
 
   medea-service:
     build:

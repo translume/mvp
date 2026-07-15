@@ -368,6 +368,7 @@ def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:
                 settings.vllm_structured_output_max_tokens
             ),
             report_extraction_max_tokens=settings.report_extraction_max_tokens,
+            tumor_behavior_max_tokens=settings.tumor_behavior_max_tokens,
         ),
     )
 

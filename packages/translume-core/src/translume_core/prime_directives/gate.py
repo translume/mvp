@@ -4,6 +4,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from translume_core.indexing.retrieval_scope import RetrievalScopeError, require_lexical_retrieval_scope
 from translume_core.vendor.repositories import (
@@ -57,6 +58,7 @@ REQUIRED_TRUE_FLAGS: tuple[str, ...] = (
     "TRANSLUME_REQUIRE_OPENSEARCH",
     "TRANSLUME_REQUIRE_POSTGRES",
     "BLOCK_REMOTE_MODEL_PROVIDERS",
+    "REACTOME_LOCAL_ENABLED",
 )
 
 REQUIRED_NONEMPTY_ENV: tuple[str, ...] = (
@@ -69,6 +71,13 @@ REQUIRED_NONEMPTY_ENV: tuple[str, ...] = (
     "OPENSEARCH_URL",
     "POSTGRES_DSN",
     "TRANSLUME_RETRIEVAL_MODE",
+    "REACTOME_GRAPHDB_IMAGE",
+    "REACTOME_RELEASE",
+    "REACTOME_NEO4J_URI",
+    "REACTOME_NEO4J_DATABASE",
+    "REACTOME_NEO4J_AUTH_MODE",
+    "REACTOME_NEO4J_USER",
+    "REACTOME_NEO4J_PASSWORD",
 )
 
 REQUIRED_TOOLUNIVERSE_WORKFLOWS: tuple[str, ...] = (
@@ -166,6 +175,7 @@ def validate_prime_directives(
     findings.extend(validate_ui_docker_entrypoint(root))
     findings.extend(validate_required_tool_workflows(environment, root))
     findings.extend(validate_retrieval_scope(environment))
+    findings.extend(validate_local_reactome_runtime(environment))
     ok = all(finding.severity != "error" for finding in findings)
     return PrimeDirectiveGateReport(
         ok=ok,
@@ -232,6 +242,166 @@ def validate_required_nonempty_environment(
                 )
             )
     return tuple(findings)
+
+
+def validate_local_reactome_runtime(
+    environment: Mapping[str, str],
+) -> tuple[PrimeDirectiveFinding, ...]:
+    """Validate release-pinned, local-only Reactome deployment semantics.
+
+    Acceptance criteria:
+        1. The image uses official AWS Public ECR and a matching release tag.
+        2. The runtime URI is local Bolt/Neo4j, never a Reactome HTTP host.
+        3. Production/demo uses explicit basic authentication.
+        4. Remote fallback and invalid numeric bounds are rejected.
+    """
+    findings: list[PrimeDirectiveFinding] = []
+    image = env_value("REACTOME_GRAPHDB_IMAGE", environment)
+    release = env_value("REACTOME_RELEASE", environment)
+    uri = env_value("REACTOME_NEO4J_URI", environment)
+    database = env_value("REACTOME_NEO4J_DATABASE", environment)
+    auth_mode = env_value(
+        "REACTOME_NEO4J_AUTH_MODE",
+        environment,
+    ).casefold()
+    expected_prefix = "public.ecr.aws/reactome/graphdb:"
+    expected_tag = f"Release{release}" if release else ""
+    if not image.startswith(expected_prefix):
+        findings.append(
+            _reactome_finding(
+                "reactome:image_public_ecr",
+                "REACTOME_GRAPHDB_IMAGE must use the official Reactome "
+                "AWS Public ECR repository.",
+                "Use public.ecr.aws/reactome/graphdb:Release<N>.",
+            )
+        )
+    elif (
+        image.endswith(":latest")
+        or not expected_tag
+        or not image.endswith(f":{expected_tag}")
+    ):
+        findings.append(
+            _reactome_finding(
+                "reactome:image_release_pinned",
+                "Reactome image tag must be pinned and match "
+                "REACTOME_RELEASE.",
+                "Use matching values such as Release97 and 97.",
+            )
+        )
+    parsed = urlparse(uri)
+    if parsed.scheme not in {"bolt", "neo4j"}:
+        findings.append(
+            _reactome_finding(
+                "reactome:bolt_uri",
+                "REACTOME_NEO4J_URI must use bolt:// or neo4j://.",
+                "Use bolt://reactome-graphdb:7687.",
+            )
+        )
+    if "reactome.org" in uri.casefold():
+        findings.append(
+            _reactome_finding(
+                "reactome:no_remote_host",
+                "Reactome runtime must use the local GraphDB container.",
+                "Use the Compose hostname reactome-graphdb.",
+            )
+        )
+    if not database:
+        findings.append(
+            _reactome_finding(
+                "reactome:database_required",
+                "REACTOME_NEO4J_DATABASE is required.",
+                "Set the database verified for the pinned image.",
+            )
+        )
+    if auth_mode != "basic":
+        findings.append(
+            _reactome_finding(
+                "reactome:auth_mode",
+                "Production/demo Reactome must use explicit basic auth.",
+                "Set REACTOME_NEO4J_AUTH_MODE=basic.",
+            )
+        )
+    if truthy(env_value("REACTOME_REMOTE_FALLBACK", environment)):
+        findings.append(
+            _reactome_finding(
+                "reactome:remote_fallback_disabled",
+                "Remote Reactome fallback is prohibited.",
+                "Set REACTOME_REMOTE_FALLBACK=false.",
+            )
+        )
+    findings.extend(
+        _validate_reactome_number(
+            environment,
+            "REACTOME_QUERY_TIMEOUT_SECONDS",
+            minimum=0.0,
+            maximum=None,
+            integer=False,
+        )
+    )
+    findings.extend(
+        _validate_reactome_number(
+            environment,
+            "REACTOME_MAX_RESULTS",
+            minimum=1,
+            maximum=30,
+            integer=True,
+        )
+    )
+    findings.extend(
+        _validate_reactome_number(
+            environment,
+            "REACTOME_MAX_QUERY_TERMS",
+            minimum=1,
+            maximum=32,
+            integer=True,
+        )
+    )
+    return tuple(findings)
+
+
+def _validate_reactome_number(
+    environment: Mapping[str, str],
+    name: str,
+    *,
+    minimum: float,
+    maximum: float | None,
+    integer: bool,
+) -> tuple[PrimeDirectiveFinding, ...]:
+    """Return one finding when a Reactome numeric setting is invalid."""
+    raw = env_value(name, environment)
+    try:
+        value = int(raw) if integer else float(raw)
+    except ValueError:
+        value = minimum - 1
+    valid = value > minimum if maximum is None else minimum <= value <= maximum
+    if valid:
+        return ()
+    bound = (
+        f"greater than {minimum}"
+        if maximum is None
+        else f"between {minimum:g} and {maximum:g}"
+    )
+    return (
+        _reactome_finding(
+            f"reactome:numeric:{name}",
+            f"{name} must be {bound}.",
+            f"Set {name} to a valid bounded value.",
+        ),
+    )
+
+
+def _reactome_finding(
+    rule_id: str,
+    message: str,
+    next_action: str,
+) -> PrimeDirectiveFinding:
+    """Build one deterministic Reactome gate error."""
+    return PrimeDirectiveFinding(
+        rule_id=rule_id,
+        severity="error",
+        message=message,
+        next_actions=(next_action,),
+    )
 
 
 def validate_vllm_model(environment: Mapping[str, str]) -> tuple[PrimeDirectiveFinding, ...]:

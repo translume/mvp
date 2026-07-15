@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from translume_clients.local_vllm import LocalVLLMClient
+from translume_clients.local_vllm import (
+    LocalVLLMClient,
+    LocalVLLMTruncationError,
+)
 
 
 class LocalVLLMProvider:
@@ -18,14 +21,21 @@ class LocalVLLMProvider:
         *,
         structured_output_max_tokens: int = 3000,
         report_extraction_max_tokens: int = 2500,
+        tumor_behavior_max_tokens: int = 6000,
     ) -> None:
         if structured_output_max_tokens <= 0:
             raise ValueError("structured_output_max_tokens must be positive")
         if report_extraction_max_tokens <= 0:
             raise ValueError("report_extraction_max_tokens must be positive")
+        if tumor_behavior_max_tokens <= structured_output_max_tokens:
+            raise ValueError(
+                "tumor_behavior_max_tokens must exceed "
+                "structured_output_max_tokens"
+            )
         self._client = client
         self._structured_output_max_tokens = structured_output_max_tokens
         self._report_extraction_max_tokens = report_extraction_max_tokens
+        self._tumor_behavior_max_tokens = tumor_behavior_max_tokens
 
     async def structured_completion(
         self,
@@ -53,7 +63,16 @@ class LocalVLLMProvider:
                 },
             },
         }
-        return await self._client.structured_completion(request)
+        try:
+            return await self._client.structured_completion(request)
+        except LocalVLLMTruncationError:
+            if schema_name != "TumorBehaviorModelOutput":
+                raise
+            retry_request = {
+                **request,
+                "max_tokens": self._tumor_behavior_max_tokens,
+            }
+            return await self._client.structured_completion(retry_request)
 
     def _max_tokens_for_schema(self, schema_name: str) -> int:
         if schema_name == "ReportExtractionOutput":

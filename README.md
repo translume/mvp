@@ -171,6 +171,28 @@ The local vLLM workflow bounds every structured response with
 retrieved chunk in five-chunk batches, then merge the validated outputs; they
 do not discard source pages to shorten a prompt.
 
+If tumor-behavior generation reaches the general output limit, it is retried
+once with `VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` (default `6000`). A second
+token-limit stop fails with an explicit truncation error. Malformed completed
+responses are not retried, and generated clinical content is not included in
+the error message.
+
+Narrative containment treats administrative missing-value notation such as
+`N/A`, `NA`, `not applicable`, and `unknown` as non-clinical text. Ordinary
+slash notation is ignored unless it contains a biomedical-symbol anchor;
+terms such as `BRAF/MEK` remain subject to source containment.
+
+Mechanism Sankey graph invariants participate in the bounded structured-output
+repair loop. Conflicting duplicate node IDs or missing link endpoints receive
+one repair attempt; a second invalid graph uses the source-backed deterministic
+Sankey fallback and records `deterministic_fallback` provenance instead of
+failing report processing.
+
+Ranked treatment options deterministically fill empty before-use tests and
+limitations from source-derived matrix and actionable-biology validation text.
+When source limitation text is unavailable, a conservative clinician-review
+limitation is used so an otherwise valid option row does not fail processing.
+
 ### Pathway-source availability
 
 `pathway_context` uses Reactome, PathwayCommons, and KEGG. If an external
@@ -178,6 +200,13 @@ source is temporarily unavailable, its status, source name, HTTP status, and
 reason are preserved as unavailable-source evidence while the remaining
 pathway sources continue. At least one pathway source must return real output;
 otherwise processing fails without fabricating pathway evidence.
+
+Reactome search runs locally through the governed `ReactomeContent_search`
+name and a release-pinned AWS Public ECR GraphDB image. The graph is private to
+Compose; PathwayCommons and KEGG remain vendor ToolUniverse calls. Use
+`make reactome-image`, `make reactome-status`, and `make reactome-smoke` to
+prepare and verify it. There is no remote Reactome fallback. See
+`docs/architecture/reactome_local_graphdb.md`.
 
 ## MVP invariant
 

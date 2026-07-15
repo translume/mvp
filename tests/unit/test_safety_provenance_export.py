@@ -114,6 +114,81 @@ def test_narrative_containment_accepts_source_backed_terms() -> None:
     assert report.unsupported_findings == []
 
 
+@pytest.mark.parametrize(
+    "administrative_value",
+    ["N/A", "NA", "not applicable", "not available", "unknown"],
+)
+def test_narrative_containment_allows_administrative_missing_values(
+    administrative_value: str,
+) -> None:
+    """Administrative missing-value notation must not become a clinical fact."""
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown=f"Longitudinal response status: {administrative_value}.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = require_narrative_fact_containment(narrative, bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
+
+
+def test_narrative_containment_ignores_ordinary_slash_notation() -> None:
+    """A slash alone must not classify ordinary prose as biomedical."""
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown="Use input/output review and/or clinician confirmation.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = require_narrative_fact_containment(narrative, bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
+
+
+def test_narrative_containment_rejects_unsupported_biomedical_slash_term() -> None:
+    """Preserve enforcement for unsupported symbol-anchored slash terms."""
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown="BRAF/MEK appears here but is absent from the source artifacts.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = validate_narrative_fact_containment(narrative, bundle)
+
+    assert "BRAF/MEK" in {
+        finding.term for finding in report.unsupported_findings
+    }
+
+
+def test_narrative_containment_allows_source_backed_biomedical_slash_term() -> None:
+    """Allow a biomedical slash term when it occurs in source artifacts."""
+    bundle = _containment_bundle()
+    extraction = bundle.extraction.model_copy(
+        update={"assay_limitations": ["BRAF/MEK pathway coverage reviewed"]}
+    )
+    supported_bundle = bundle.model_copy(update={"extraction": extraction})
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown="BRAF/MEK pathway coverage requires clinician review.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = require_narrative_fact_containment(narrative, supported_bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
+
+
 def test_narrative_containment_rejects_unsupported_gene_and_drug_terms() -> None:
     bundle = _containment_bundle()
     narrative = ClinicalNarrativeCompilerOutput(
@@ -179,6 +254,49 @@ def test_narrative_containment_ignores_grammatical_loss_phrase() -> None:
 
     assert report.passed is True
     assert report.unsupported_findings == []
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "and fusion",
+        "or mutation",
+        "but deletion",
+    ],
+)
+def test_narrative_containment_ignores_conjunction_led_alteration_fragments(
+    fragment: str,
+) -> None:
+    """Do not treat conjunctions as molecular alteration anchors."""
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown=f"The review discusses evidence context {fragment} evidence.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = require_narrative_fact_containment(narrative, bundle)
+
+    assert report.passed is True
+    assert report.unsupported_findings == []
+
+
+def test_narrative_containment_still_rejects_gene_anchored_fusion() -> None:
+    """Preserve containment enforcement for a specific unsupported fusion."""
+    bundle = _containment_bundle()
+    narrative = ClinicalNarrativeCompilerOutput(
+        artifact_id="artifact_narrative",
+        markdown="ALK fusion appears here but is absent from the artifacts.",
+        source_artifact_ids=["artifact_report"],
+        safety_note="Clinician decision support only.",
+    )
+
+    report = validate_narrative_fact_containment(narrative, bundle)
+
+    assert "ALK fusion" in {
+        finding.term for finding in report.unsupported_findings
+    }
 
 
 def test_narrative_containment_rejects_unsupported_anchored_alteration() -> None:

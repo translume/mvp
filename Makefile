@@ -1,7 +1,9 @@
 PYTHONPATH := .:packages/translume-schemas/src:packages/translume-ports/src:packages/translume-core/src:packages/translume-clients/src:packages/translume-adapters/src:apps/translume-api/src:apps/translume-ui/src:services/docling-service/src:services/optimuskg-service/src:services/tooluniverse-service/src:services/medea-service/src:services/worker/src
 export PYTHONPATH
 
-COMPOSE ?= docker compose
+TRANSLUME_ENV_FILE ?= .env
+COMPOSE ?= docker compose --env-file $(TRANSLUME_ENV_FILE)
+export TRANSLUME_ENV_FILE
 UV ?= uv
 PYTHON ?= uv run python
 PYTEST ?= uv run pytest
@@ -47,6 +49,7 @@ OPTIMUSKG_LCC_FLAG = $(if $(call truthy,$(OPTIMUSKG_USE_LCC)),--use-lcc,--no-use
 	check-vllm-model check-ui-dockerfile check-local-data-ignore \
 	vendor-repos vendor-status \
 	medea-data optimuskg-data mims-data mims-data-status prepare-full-stack \
+	reactome-image reactome-status reactome-smoke \
 	wait-postgres wait-opensearch wait-vllm-clinical wait-vllm-docling wait-foundation-services wait-ui \
 	init-postgres init-opensearch \
 	gradio-up gradio-down gradio-logs gradio-status gradio-rebuild \
@@ -124,7 +127,19 @@ mims-data-status:
 		--optimuskg-cache "$(OPTIMUSKG_CACHE_DIR)" \
 		$(OPTIMUSKG_LCC_FLAG)
 
-prepare-full-stack: check-local-data-ignore mims-data
+reactome-image:
+	$(COMPOSE) pull reactome-graphdb
+
+reactome-status:
+	$(COMPOSE) ps reactome-graphdb tooluniverse-service
+	curl -fsS "$${TOOLUNIVERSE_PUBLIC_URL:-http://localhost:8092}/health" | $(PYTHON) -m json.tool
+
+reactome-smoke:
+	$(PYTHON) scripts/smoke_local_reactome_workflow.py \
+		--base-url "$${TOOLUNIVERSE_PUBLIC_URL:-http://localhost:8092}" \
+		--expected-release "$${REACTOME_RELEASE:?set REACTOME_RELEASE}"
+
+prepare-full-stack: check-local-data-ignore mims-data reactome-image
 
 wait-postgres:
 	@echo "Waiting for Postgres..."

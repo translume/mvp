@@ -513,7 +513,7 @@ async def generate_treatment_options_stage_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
-    normalized_artifact = _normalize_ranked_treatment_before_use_tests(
+    normalized_artifact = _normalize_ranked_treatment_required_lists(
         result.artifact,
         matrix=matrix,
         actionable_biology=actionable_biology,
@@ -543,7 +543,7 @@ async def generate_treatment_options_stage_with_model(
             prompts_root=prompts_root,
             created_at=created_at,
         )
-        normalized_artifact = _normalize_ranked_treatment_before_use_tests(
+        normalized_artifact = _normalize_ranked_treatment_required_lists(
             result.artifact,
             matrix=matrix,
             actionable_biology=actionable_biology,
@@ -2705,21 +2705,22 @@ def _validate_ranked_treatment_options_output(
         _require_text_list(item.limitations, f"{prefix}.limitations")
 
 
-def _normalize_ranked_treatment_before_use_tests(
+def _normalize_ranked_treatment_required_lists(
     treatment_options: RankedTreatmentOptionsOutput,
     *,
     matrix: TherapyEvidenceMatrixOutput,
     actionable_biology: ActionableBiologyOutput,
 ) -> RankedTreatmentOptionsOutput:
-    """Return ranked treatment options with required tests populated.
+    """Return treatment options with required tests and limitations populated.
 
     Acceptance criteria:
         1. Determinism: Same treatment options, matrix, and actionable biology
            return equivalent normalized output.
         2. No mutation: The stage artifact and source artifacts are not mutated.
-        3. Scope: Only empty `required_before_use_tests` lists are populated.
-        4. Safety: Candidate tests come from source-derived validation text or a
-           conservative clinician/pathology review requirement.
+        3. Scope: Only empty `required_before_use_tests` and `limitations`
+           lists are populated.
+        4. Safety: Candidates come from source-derived validation, uncertainty,
+           or limitation text before conservative clinician-review fallbacks.
 
     Args:
         treatment_options: Model-generated ranked treatment options.
@@ -2727,18 +2728,29 @@ def _normalize_ranked_treatment_before_use_tests(
         actionable_biology: Actionable biology stage with uncertainty text.
 
     Returns:
-        A copied ranked-treatment artifact with before-use tests populated.
+        A copied ranked-treatment artifact with required lists populated.
     """
     fallback_tests = _ranked_treatment_before_use_candidates(
         matrix=matrix,
         actionable_biology=actionable_biology,
     )
-    rows = [
-        item
-        if any(value.strip() for value in item.required_before_use_tests)
-        else item.model_copy(update={"required_before_use_tests": fallback_tests})
-        for item in treatment_options.ranked_treatment_options
-    ]
+    fallback_limitations = _ranked_treatment_limitation_candidates(
+        matrix=matrix,
+        actionable_biology=actionable_biology,
+    )
+    rows = []
+    for item in treatment_options.ranked_treatment_options:
+        updates: dict[str, list[str]] = {}
+        if not any(value.strip() for value in item.required_before_use_tests):
+            updates["required_before_use_tests"] = fallback_tests
+        if not any(value.strip() for value in item.limitations):
+            row_limitations = _dedupe_nonempty_texts(
+                [*item.unresolved_evidence, *fallback_limitations],
+                max_items=12,
+                max_chars=220,
+            )
+            updates["limitations"] = row_limitations
+        rows.append(item.model_copy(update=updates) if updates else item)
     return treatment_options.model_copy(update={"ranked_treatment_options": rows})
 
 
@@ -2844,6 +2856,36 @@ def _ranked_treatment_before_use_candidates(
     candidates.append(
         "Clinician/pathology review of source report findings and treatment "
         "eligibility before use."
+    )
+    return _dedupe_nonempty_texts(candidates, max_items=12, max_chars=220)
+
+
+def _ranked_treatment_limitation_candidates(
+    *,
+    matrix: TherapyEvidenceMatrixOutput,
+    actionable_biology: ActionableBiologyOutput,
+) -> list[str]:
+    """Return bounded, source-derived limitation candidates.
+
+    Acceptance criteria:
+        1. Determinism: Candidate order follows matrix then biology rows.
+        2. No mutation: Source artifacts are not modified.
+        3. Source priority: Non-empty source limitations precede fallback text.
+        4. Safety: A conservative clinician-review limitation is always present.
+    """
+    candidates = [
+        row.limitations
+        for row in matrix.rows
+        if row.limitations.strip()
+    ]
+    candidates.extend(
+        item.uncertainty
+        for item in actionable_biology.actionable_biology
+        if item.uncertainty.strip()
+    )
+    candidates.append(
+        "Evidence remains incomplete; clinician review is required before "
+        "treatment selection."
     )
     return _dedupe_nonempty_texts(candidates, max_items=12, max_chars=220)
 

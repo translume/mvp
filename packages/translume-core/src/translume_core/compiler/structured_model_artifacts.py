@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -147,6 +147,10 @@ class StructuredArtifactGenerationError(RuntimeError):
         3. Is raised for invalid JSON, schema mismatch, unsafe text, or ID
            mismatch.
     """
+
+
+class InvalidMechanismSankeyError(StructuredArtifactGenerationError):
+    """Raised when a schema-valid mechanism graph violates graph invariants."""
 
 
 @dataclass(frozen=True)
@@ -436,11 +440,15 @@ async def generate_mechanism_sankey_with_model(
             model_name=model_name,
             prompts_root=prompts_root,
             created_at=created_at,
+            artifact_validator=_normalize_and_validate_mechanism_sankey,
         )
     except StructuredArtifactGenerationError as error:
-        if not _is_structured_output_timeout(error):
+        if not (
+            _is_structured_output_timeout(error)
+            or _contains_invalid_mechanism_sankey_error(error)
+        ):
             raise
-        result = _generate_mechanism_sankey_timeout_fallback(
+        result = _generate_mechanism_sankey_fallback(
             context=context,
             phenotype=phenotype,
             matrix=matrix,
@@ -449,16 +457,13 @@ async def generate_mechanism_sankey_with_model(
             source_chunk_ids=_context_source_chunk_ids(context),
             created_at=created_at,
         )
-    normalized_artifact = _normalize_and_validate_mechanism_sankey(
-        result.artifact
-    )
     return StructuredArtifactResult(
-        artifact=normalized_artifact,
+        artifact=result.artifact,
         provenance=result.provenance,
     )
 
 
-def _generate_mechanism_sankey_timeout_fallback(
+def _generate_mechanism_sankey_fallback(
     *,
     context: EvidenceContextBundle,
     phenotype: MolecularPhenotypeOutput,
@@ -468,13 +473,13 @@ def _generate_mechanism_sankey_timeout_fallback(
     source_chunk_ids: Sequence[str],
     created_at: datetime,
 ) -> StructuredArtifactResult[MechanismSankeyOutput]:
-    """Return deterministic Sankey output after a model timeout.
+    """Return deterministic Sankey output after a recoverable model failure.
 
     Acceptance criteria:
         1. Determinism: Same context, phenotype, matrix, and timestamp return
            equivalent artifact and provenance values.
         2. No mutation: Do not mutate caller-owned schema models or ID lists.
-        3. Scope: Use this only for timeout handling by the caller.
+        3. Scope: Use this only for timeout or invalid-graph handling.
         4. Auditability: Mark provenance as `deterministic_fallback`.
         5. Contract: The returned artifact ID matches the planned artifact ID.
 
@@ -546,6 +551,15 @@ def _contains_timeout_wording(error: BaseException) -> bool:
     )
 
 
+def _contains_invalid_mechanism_sankey_error(error: BaseException) -> bool:
+    """Return whether an exception chain contains a mechanism graph failure."""
+    return any(
+        isinstance(item, InvalidMechanismSankeyError)
+        for item in (error, error.__cause__, error.__context__)
+        if item is not None
+    )
+
+
 def _normalize_and_validate_mechanism_sankey(
     sankey: MechanismSankeyOutput,
 ) -> MechanismSankeyOutput:
@@ -579,7 +593,7 @@ def _normalize_and_validate_mechanism_sankey(
             nodes.append(node)
             continue
         if existing != fingerprint:
-            raise StructuredArtifactGenerationError(
+            raise InvalidMechanismSankeyError(
                 "MechanismSankeyOutput duplicate node_id has conflicting "
                 f"content: {node.node_id}"
             )
@@ -612,7 +626,7 @@ def _validate_mechanism_sankey_links(
             link.source_node_id not in node_ids
             or link.target_node_id not in node_ids
         ):
-            raise StructuredArtifactGenerationError(
+            raise InvalidMechanismSankeyError(
                 "MechanismSankeyOutput link references a missing node"
             )
 
@@ -5313,6 +5327,7 @@ async def _generate_artifact(
     model_name: str,
     prompts_root: Path,
     created_at: datetime,
+    artifact_validator: Callable[[T], T] | None = None,
 ) -> StructuredArtifactResult[T]:
     """Generate a schema-valid artifact with one repair retry.
 
@@ -5324,6 +5339,8 @@ async def _generate_artifact(
            repair prompt that names the validation failure.
         4. Safety: Unsupported certainty language remains rejected after repair.
         5. Provenance: Prompt and schema hashes reflect the successful attempt.
+        6. Domain validation: An optional pure artifact validator participates
+           in the same bounded repair loop.
 
     Args:
         prompt_name: Prompt template stem without `_system` or `_user` suffix.
@@ -5337,6 +5354,7 @@ async def _generate_artifact(
         model_name: Local model name used for provenance and provider request.
         prompts_root: Directory containing prompt templates.
         created_at: Provenance timestamp.
+        artifact_validator: Optional post-schema domain validator/normalizer.
 
     Returns:
         Schema-validated artifact and provenance.
@@ -5358,6 +5376,7 @@ async def _generate_artifact(
         payload_json=payload_json,
         model_provider=model_provider,
         model_name=model_name,
+        artifact_validator=artifact_validator,
     )
     provenance = build_artifact_provenance(
         artifact_type=schema_model.__name__,
@@ -5386,6 +5405,7 @@ async def _generate_valid_artifact_attempt(
     payload_json: str,
     model_provider: object,
     model_name: str,
+    artifact_validator: Callable[[T], T] | None = None,
 ) -> _StructuredArtifactAttemptResult[T]:
     """Return a valid artifact, retrying once for malformed output.
 
@@ -5406,6 +5426,7 @@ async def _generate_valid_artifact_attempt(
         payload_json: Original serialized prompt payload.
         model_provider: Structured-output provider boundary.
         model_name: Local model identifier.
+        artifact_validator: Optional post-schema domain validator/normalizer.
 
     Returns:
         Valid artifact plus successful user prompt and attempt count.
@@ -5433,6 +5454,8 @@ async def _generate_valid_artifact_attempt(
             artifact = schema_model.model_validate(normalized)
             _require_artifact_id(artifact, planned_artifact_id, schema_model.__name__)
             _validate_safety(artifact.model_dump_json())
+            if artifact_validator is not None:
+                artifact = artifact_validator(artifact)
             return _StructuredArtifactAttemptResult(
                 artifact=artifact,
                 user_prompt=current_user_prompt,

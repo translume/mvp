@@ -49,6 +49,7 @@ class Settings(BaseModel):
     vllm_timeout_seconds: float = 240.0
     vllm_structured_output_max_tokens: int = Field(default=3000, ge=1)
     report_extraction_max_tokens: int = Field(default=2500, ge=1)
+    tumor_behavior_max_tokens: int = Field(default=6000, ge=1)
     report_extraction_batch_max_chunks: int = Field(default=5, ge=1)
     prompts_root: Path = Path("configs/prompts")
     require_local_vllm: bool = True
@@ -133,6 +134,9 @@ def get_settings() -> Settings:
         ),
         report_extraction_max_tokens=int(
             os.getenv("REPORT_EXTRACTION_MAX_TOKENS", "2500")
+        ),
+        tumor_behavior_max_tokens=int(
+            os.getenv("VLLM_TUMOR_BEHAVIOR_MAX_TOKENS", "6000")
         ),
         report_extraction_batch_max_chunks=int(
             os.getenv("REPORT_EXTRACTION_BATCH_MAX_CHUNKS", "5")

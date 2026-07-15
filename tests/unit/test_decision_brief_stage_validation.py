@@ -303,6 +303,62 @@ async def test_treatment_options_uses_conservative_fallback_for_empty_tests() ->
 
 
 @pytest.mark.asyncio
+async def test_treatment_options_fills_empty_limitations_from_sources() -> None:
+    """Source-derived limitations should prevent incomplete-row failures."""
+    output = _treatment_options_output(
+        required_before_use_tests=["confirm MTAP status"],
+        limitations=[],
+    )
+    original = deepcopy(output)
+    provider = SequencedDecisionBriefProvider([output])
+
+    result = await generate_treatment_options_stage_with_model(
+        context=_minimal_context_missing_population_fit(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        actionable_biology=_stage_outputs()["actionable_biology"],
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert provider.schema_names == ["RankedTreatmentOptionsOutput"]
+    assert result.ranked_treatment_options[0].limitations[0] == (
+        "Requires human validation."
+    )
+    assert output == original
+
+
+@pytest.mark.asyncio
+async def test_treatment_options_fills_empty_limitations_in_third_row() -> None:
+    """Normalization must cover every populated option, not only the first."""
+    output = _treatment_options_output(
+        required_before_use_tests=["confirm MTAP status"]
+    )
+    template = deepcopy(output["ranked_treatment_options"][0])
+    second = {**template, "rank": 2}
+    third = {**template, "rank": 3, "limitations": []}
+    output["ranked_treatment_options"] = [template, second, third]
+
+    result = await generate_treatment_options_stage_with_model(
+        context=_minimal_context_missing_population_fit(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        actionable_biology=_stage_outputs()["actionable_biology"],
+        model_provider=SequencedDecisionBriefProvider([output]),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.ranked_treatment_options[2].limitations
+    assert result.ranked_treatment_options[2].limitations[0] == (
+        "Requires human validation."
+    )
+
+
+@pytest.mark.asyncio
 async def test_treatment_options_unrelated_validation_error_is_not_repaired() -> None:
     provider = SequencedDecisionBriefProvider(
         [
@@ -687,6 +743,7 @@ def _treatment_options_output(
     *,
     required_before_use_tests: list[str],
     therapy_name_or_class: str = "MTAP-loss clinical trial category",
+    limitations: list[str] | None = None,
 ) -> dict[str, object]:
     return {
         "ranked_treatment_options": [
@@ -700,7 +757,11 @@ def _treatment_options_output(
                 "evidence_level": "source-backed hypothesis requiring review",
                 "resistance_risks": ["bypass signaling"],
                 "required_before_use_tests": required_before_use_tests,
-                "limitations": ["No final therapy selection is made."],
+                "limitations": (
+                    ["No final therapy selection is made."]
+                    if limitations is None
+                    else limitations
+                ),
                 "source_artifact_ids": ["artifact_extraction"],
                 "unresolved_evidence": [],
                 "confidence": "needs_review",

@@ -16,6 +16,7 @@ from translume_schemas.export import (
 
 _UPPERCASE_BIOMEDICAL = re.compile(r"\b[A-Z][A-Z0-9]{2,14}\b")
 _SLASH_BIOMEDICAL = re.compile(r"\b[A-Za-z0-9]+(?:/[A-Za-z0-9]+)+\b")
+_BIOMEDICAL_SLASH_ANCHOR = re.compile(r"[A-Z][A-Z0-9]{1,14}")
 _DRUG_LIKE = re.compile(
     r"\b[A-Za-z][A-Za-z0-9-]*(?:mab|nib|tinib|ciclib|parib|rafenib|lisib|sertib|metinib)\b",
     re.IGNORECASE,
@@ -105,6 +106,13 @@ _ALLOWED_CONTEXT_TERMS = {
     "tumor",
     "validation",
 }
+_ADMINISTRATIVE_MISSING_VALUES = frozenset({
+    "n/a",
+    "na",
+    "not applicable",
+    "not available",
+    "unknown",
+})
 _VAGUE_ALTERATION_ANCHORS = {
     "a",
     "an",
@@ -122,13 +130,16 @@ _VAGUE_ALTERATION_ANCHORS = {
     "those",
 }
 _GRAMMATICAL_ALTERATION_ANCHORS = frozenset({
+    "and",
     "at",
+    "but",
     "by",
     "for",
     "from",
     "in",
     "of",
     "on",
+    "or",
     "to",
     "with",
     "without",
@@ -292,6 +303,7 @@ def _candidate_terms(text: str) -> list[tuple[str, str, str]]:
         candidates.extend(
             (term, "slash_biomedical_term", sentence)
             for term in _SLASH_BIOMEDICAL.findall(sentence)
+            if _slash_term_is_biomedical_candidate(term)
         )
         candidates.extend(
             (term, "therapy_or_drug_like_term", sentence)
@@ -305,6 +317,31 @@ def _candidate_terms(text: str) -> list[tuple[str, str, str]]:
     return list(dict.fromkeys(candidates))
 
 
+def _slash_term_is_biomedical_candidate(term: str) -> bool:
+    """Return whether a slash-delimited term has a biomedical symbol anchor.
+
+    Acceptance criteria:
+        1. Determinism: The same term always returns the same result.
+        2. No mutation: Caller-owned values are not modified.
+        3. Administrative values: `N/A` is not a biomedical candidate.
+        4. Ordinary notation: Lowercase prose such as `and/or` is excluded.
+        5. Biomedical notation: Symbol-anchored terms such as `BRAF/MEK`
+           remain containment candidates.
+
+    Args:
+        term: Slash-delimited narrative term.
+
+    Returns:
+        True when at least one segment has a biomedical-symbol shape.
+    """
+    if _normalize_term(term) in _ADMINISTRATIVE_MISSING_VALUES:
+        return False
+    return any(
+        _BIOMEDICAL_SLASH_ANCHOR.fullmatch(segment) is not None
+        for segment in term.split("/")
+    )
+
+
 def _alteration_phrase_is_specific(term: str) -> bool:
     """Return whether an alteration-like phrase has a grounded anchor.
 
@@ -314,9 +351,9 @@ def _alteration_phrase_is_specific(term: str) -> bool:
         3. Specificity: Gene-like, biomarker-like, or assay-like alteration
            phrases remain containment candidates.
         4. Fragment handling: Determiner-led, modifier-led, and
-           preposition-led fragments such as `the mutation`,
-           `This amplification`, `identified variant`, and `to loss` are not
-           treated as specific molecular claims.
+           grammar-led fragments such as `the mutation`,
+           `This amplification`, `identified variant`, `to loss`, and
+           `and fusion` are not treated as specific molecular claims.
 
     Args:
         term: Candidate alteration phrase matched from narrative text.
@@ -344,6 +381,8 @@ def _term_is_allowed(
     if original_term.upper() in _ALLOWED_UPPERCASE_TERMS:
         return True
     if normalized_term in _ALLOWED_CONTEXT_TERMS:
+        return True
+    if normalized_term in _ADMINISTRATIVE_MISSING_VALUES:
         return True
     if normalized_term in context.supported_terms:
         return True

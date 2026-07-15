@@ -3,6 +3,8 @@
 ##################
 data/medea_cache/
 data/optimuskg_cache/
+.translume_medeadb_complete.json
+third_partty/manifests/
 
 ###############################################################################
 # Python

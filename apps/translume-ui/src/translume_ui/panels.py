@@ -48,8 +48,6 @@ DEFAULT_NODE_COLOR = "#64748b"
 class ClinicalPanelData:
     """Pure UI projection of one persisted ``ReviewPacketExport``."""
 
-    status_markdown: str
-    case_summary_html: str
     decision_snapshot_html: str
     decision_summary_markdown: str
     translational_check_rows: list[list[Any]]
@@ -95,8 +93,6 @@ def build_clinical_panel_data(packet: ReviewPacketExport) -> ClinicalPanelData:
     """
     require_renderable_review_packet(packet)
     return ClinicalPanelData(
-        status_markdown=_status_markdown(packet),
-        case_summary_html=_case_summary_html(packet),
         decision_snapshot_html=_decision_snapshot_html(packet),
         decision_summary_markdown=_decision_summary_markdown(packet),
         translational_check_rows=_translational_check_rows(packet),
@@ -425,51 +421,6 @@ def _escape_timing_label(pressure: str) -> str:
     if not clean:
         return "Watch at progression or therapy switch"
     return f"Watch after {clean}"
-
-def _status_markdown(packet: ReviewPacketExport) -> str:
-    statuses = [claim.validation_status for claim in packet.bundle.claims]
-    validated = statuses.count("validated")
-    rejected = statuses.count("rejected")
-    needs_review = statuses.count("needs_review")
-    return (
-        '<div class="translume-status">'
-        "Translume tumor-behavior report loaded. "
-        f"Evidence claims: {validated} validated, {rejected} rejected, {needs_review} need review."
-        "</div>"
-    )
-
-
-def _case_summary_html(packet: ReviewPacketExport) -> str:
-    extraction = packet.bundle.extraction
-    summary_items = [
-        ("Report type", extraction.report_type),
-        ("Disease context", extraction.disease or "Not stated in report"),
-        ("Specimen", extraction.specimen or "Not stated in report"),
-        ("Tumor percentage", extraction.tumor_percentage or "Not stated in report"),
-        ("Molecular findings", str(len(extraction.molecular_findings))),
-    ]
-    grid = "".join(
-        (
-            '<div class="translume-summary-item">'
-            f'<span class="translume-summary-label">{html.escape(label)}</span>'
-            f'<span class="translume-summary-value">{html.escape(value)}</span>'
-            "</div>"
-        )
-        for label, value in summary_items
-    )
-    negatives = _html_list("Report negative findings", extraction.negative_findings)
-    limitations = _html_list("Report limitations", extraction.assay_limitations)
-    return (
-        f'<div class="translume-summary-grid">{grid}</div>'
-        f"{negatives}{limitations}"
-        '<div class="translume-safety-note">'
-        "This output is clinician decision-support and requires oncology review. "
-        "It does not claim certain response, cure, survival benefit, or deterministic outcome."
-        "</div>"
-    )
-
-
-
 
 
 def _therapy_escape_path_sankey_figure(paths: Sequence[Any]) -> go.Figure:
@@ -1161,13 +1112,6 @@ def _joined_or_fallback(values: list[str] | tuple[str, ...], *, fallback: str) -
 
 def _humanize(value: str) -> str:
     return value.replace("_", " ").strip().capitalize()
-
-def _html_list(title: str, values: list[str]) -> str:
-    if not values:
-        return ""
-    items = "".join(f"<li>{html.escape(value)}</li>" for value in values)
-    return f"<strong>{html.escape(title)}</strong><ul class=\"translume-summary-list\">{items}</ul>"
-
 
 def _markdown_list(title: str, values: list[str]) -> str:
     if not values:

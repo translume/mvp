@@ -406,7 +406,7 @@ async def test_mechanism_sankey_deduplicates_identical_nodes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mechanism_sankey_rejects_conflicting_duplicate_node_id() -> None:
+async def test_mechanism_sankey_repairs_conflicting_duplicate_node_id() -> None:
     output = _valid_sankey_output()
     output["nodes"].append(
         {
@@ -417,39 +417,84 @@ async def test_mechanism_sankey_rejects_conflicting_duplicate_node_id() -> None:
         }
     )
 
-    with pytest.raises(
-        StructuredArtifactGenerationError,
-        match="duplicate node_id has conflicting content",
-    ):
-        await generate_mechanism_sankey_with_model(
-            context=_context(),
-            phenotype=_phenotype(),
-            matrix=_matrix(),
-            model_provider=SankeyModelProvider(output),
-            model_name="local-test-model",
-            prompts_root=Path("configs/prompts"),
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        )
+    provider = SequencedTumorBehaviorModelProvider(
+        [output, _valid_sankey_output()]
+    )
+
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert provider.schema_names == [
+        "MechanismSankeyOutput",
+        "MechanismSankeyOutput",
+    ]
+    assert "duplicate node_id has conflicting content" in provider.user_prompts[1]
+    assert result.provenance.generation_status == (
+        "generated_after_structured_output_repair"
+    )
+    assert len(result.artifact.nodes) == 2
 
 
 @pytest.mark.asyncio
-async def test_mechanism_sankey_still_rejects_missing_link_node() -> None:
+async def test_mechanism_sankey_repeated_conflict_uses_fallback() -> None:
+    output = _valid_sankey_output()
+    output["nodes"].append(
+        {
+            "node_id": "node_finding",
+            "label": "Conflicting label",
+            "kind": "finding",
+            "evidence_class": "patient_specific_finding",
+        }
+    )
+    provider = SequencedTumorBehaviorModelProvider([output, output])
+
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert len(provider.schema_names) == 2
+    assert result.provenance.generation_status == "deterministic_fallback"
+    node_ids = {node.node_id for node in result.artifact.nodes}
+    assert all(
+        link.source_node_id in node_ids and link.target_node_id in node_ids
+        for link in result.artifact.links
+    )
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_repeated_missing_link_node_uses_fallback() -> None:
     output = _valid_sankey_output()
     output["links"][0]["target_node_id"] = "node_missing"
 
-    with pytest.raises(
-        StructuredArtifactGenerationError,
-        match="link references a missing node",
-    ):
-        await generate_mechanism_sankey_with_model(
-            context=_context(),
-            phenotype=_phenotype(),
-            matrix=_matrix(),
-            model_provider=SankeyModelProvider(output),
-            model_name="local-test-model",
-            prompts_root=Path("configs/prompts"),
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        )
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=SankeyModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.provenance.generation_status == "deterministic_fallback"
+    node_ids = {node.node_id for node in result.artifact.nodes}
+    assert all(
+        link.source_node_id in node_ids and link.target_node_id in node_ids
+        for link in result.artifact.links
+    )
 
 
 @pytest.mark.asyncio

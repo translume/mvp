@@ -171,6 +171,16 @@ make mims-data-status
 
 This stores MedeaDB at `data/medea_cache/MedeaDB` and the OptimusKG client cache at `data/optimuskg_cache`. Compose bind-mounts those exact `MEDEADB_PATH` and `OPTIMUSKG_CACHE_DIR` host paths into the services; the data is not copied into Docker images. The combined target is cache-aware, so rerunning it reuses complete downloads.
 
+Pull the release-pinned Reactome graph image:
+
+```bash
+make reactome-image
+```
+
+After startup, verify GraphDB readiness and the complete pathway workflow with
+`make reactome-status` and `make reactome-smoke`. ToolUniverse remains HTTP 503
+while the graph initializes or if its configured release does not match.
+
 ## 6. Validate configuration before starting Docker
 
 ```bash
