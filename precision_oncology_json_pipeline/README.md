@@ -454,6 +454,23 @@ That switch is for diagnosis and evaluation, not routine production.
 
 Do not place output directories in public object storage, shared logs, or source control. Apply the access controls, retention policy, audit policy, and contractual safeguards required for your clinical environment.
 
+## Structured-response recovery
+
+The hypothesis-synthesis stage uses medium reasoning with a 30,000-token output
+allowance. If the Responses API reports an incomplete result, the gateway
+classifies `incomplete_details`, refusal state, usage, and reasoning tokens,
+then retries once at low reasoning rather than repeating the same request.
+Parsed output is accepted from either the top-level SDK helper or message
+content. Completed JSON text is validated through the stage Pydantic model.
+Errors never include the clinical response body.
+
+The report-compiler stage uses a stage-specific request timeout controlled by
+`PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS` (900 seconds by default). Its
+first request uses medium reasoning. If that request times out, one bounded
+retry uses low reasoning and a compacted copy of the compiler payload while
+preserving required identifiers, evidence URLs, and report sections. The
+original pipeline state is not mutated.
+
 ## Tests and static checks
 
 ```bash

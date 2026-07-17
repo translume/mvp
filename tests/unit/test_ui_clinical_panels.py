@@ -704,6 +704,8 @@ def test_gradio_app_exposes_clinical_panel_labels() -> None:
     assert "Completed session ZIP" in config
     assert "Load saved pathway session" in config
     assert "session-import-status" in config
+    assert "workflow-error" in config
+    assert "pathway-processing-status" in config
     assert "Tumor board causal summary" in config
 
 
@@ -768,7 +770,9 @@ def test_process_handler_renders_persisted_export_not_unpersisted_response(
     pdf = tmp_path / "report.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
     outputs = process_pdf(str(pdf), "NGS", "Example sarcoma")
-    assert outputs[0] == "session-ui"
+    assert outputs[0]["visible"] is False
+    assert outputs[1]["visible"] is False
+    assert outputs[2] == "session-ui"
     assert any(
         "Persisted disease context" in output
         for output in outputs
@@ -777,3 +781,31 @@ def test_process_handler_renders_persisted_export_not_unpersisted_response(
     assert outputs[-3] == "# Pathway"
     assert outputs[-2] == "# Research"
     assert outputs[-1] == "# Tumor board"
+
+
+def test_process_handler_shows_top_panel_for_missing_input() -> None:
+    from translume_ui.app import process_pdf
+
+    outputs = process_pdf(None, "NGS", "Example sarcoma")
+
+    assert outputs[0]["visible"] is True
+    assert "Upload a PDF before processing" in outputs[0]["value"]
+    assert outputs[1]["visible"] is True
+    assert "Upload a PDF before processing" in outputs[1]["value"]
+
+
+def test_process_outputs_show_top_panel_for_downstream_failure() -> None:
+    from translume_ui.app import _process_outputs
+
+    outputs = _process_outputs(
+        "session-ui",
+        build_clinical_panel_data(_packet()),
+        None,
+        '<div class="translume-error">Downstream failed.</div>',
+    )
+
+    assert outputs[0]["visible"] is True
+    assert "Downstream failed" in outputs[0]["value"]
+    assert outputs[1]["visible"] is True
+    assert "Downstream failed" in outputs[1]["value"]
+    assert "Downstream failed" in outputs[-3]

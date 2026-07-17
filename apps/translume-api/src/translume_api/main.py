@@ -294,6 +294,22 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         report_extraction_batch_max_chunks=(
             settings.report_extraction_batch_max_chunks
         ),
+        report_extraction_input_token_budget=(
+            settings.report_extraction_input_token_budget
+        ),
+        report_extraction_initial_max_tokens=settings.report_extraction_max_tokens,
+        report_extraction_retry_max_tokens=(
+            settings.report_extraction_retry_max_tokens
+        ),
+        report_extraction_max_split_depth=(
+            settings.report_extraction_max_split_depth
+        ),
+        report_extraction_min_segment_chars=(
+            settings.report_extraction_min_segment_chars
+        ),
+        confirmatory_testing_input_token_budget=(
+            settings.confirmatory_testing_input_token_budget
+        ),
         tool_workflows=settings.tool_workflows,
         enable_provider_cache=settings.enable_provider_cache,
         graph_cache_ttl_seconds=settings.graph_cache_ttl_seconds,
@@ -366,6 +382,9 @@ def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:
             ),
             structured_output_max_tokens=(
                 settings.vllm_structured_output_max_tokens
+            ),
+            structured_output_retry_max_tokens=(
+                settings.vllm_structured_output_retry_max_tokens
             ),
             report_extraction_max_tokens=settings.report_extraction_max_tokens,
             tumor_behavior_max_tokens=settings.tumor_behavior_max_tokens,

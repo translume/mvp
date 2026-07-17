@@ -100,6 +100,17 @@ packet and executes the existing precision CLI. The API next calls the internal
 `dynamic-pathway-analyzer` runner at port `8095`, which executes both existing
 dynamic analyzer commands and verifies all expected Markdown files.
 
+The precision pipeline classifies Responses API structured-output failures
+before retrying. Hypothesis synthesis starts with medium reasoning and retries
+an incomplete response at low reasoning. The gateway reads parsed content from
+both SDK-supported response locations and reports response status, incomplete
+reason, output tokens, and reasoning tokens without returning clinical text.
+Report compilation uses the stage-specific
+`PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS` value (900 seconds by default).
+After one timeout it retries once with low reasoning and a deterministic,
+non-mutating compacted payload that retains required identifiers and evidence
+URLs.
+
 All artifacts are stored below:
 
 ```text
@@ -145,10 +156,23 @@ the two runner containers; set `DOWNSTREAM_OPENAI_API_KEY`, not
 ## Structured-output request budgets
 
 `VLLM_STRUCTURED_OUTPUT_MAX_TOKENS` bounds every local structured-output
-request. `REPORT_EXTRACTION_BATCH_MAX_CHUNKS` and
-`REPORT_EXTRACTION_MAX_TOKENS` bound each page-ordered report-extraction call.
-The extraction planner processes all retrieved chunks and deterministically
-merges the validated batch artifacts, rather than dropping report content.
+request. Report extraction uses the served model tokenizer and explicit input,
+initial-output, retry-output, safety, and split-depth budgets. The chunk count
+is a secondary bound. Its flow is source segmentation, token measurement,
+bounded batching, generation, truncation classification, recursive splitting,
+leaf validation/source alignment, and deterministic merge. Partial content
+from a length-stopped response is never validated or persisted.
+Confirmatory testing has a separate compaction boundary that retains bounded
+findings, evidence gaps, graph/tool/Medea context, phenotype axes, matrix rows,
+and Sankey endpoints. `_generate_artifact` measures its complete rendered
+prompt before model I/O and rejects budget violations deterministically.
+Clinical narrative generation does not trust model-authored provenance IDs.
+It assigns `source_artifact_ids` from `_bundle_source_ids()` and validates any
+artifact token written into Markdown against that same case-local allowlist.
+`LocalVLLMProvider` owns the shared structured-output truncation retry and
+generation-only schema bounds. Core generation wraps repeated non-report
+truncations with prompt and schema diagnostics; report extraction deliberately
+re-raises the typed signal to its adaptive splitter.
 `TumorBehaviorModelOutput` retries once after `finish_reason=length`, using
 the larger `VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` bound. A repeated truncation is
 surfaced without logging or returning the partial clinical response.
@@ -587,6 +611,15 @@ Use `make optimuskg-data` to populate `data/optimuskg_cache` through the vendore
 ## ToolUniverse workflow coverage
 
 The default ToolUniverse workflow config includes `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. Each workflow maps to explicit ToolUniverse tool names and dynamic arguments derived from normalized entities and graph evidence. If your vendored ToolUniverse version changes tool names or parameters, update `configs/local/tooluniverse_workflows.json` and rerun `make validate-prime-directives`, `make vendor-status`, and `make test`; do not edit Translume core compiler code or the upstream ToolUniverse repo.
+
+`literature_validation` builds disease-aware Boolean queries instead of placing
+all report genes into an implicit-AND search. Source-derived genes are retained
+in deterministic order, deduplicated, and partitioned into batches of three.
+Each batch is rendered as `"disease" AND (GENE1 OR GENE2 OR GENE3)` and is
+executed independently through PubMed and Europe PMC. The runtime records the
+rendered query and batch index on every evidence item and deduplicates repeated
+publications by provider plus PMID, DOI, or stable ID. At most eight literature
+queries are generated for one workflow execution.
 
 
 ## Medea literature and database runtime enforcement

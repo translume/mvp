@@ -162,6 +162,24 @@ def process_pdf(
     return _process_outputs(persisted_packet.session_id, panels, downstream, "")
 
 
+def show_pathway_processing_status() -> Any:
+    """Show the pathway-tab target used by Gradio's elapsed-time indicator.
+
+    Acceptance criteria:
+        1. Makes the status surface visible before report processing starts.
+        2. Uses non-clinical loading text only.
+        3. Does not mutate application or session state.
+    """
+    return gr.update(
+        value=(
+            '<div class="translume-pathway-processing">'
+            "Processing report and pathway analysis…"
+            "</div>"
+        ),
+        visible=True,
+    )
+
+
 def load_saved_pathway_session(
     zip_path: str | None,
 ) -> tuple[str, str, str, str]:
@@ -323,6 +341,11 @@ def build_app() -> gr.Blocks:
         fill_width=True,
     ) as demo:
         gr.HTML(header_html())
+        workflow_error = gr.HTML(
+            "",
+            visible=False,
+            elem_id="workflow-error",
+        )
         session_state = gr.State("")
 
         with gr.Row(equal_height=False):
@@ -363,6 +386,11 @@ def build_app() -> gr.Blocks:
             with gr.Column(scale=9):
                 with gr.Tabs():
                     with gr.Tab("Pathway analysis"):
+                        pathway_processing_status = gr.HTML(
+                            "",
+                            visible=False,
+                            elem_id="pathway-processing-status",
+                        )
                         pathway_analysis_markdown = gr.Markdown(
                             "",
                             label="Pathway analysis",
@@ -774,6 +802,8 @@ def build_app() -> gr.Blocks:
                         )
 
         process_outputs = [
+            workflow_error,
+            pathway_processing_status,
             session_state,
             decision_snapshot,
             decision_summary,
@@ -814,6 +844,10 @@ def build_app() -> gr.Blocks:
             tumor_board_summary_markdown,
         ]
         run.click(
+            show_pathway_processing_status,
+            outputs=[pathway_processing_status],
+            show_progress="hidden",
+        ).then(
             process_pdf,
             inputs=[report, report_type, diagnosis],
             outputs=process_outputs,
@@ -881,6 +915,14 @@ def _process_outputs(
     downstream_status: str,
 ) -> tuple[Any, ...]:
     return (
+        gr.update(
+            value=downstream_status,
+            visible=bool(downstream_status),
+        ),
+        gr.update(
+            value=downstream_status,
+            visible=bool(downstream_status),
+        ),
         session_id,
         panels.decision_snapshot_html,
         panels.decision_summary_markdown,
@@ -932,6 +974,14 @@ def _process_outputs(
 def _empty_process_outputs(error_message: str) -> tuple[Any, ...]:
     empty_tables = [[] for _ in range(25)]
     return (
+        gr.update(
+            value=_error_html(error_message),
+            visible=True,
+        ),
+        gr.update(
+            value=_error_html(error_message),
+            visible=True,
+        ),
         "",
         _error_html(error_message),
         "",

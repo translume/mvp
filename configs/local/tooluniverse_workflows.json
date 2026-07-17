@@ -17,17 +17,18 @@
     "literature_validation": {
       "description": "Retrieve source literature candidates for report-derived disease, gene, and alteration terms.",
       "required_context": [
-        "literature_query"
+        "literature_queries"
       ],
       "steps": [
         {
           "tool_name": "PubMed_search_articles",
           "required_context": [
-            "literature_query"
+            "literature_queries"
           ],
+          "foreach_context": "literature_queries",
           "use_cache": true,
           "arguments": {
-            "query": "$literature_query",
+            "query": "$foreach_value",
             "limit": 5,
             "include_abstract": true
           }
@@ -35,11 +36,12 @@
         {
           "tool_name": "EuropePMC_search_articles",
           "required_context": [
-            "literature_query"
+            "literature_queries"
           ],
+          "foreach_context": "literature_queries",
           "use_cache": true,
           "arguments": {
-            "query": "$literature_query",
+            "query": "$foreach_value",
             "limit": 5,
             "enrich_missing_abstract": false
           }

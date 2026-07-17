@@ -6,18 +6,20 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar
 from uuid import NAMESPACE_URL, uuid5
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, StringConstraints, ValidationError
 
 from translume_core.compiler.mechanism_sankey import (
     generate_mechanism_sankey_from_context,
 )
+from translume_core.provenance.hashing import stable_json_hash
 from translume_core.provenance.provenance import build_artifact_provenance
 from translume_core.safety.language import validate_safety_language
+from translume_ports.model_provider import ModelOutputTruncatedError
 from translume_schemas.claims import ClaimEvidenceOutput
-from translume_schemas.confirmatory import ConfirmatoryTestingOutput
+from translume_schemas.confirmatory import ConfirmatoryTest, ConfirmatoryTestingOutput
 from translume_schemas.decision_brief import OncologistDecisionBrief
 from translume_schemas.document import DocumentChunk, RetrievedDocumentChunk
 from translume_schemas.evidence import EvidenceContextBundle
@@ -55,6 +57,7 @@ _MAX_PROMPT_RETRIEVED_CHUNKS = 20
 _REPORT_EXTRACTION_BATCH_MAX_CHUNKS = 5
 _REPORT_EXTRACTION_CRITICAL_CHUNK_MIN_SCORE = 25
 _MAX_PROMPT_SOURCE_TEXT_CHARS = 700
+_REPORT_EXTRACTION_SOURCE_UNIT_CHARS = 400
 _MAX_PROMPT_SUMMARY_CHARS = 1200
 _MAX_PROMPT_MISC_TEXT_CHARS = 500
 _MAX_PROMPT_MEDEA_SUMMARY_CHARS = 1600
@@ -65,6 +68,15 @@ _MAX_PROMPT_MATRIX_ROWS = 12
 _MAX_PROMPT_SANKEY_NODES = 30
 _MAX_PROMPT_SANKEY_LINKS = 60
 _MAX_PROMPT_CONFIRMATORY_TESTS = 12
+_MAX_PROMPT_CONFIRMATORY_INPUT_FINDINGS = 4
+_MAX_PROMPT_CONFIRMATORY_INPUT_GRAPH_NODES = 3
+_MAX_PROMPT_CONFIRMATORY_INPUT_GRAPH_EDGES = 4
+_MAX_PROMPT_CONFIRMATORY_INPUT_TOOL_OUTPUTS = 1
+_MAX_PROMPT_CONFIRMATORY_INPUT_AXES = 2
+_MAX_PROMPT_CONFIRMATORY_INPUT_MATRIX_ROWS = 2
+_MAX_PROMPT_CONFIRMATORY_INPUT_SANKEY_NODES = 4
+_MAX_PROMPT_CONFIRMATORY_INPUT_SANKEY_LINKS = 4
+_MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS = 12000
 _MAX_PROMPT_TUMOR_STATES = 10
 _MAX_PROMPT_TRANSITIONS = 10
 _MAX_PROMPT_CLAIMS = 20
@@ -73,6 +85,8 @@ _MAX_PROMPT_SANKEY_INPUT_FINDINGS = 6
 _MAX_PROMPT_SANKEY_INPUT_GRAPH_NODES = 8
 _MAX_PROMPT_SANKEY_INPUT_GRAPH_EDGES = 10
 _MAX_PROMPT_SANKEY_INPUT_TOOL_OUTPUTS = 2
+
+
 _MAX_PROMPT_SANKEY_INPUT_TOOL_EVIDENCE_ITEMS = 1
 _MAX_PROMPT_SANKEY_INPUT_HYPOTHESES = 4
 _MAX_PROMPT_SANKEY_INPUT_AXES = 3
@@ -149,6 +163,71 @@ class StructuredArtifactGenerationError(RuntimeError):
     """
 
 
+class IrreducibleReportExtractionTruncationError(
+    StructuredArtifactGenerationError
+):
+    """Raised when a report batch cannot be safely subdivided further."""
+
+
+class _BoundedMolecularFinding(MolecularFinding):
+    """Bound one leaf finding while retaining the public finding contract."""
+
+    finding_id: str = Field(max_length=160)
+    gene: str | None = Field(default=None, max_length=80)
+    alteration: str = Field(max_length=200)
+    alteration_type: str = Field(max_length=80)
+    source_text: str | None = Field(default=None, max_length=300)
+    source_chunk_id: str | None = Field(default=None, max_length=120)
+
+
+_BoundedLeafText = Annotated[str, StringConstraints(max_length=300)]
+
+
+class _BoundedReportExtractionOutput(ReportExtractionOutput):
+    """Bound one model leaf without limiting the merged report artifact."""
+
+    artifact_id: str = Field(max_length=160)
+    report_type: str = Field(max_length=80)
+    disease: str | None = Field(default=None, max_length=500)
+    specimen: str | None = Field(default=None, max_length=500)
+    tumor_percentage: str | None = Field(default=None, max_length=120)
+    molecular_findings: list[_BoundedMolecularFinding] = Field(max_length=8)
+    negative_findings: list[_BoundedLeafText] = Field(
+        default_factory=list,
+        max_length=6,
+    )
+    assay_limitations: list[_BoundedLeafText] = Field(
+        default_factory=list,
+        max_length=6,
+    )
+    source_file_id: str = Field(max_length=160)
+
+
+class _BoundedConfirmatoryTest(ConfirmatoryTest):
+    """Bound one generated validation-test row."""
+
+    test_id: str = Field(max_length=120)
+    question: str = Field(max_length=500)
+    why_it_matters: str = Field(max_length=700)
+    positive_interpretation: str = Field(max_length=700)
+    negative_interpretation: str = Field(max_length=700)
+    priority: str = Field(max_length=80)
+    evidence_gap: str = Field(max_length=700)
+    source_claim_ids: list[Annotated[str, StringConstraints(max_length=160)]] = (
+        Field(default_factory=list, max_length=20)
+    )
+
+
+class _BoundedConfirmatoryTestingOutput(ConfirmatoryTestingOutput):
+    """Bound model generation without limiting downstream public types."""
+
+    artifact_id: str = Field(max_length=160)
+    tests: list[_BoundedConfirmatoryTest] = Field(max_length=12)
+    must_not_assume: list[
+        Annotated[str, StringConstraints(max_length=500)]
+    ] = Field(default_factory=list, max_length=12)
+
+
 class InvalidMechanismSankeyError(StructuredArtifactGenerationError):
     """Raised when a schema-valid mechanism graph violates graph invariants."""
 
@@ -188,6 +267,11 @@ async def generate_report_extraction_with_model(
     prompts_root: Path,
     created_at: datetime,
     batch_max_chunks: int = _REPORT_EXTRACTION_BATCH_MAX_CHUNKS,
+    input_token_budget: int = 2200,
+    initial_max_tokens: int = 2500,
+    retry_max_tokens: int = 5000,
+    max_split_depth: int = 6,
+    min_segment_chars: int = 400,
 ) -> StructuredArtifactResult[ReportExtractionOutput]:
     """Generate source-grounded ReportExtractionOutput through local vLLM.
 
@@ -207,59 +291,36 @@ async def generate_report_extraction_with_model(
            inference.
     """
     source_chunks = _require_retrieved_source_chunks(retrieved_chunks)
+    prompt_source_units = _segment_report_chunks_for_prompt(source_chunks)
     planned_artifact_id = _artifact_id(source_file_id, "ReportExtractionOutput")
-    prompt_batches = _plan_report_extraction_prompt_batches(
-        source_chunks,
+    prompt_batches = await _plan_token_bounded_report_extraction_batches(
+        prompt_source_units,
+        model_provider=model_provider,
+        model_name=model_name,
+        input_token_budget=input_token_budget,
         batch_max_chunks=batch_max_chunks,
     )
     batch_artifacts: list[ReportExtractionOutput] = []
     for batch_index, prompt_chunks in enumerate(prompt_batches):
-        payload = {
-            "planned_artifact_id": planned_artifact_id,
-            "report_type": report_type,
-            "source_file_id": source_file_id,
-            "source_grounding_contract": {
-                "model_may_use_only_retrieved_chunks": True,
-                "finding_source_text_must_quote_chunk": True,
-                "unsupported_findings_must_be_low_confidence": True,
-                "graph_literature_treatment_and_behavior_inference_disallowed": True,
-                "extract_this_batch_only": True,
-                "full_report_is_processed_across_batches": True,
-            },
-            "batch_context": _report_extraction_batch_context(
-                batch_index=batch_index,
-                total_batches=len(prompt_batches),
-                prompt_chunks=prompt_chunks,
-            ),
-            "retrieved_chunks": [
-                _retrieved_chunk_prompt_payload(item) for item in prompt_chunks
-            ],
-            "retrieval_truncation": _retrieved_chunk_truncation_summary(
-                source_chunks,
-                prompt_chunks,
-            ),
-        }
-        result = await _generate_artifact(
-            prompt_name="report_extraction",
-            schema_model=ReportExtractionOutput,
+        leaf_artifacts = await _generate_report_extraction_adaptively(
+            prompt_chunks=prompt_chunks,
+            all_source_chunks=source_chunks,
             planned_artifact_id=planned_artifact_id,
-            payload=payload,
-            source_artifact_ids=[item.chunk.chunk_id for item in prompt_chunks],
-            source_chunk_ids=[item.chunk.chunk_id for item in prompt_chunks],
+            report_type=report_type,
             source_file_id=source_file_id,
             model_provider=model_provider,
             model_name=model_name,
             prompts_root=prompts_root,
             created_at=created_at,
+            batch_index=batch_index,
+            total_batches=len(prompt_batches),
+            initial_max_tokens=initial_max_tokens,
+            retry_max_tokens=retry_max_tokens,
+            max_split_depth=max_split_depth,
+            min_segment_chars=min_segment_chars,
+            depth=0,
         )
-        batch_artifacts.append(
-            _source_align_report_extraction(
-                result.artifact,
-                prompt_chunks,
-                report_type=report_type,
-                source_file_id=source_file_id,
-            )
-        )
+        batch_artifacts.extend(leaf_artifacts)
     merged = _merge_report_extraction_batches(
         batch_artifacts,
         planned_artifact_id=planned_artifact_id,
@@ -641,20 +702,33 @@ async def generate_confirmatory_testing_with_model(
     model_name: str,
     prompts_root: Path,
     created_at: datetime,
+    input_token_budget: int = 8000,
 ) -> StructuredArtifactResult[ConfirmatoryTestingOutput]:
     """Generate ConfirmatoryTestingOutput through local vLLM structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ConfirmatoryTestingOutput")
-    compact_context = compact_evidence_context_for_prompt(context)
-    return await _generate_artifact(
+    payload = _require_confirmatory_testing_payload_bound(
+        {
+            "evidence_context": (
+                compact_evidence_context_for_confirmatory_testing_prompt(
+                    context
+                )
+            ),
+            "molecular_phenotype": (
+                compact_phenotype_for_confirmatory_testing_prompt(phenotype)
+            ),
+            "molecular_fit_matrix": (
+                compact_matrix_for_confirmatory_testing_prompt(matrix)
+            ),
+            "mechanism_sankey": (
+                compact_sankey_for_confirmatory_testing_prompt(sankey)
+            ),
+        }
+    )
+    result = await _generate_artifact(
         prompt_name="confirmatory_testing",
-        schema_model=ConfirmatoryTestingOutput,
+        schema_model=_BoundedConfirmatoryTestingOutput,
         planned_artifact_id=artifact_id,
-        payload={
-            "evidence_context": compact_context,
-            "molecular_phenotype": compact_phenotype_for_prompt(phenotype),
-            "molecular_fit_matrix": compact_matrix_for_prompt(matrix),
-            "mechanism_sankey": compact_sankey_for_prompt(sankey),
-        },
+        payload=payload,
         source_artifact_ids=[
             *_context_source_ids(context),
             phenotype.artifact_id,
@@ -667,6 +741,37 @@ async def generate_confirmatory_testing_with_model(
         model_name=model_name,
         prompts_root=prompts_root,
         created_at=created_at,
+        input_token_budget=input_token_budget,
+    )
+    return StructuredArtifactResult(
+        artifact=ConfirmatoryTestingOutput.model_validate(
+            result.artifact.model_dump()
+        ),
+        provenance=_canonicalize_provenance_schema(
+            result.provenance,
+            ConfirmatoryTestingOutput,
+        ),
+    )
+
+
+def _canonicalize_provenance_schema(
+    provenance: ArtifactProvenance,
+    public_schema: type[BaseModel],
+) -> ArtifactProvenance:
+    """Return provenance labeled and hashed with its public artifact schema.
+
+    Acceptance criteria:
+        1. Schema name and hash describe the public persisted artifact type.
+        2. All generation, source, prompt, model, and timestamp fields remain.
+        3. The caller-owned provenance record is not mutated.
+    """
+    schema_name = public_schema.__name__
+    return provenance.model_copy(
+        update={
+            "artifact_type": schema_name,
+            "schema_name": schema_name,
+            "schema_hash": stable_json_hash(public_schema.model_json_schema()),
+        }
     )
 
 
@@ -1380,11 +1485,15 @@ async def generate_clinical_narrative_with_model(
         model_name=model_name,
         prompts_root=prompts_root,
         created_at=created_at,
+        artifact_validator=lambda narrative: (
+            _normalize_and_validate_clinical_narrative(
+                narrative,
+                allowed_source_ids=source_ids,
+                narrative_artifact_id=artifact_id,
+            )
+        ),
     )
-    return StructuredArtifactResult(
-        artifact=_normalize_clinical_narrative_fragments(result.artifact),
-        provenance=result.provenance,
-    )
+    return result
 
 
 class ClaimEvidenceListOutput(BaseModel):
@@ -1565,6 +1674,33 @@ def _normalize_clinical_narrative_fragments(
         narrative.markdown,
     )
     return narrative.model_copy(update={"markdown": markdown})
+
+
+def _normalize_and_validate_clinical_narrative(
+    narrative: ClinicalNarrativeCompilerOutput,
+    *,
+    allowed_source_ids: Sequence[str],
+    narrative_artifact_id: str,
+) -> ClinicalNarrativeCompilerOutput:
+    """Return narrative text with system-owned provenance identifiers.
+
+    Acceptance criteria:
+        1. Source IDs equal the ordered, de-duplicated bundle allowlist.
+        2. Unsupported artifact IDs in Markdown raise a validation error.
+        3. Caller-owned narrative and ID collections are not mutated.
+        4. Existing vague-fragment normalization remains active.
+    """
+    canonical_ids = list(dict.fromkeys(allowed_source_ids))
+    markdown_ids = set(re.findall(r"\bartifact_[A-Za-z0-9_-]+\b", narrative.markdown))
+    allowed_markdown_ids = {narrative_artifact_id, *canonical_ids}
+    unsupported_markdown_ids = sorted(markdown_ids - allowed_markdown_ids)
+    if unsupported_markdown_ids:
+        raise StructuredArtifactGenerationError(
+            "ClinicalNarrativeCompilerOutput Markdown included unsupported "
+            f"artifact IDs: {', '.join(unsupported_markdown_ids[:12])}"
+        )
+    normalized = _normalize_clinical_narrative_fragments(narrative)
+    return normalized.model_copy(update={"source_artifact_ids": canonical_ids})
 
 
 def _neutral_narrative_fragment(match: re.Match[str]) -> str:
@@ -2511,6 +2647,135 @@ def _require_tumor_behavior_payload_bound(
             "TumorBehaviorModelOutput prompt payload exceeds the configured "
             f"character budget: {payload_chars} > "
             f"{_MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS}"
+        )
+    return bounded
+
+
+def compact_evidence_context_for_confirmatory_testing_prompt(
+    context: EvidenceContextBundle,
+) -> dict[str, object]:
+    """Return validation-relevant evidence under confirmatory prompt caps.
+
+    Acceptance criteria:
+        1. Determinism: Identical context returns identical compact output.
+        2. No mutation: Caller-owned artifacts are not modified.
+        3. Grounding: Retained rows preserve artifact and finding identifiers.
+        4. Boundedness: Nested evidence uses confirmatory-specific caps.
+    """
+    compact = compact_evidence_context_for_tumor_behavior_prompt(context)
+    extraction = dict(compact["extraction"])
+    extraction["molecular_findings"] = extraction["molecular_findings"][
+        :_MAX_PROMPT_CONFIRMATORY_INPUT_FINDINGS
+    ]
+    graph = dict(compact["graph_evidence"])
+    graph_nodes = list(graph.get("nodes", []))
+    graph_edges = list(graph.get("edges", []))
+    graph["nodes"] = graph_nodes[
+        :_MAX_PROMPT_CONFIRMATORY_INPUT_GRAPH_NODES
+    ]
+    graph["edges"] = graph_edges[
+        :_MAX_PROMPT_CONFIRMATORY_INPUT_GRAPH_EDGES
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "extraction": extraction,
+        "graph_evidence": graph,
+        "tool_outputs": compact["tool_outputs"][
+            :_MAX_PROMPT_CONFIRMATORY_INPUT_TOOL_OUTPUTS
+        ],
+        "medea_reasoning": compact["medea_reasoning"],
+        "missing_evidence": compact["missing_evidence"],
+        "conflicting_evidence": compact["conflicting_evidence"],
+        "truncation_notice": _PROMPT_CONTEXT_CAP_NOTICE,
+    }
+
+
+def compact_phenotype_for_confirmatory_testing_prompt(
+    phenotype: MolecularPhenotypeOutput,
+) -> dict[str, object]:
+    """Return phenotype axes needed to select validation tests."""
+    compact = compact_phenotype_for_tumor_behavior_prompt(phenotype)
+    return {
+        **compact,
+        "axes": compact["axes"][:_MAX_PROMPT_CONFIRMATORY_INPUT_AXES],
+    }
+
+
+def compact_matrix_for_confirmatory_testing_prompt(
+    matrix: TherapyEvidenceMatrixOutput,
+) -> dict[str, object]:
+    """Return only matrix fields needed to formulate validation tests."""
+    compact = compact_matrix_for_tumor_behavior_prompt(matrix)
+    rows = [
+        {
+            "rank": row.get("rank"),
+            "molecular_fit": row.get("molecular_fit"),
+            "fit_label": row.get("fit_label"),
+            "matched_biomarkers": row.get("matched_biomarkers", []),
+            "limitations": row.get("limitations"),
+            "required_validation": row.get("required_validation"),
+            "required_before_use_tests": row.get(
+                "required_before_use_tests",
+                [],
+            ),
+            "confidence": row.get("confidence"),
+            "evidence_level": row.get("evidence_level"),
+        }
+        for row in compact["rows"][:_MAX_PROMPT_CONFIRMATORY_INPUT_MATRIX_ROWS]
+    ]
+    return {
+        "artifact_id": compact["artifact_id"],
+        "rows": rows,
+        "truncation": {
+            **compact["truncation"],
+            "kept_rows": len(rows),
+            "row_cap": _MAX_PROMPT_CONFIRMATORY_INPUT_MATRIX_ROWS,
+        },
+    }
+
+
+def compact_sankey_for_confirmatory_testing_prompt(
+    sankey: MechanismSankeyOutput,
+) -> dict[str, object]:
+    """Return bounded mechanism endpoints relevant to confirmatory tests."""
+    compact = compact_sankey_for_tumor_behavior_prompt(sankey)
+    return {
+        **compact,
+        "nodes": compact["nodes"][:_MAX_PROMPT_CONFIRMATORY_INPUT_SANKEY_NODES],
+        "links": compact["links"][:_MAX_PROMPT_CONFIRMATORY_INPUT_SANKEY_LINKS],
+    }
+
+
+def _require_confirmatory_testing_payload_bound(
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    """Apply a deterministic final reduction and enforce the hard budget."""
+    bounded = json.loads(json.dumps(payload, sort_keys=True))
+    payload_chars = len(json.dumps(bounded, sort_keys=True))
+    if payload_chars > _MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS:
+        evidence = bounded["evidence_context"]
+        extraction = evidence["extraction"]
+        graph = evidence["graph_evidence"]
+        phenotype = bounded["molecular_phenotype"]
+        matrix = bounded["molecular_fit_matrix"]
+        sankey = bounded["mechanism_sankey"]
+        extraction["molecular_findings"] = extraction["molecular_findings"][:3]
+        graph["nodes"] = graph["nodes"][:2]
+        graph["edges"] = graph["edges"][:2]
+        phenotype["axes"] = phenotype["axes"][:1]
+        matrix["rows"] = matrix["rows"][:1]
+        sankey["nodes"] = sankey["nodes"][:3]
+        sankey["links"] = sankey["links"][:2]
+        bounded["budget_reduction"] = {
+            "applied": True,
+            "notice": _PROMPT_CONTEXT_CAP_NOTICE,
+        }
+        payload_chars = len(json.dumps(bounded, sort_keys=True))
+    if payload_chars > _MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS:
+        raise StructuredArtifactGenerationError(
+            "ConfirmatoryTestingOutput prompt payload exceeds the configured "
+            f"character budget: {payload_chars} > "
+            f"{_MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS}"
         )
     return bounded
 
@@ -5328,6 +5593,8 @@ async def _generate_artifact(
     prompts_root: Path,
     created_at: datetime,
     artifact_validator: Callable[[T], T] | None = None,
+    max_tokens: int | None = None,
+    input_token_budget: int | None = None,
 ) -> StructuredArtifactResult[T]:
     """Generate a schema-valid artifact with one repair retry.
 
@@ -5365,6 +5632,15 @@ async def _generate_artifact(
         planned_artifact_id=planned_artifact_id,
         payload_json=payload_json,
     )
+    if input_token_budget is not None:
+        await _require_prompt_within_token_budget(
+            model_provider=model_provider,
+            model_name=model_name,
+            system_prompt=prompts.system,
+            user_prompt=user_prompt,
+            input_token_budget=input_token_budget,
+            schema_name=schema_model.__name__,
+        )
     schema = schema_model.model_json_schema()
     attempt_result = await _generate_valid_artifact_attempt(
         prompt_name=prompt_name,
@@ -5377,6 +5653,7 @@ async def _generate_artifact(
         model_provider=model_provider,
         model_name=model_name,
         artifact_validator=artifact_validator,
+        max_tokens=max_tokens,
     )
     provenance = build_artifact_provenance(
         artifact_type=schema_model.__name__,
@@ -5394,6 +5671,32 @@ async def _generate_artifact(
     return StructuredArtifactResult(artifact=attempt_result.artifact, provenance=provenance)
 
 
+async def _require_prompt_within_token_budget(
+    *,
+    model_provider: object,
+    model_name: str,
+    system_prompt: str,
+    user_prompt: str,
+    input_token_budget: int,
+    schema_name: str,
+) -> None:
+    """Fail before generation when a rendered prompt exceeds its input budget."""
+    if input_token_budget <= 0:
+        raise ValueError("input_token_budget must be positive")
+    prompt_text = f"{system_prompt}\n\n{user_prompt}"
+    counter = getattr(model_provider, "count_tokens", None)
+    prompt_tokens = (
+        await counter(model_name=model_name, text=prompt_text)
+        if callable(counter)
+        else max(1, (len(prompt_text) + 3) // 4)
+    )
+    if prompt_tokens > input_token_budget:
+        raise StructuredArtifactGenerationError(
+            f"{schema_name} rendered prompt exceeds input token budget: "
+            f"{prompt_tokens} > {input_token_budget}"
+        )
+
+
 async def _generate_valid_artifact_attempt(
     *,
     prompt_name: str,
@@ -5406,6 +5709,7 @@ async def _generate_valid_artifact_attempt(
     model_provider: object,
     model_name: str,
     artifact_validator: Callable[[T], T] | None = None,
+    max_tokens: int | None = None,
 ) -> _StructuredArtifactAttemptResult[T]:
     """Return a valid artifact, retrying once for malformed output.
 
@@ -5439,12 +5743,17 @@ async def _generate_valid_artifact_attempt(
     raw_output: object | None = None
     for attempt_index in range(_STRUCTURED_OUTPUT_MAX_ATTEMPTS):
         try:
+            completion_kwargs = {
+                "model_name": model_name,
+                "system_prompt": system_prompt,
+                "user_prompt": current_user_prompt,
+                "schema_name": schema_model.__name__,
+                "json_schema": schema,
+            }
+            if max_tokens is not None:
+                completion_kwargs["max_tokens"] = max_tokens
             raw_output = await model_provider.structured_completion(
-                model_name=model_name,
-                system_prompt=system_prompt,
-                user_prompt=current_user_prompt,
-                schema_name=schema_model.__name__,
-                json_schema=schema,
+                **completion_kwargs
             )
             normalized = _coerce_structured_output(
                 raw_output,
@@ -5461,6 +5770,19 @@ async def _generate_valid_artifact_attempt(
                 user_prompt=current_user_prompt,
                 attempts=attempt_index + 1,
             )
+        except ModelOutputTruncatedError as error:
+            if prompt_name == "report_extraction":
+                raise
+            raise StructuredArtifactGenerationError(
+                _structured_model_failure_message(
+                    prompt_name=prompt_name,
+                    schema_name=schema_model.__name__,
+                    system_prompt=system_prompt,
+                    user_prompt=current_user_prompt,
+                    payload_json=payload_json,
+                    cause=error,
+                )
+            ) from error
         except RuntimeError as error:
             last_error = error
             if _contains_timeout_wording(error) or _is_final_attempt(attempt_index):
@@ -5824,6 +6146,30 @@ def _require_retrieved_source_chunks(
     return source_chunks
 
 
+def _segment_report_chunks_for_prompt(
+    source_chunks: Sequence[RetrievedDocumentChunk],
+) -> list[RetrievedDocumentChunk]:
+    """Return complete prompt-sized source units without changing source IDs."""
+    units: list[RetrievedDocumentChunk] = []
+    for source in source_chunks:
+        text = source.chunk.source_text
+        if len(text) <= _REPORT_EXTRACTION_SOURCE_UNIT_CHARS:
+            units.append(source)
+            continue
+        for start in range(0, len(text), _REPORT_EXTRACTION_SOURCE_UNIT_CHARS):
+            segment = text[start : start + _REPORT_EXTRACTION_SOURCE_UNIT_CHARS]
+            units.append(
+                source.model_copy(
+                    update={
+                        "chunk": source.chunk.model_copy(
+                            update={"source_text": segment}
+                        )
+                    }
+                )
+            )
+    return units
+
+
 
 
 _CRITICAL_REPORT_SECTION_TERMS = (
@@ -5849,6 +6195,220 @@ _CRITICAL_REPORT_SECTION_TERMS = (
     "low coverage",
     "tumor / normal matched",
 )
+
+
+async def _plan_token_bounded_report_extraction_batches(
+    retrieved_chunks: Sequence[RetrievedDocumentChunk],
+    *,
+    model_provider: object,
+    model_name: str,
+    input_token_budget: int,
+    batch_max_chunks: int,
+) -> list[list[RetrievedDocumentChunk]]:
+    """Return ordered batches bounded by the served model's tokenizer."""
+    if input_token_budget <= 0:
+        raise ValueError("input_token_budget must be positive")
+    ordered = sorted(retrieved_chunks, key=_retrieved_chunk_page_order)
+    batches: list[list[RetrievedDocumentChunk]] = []
+    current: list[RetrievedDocumentChunk] = []
+    current_tokens = 0
+    for item in ordered:
+        payload_text = json.dumps(
+            _retrieved_chunk_prompt_payload(item),
+            sort_keys=True,
+        )
+        counter = getattr(model_provider, "count_tokens", None)
+        item_tokens = (
+            await counter(model_name=model_name, text=payload_text)
+            if callable(counter)
+            else max(1, (len(payload_text) + 3) // 4)
+        )
+        would_overflow = current and (
+            current_tokens + item_tokens > input_token_budget
+            or len(current) >= batch_max_chunks
+        )
+        if would_overflow:
+            batches.append(current)
+            current = []
+            current_tokens = 0
+        current.append(item)
+        current_tokens += item_tokens
+    if current:
+        batches.append(current)
+    return batches
+
+
+async def _generate_report_extraction_adaptively(
+    *,
+    prompt_chunks: Sequence[RetrievedDocumentChunk],
+    all_source_chunks: Sequence[RetrievedDocumentChunk],
+    planned_artifact_id: str,
+    report_type: str,
+    source_file_id: str,
+    model_provider: object,
+    model_name: str,
+    prompts_root: Path,
+    created_at: datetime,
+    batch_index: int,
+    total_batches: int,
+    initial_max_tokens: int,
+    retry_max_tokens: int,
+    max_split_depth: int,
+    min_segment_chars: int,
+    depth: int,
+) -> list[ReportExtractionOutput]:
+    """Generate validated leaves, recursively splitting truncated batches."""
+    output_tokens = retry_max_tokens if depth > 0 and len(prompt_chunks) == 1 else initial_max_tokens
+    payload = {
+        "planned_artifact_id": planned_artifact_id,
+        "report_type": report_type,
+        "source_file_id": source_file_id,
+        "source_grounding_contract": {
+            "model_may_use_only_retrieved_chunks": True,
+            "finding_source_text_must_quote_chunk": True,
+            "unsupported_findings_must_be_low_confidence": True,
+            "graph_literature_treatment_and_behavior_inference_disallowed": True,
+            "extract_this_batch_only": True,
+            "full_report_is_processed_across_batches": True,
+        },
+        "leaf_output_contract": {
+            "concise_values_only": True,
+            "do_not_repeat_findings_or_text": True,
+            "maximum_molecular_findings": 8,
+            "maximum_negative_findings": 6,
+            "maximum_assay_limitations": 6,
+            "backend_merges_all_leaf_outputs": True,
+        },
+        "batch_context": _report_extraction_batch_context(
+            batch_index=batch_index,
+            total_batches=total_batches,
+            prompt_chunks=prompt_chunks,
+        ),
+        "retrieved_chunks": [
+            _retrieved_chunk_prompt_payload(item) for item in prompt_chunks
+        ],
+        "retrieval_truncation": _retrieved_chunk_truncation_summary(
+            all_source_chunks,
+            prompt_chunks,
+        ),
+    }
+    try:
+        result = await _generate_artifact(
+            prompt_name="report_extraction",
+            schema_model=_BoundedReportExtractionOutput,
+            planned_artifact_id=planned_artifact_id,
+            payload=payload,
+            source_artifact_ids=[item.chunk.chunk_id for item in prompt_chunks],
+            source_chunk_ids=[item.chunk.chunk_id for item in prompt_chunks],
+            source_file_id=source_file_id,
+            model_provider=model_provider,
+            model_name=model_name,
+            prompts_root=prompts_root,
+            created_at=created_at,
+            max_tokens=output_tokens,
+        )
+    except ModelOutputTruncatedError as error:
+        if depth >= max_split_depth:
+            raise IrreducibleReportExtractionTruncationError(
+                "ReportExtractionOutput remained truncated at maximum split "
+                f"depth={depth}, chunks={len(prompt_chunks)}, "
+                f"finish_reason={error.finish_reason!r}, "
+                f"content_chars={error.content_chars}"
+            ) from error
+        if len(prompt_chunks) == 1 and depth == 0:
+            return await _generate_report_extraction_adaptively(
+                prompt_chunks=prompt_chunks,
+                all_source_chunks=all_source_chunks,
+                planned_artifact_id=planned_artifact_id,
+                report_type=report_type,
+                source_file_id=source_file_id,
+                model_provider=model_provider,
+                model_name=model_name,
+                prompts_root=prompts_root,
+                created_at=created_at,
+                batch_index=batch_index,
+                total_batches=total_batches,
+                initial_max_tokens=initial_max_tokens,
+                retry_max_tokens=retry_max_tokens,
+                max_split_depth=max_split_depth,
+                min_segment_chars=min_segment_chars,
+                depth=1,
+            )
+        split_batches = _split_truncated_report_batch(
+            prompt_chunks,
+            min_segment_chars=min_segment_chars,
+        )
+        if split_batches is None:
+            raise IrreducibleReportExtractionTruncationError(
+                "ReportExtractionOutput remained truncated for an irreducible "
+                f"source unit at depth={depth}, "
+                f"finish_reason={error.finish_reason!r}, "
+                f"content_chars={error.content_chars}"
+            ) from error
+        leaves: list[ReportExtractionOutput] = []
+        for split_chunks in split_batches:
+            leaves.extend(
+                await _generate_report_extraction_adaptively(
+                    prompt_chunks=split_chunks,
+                    all_source_chunks=all_source_chunks,
+                    planned_artifact_id=planned_artifact_id,
+                    report_type=report_type,
+                    source_file_id=source_file_id,
+                    model_provider=model_provider,
+                    model_name=model_name,
+                    prompts_root=prompts_root,
+                    created_at=created_at,
+                    batch_index=batch_index,
+                    total_batches=total_batches,
+                    initial_max_tokens=initial_max_tokens,
+                    retry_max_tokens=retry_max_tokens,
+                    max_split_depth=max_split_depth,
+                    min_segment_chars=min_segment_chars,
+                    depth=depth + 1,
+                )
+            )
+        return leaves
+    return [
+        _source_align_report_extraction(
+            ReportExtractionOutput.model_validate(result.artifact.model_dump()),
+            prompt_chunks,
+            report_type=report_type,
+            source_file_id=source_file_id,
+        )
+    ]
+
+
+def _split_truncated_report_batch(
+    prompt_chunks: Sequence[RetrievedDocumentChunk],
+    *,
+    min_segment_chars: int,
+) -> tuple[list[RetrievedDocumentChunk], list[RetrievedDocumentChunk]] | None:
+    """Split a truncated batch without losing original source identity."""
+    if len(prompt_chunks) > 1:
+        midpoint = len(prompt_chunks) // 2
+        return list(prompt_chunks[:midpoint]), list(prompt_chunks[midpoint:])
+    source = prompt_chunks[0]
+    text = source.chunk.source_text
+    if len(text) < min_segment_chars * 2:
+        return None
+    midpoint = len(text) // 2
+    boundary = text.rfind("\n\n", min_segment_chars, midpoint + 1)
+    if boundary < min_segment_chars:
+        boundary = text.rfind(". ", min_segment_chars, midpoint + 1)
+        if boundary >= min_segment_chars:
+            boundary += 1
+    if boundary < min_segment_chars:
+        boundary = midpoint
+    parts = (text[:boundary].strip(), text[boundary:].strip())
+    if any(len(part) < min_segment_chars for part in parts):
+        return None
+    segmented = [
+        source.model_copy(
+            update={"chunk": source.chunk.model_copy(update={"source_text": part})}
+        )
+        for part in parts
+    ]
+    return [segmented[0]], [segmented[1]]
 
 
 def _plan_report_extraction_prompt_batches(

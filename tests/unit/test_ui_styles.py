@@ -1,4 +1,4 @@
-from translume_ui.styles import TRANSLUME_CSS
+from translume_ui.styles import TRANSLUME_CSS, header_html
 
 
 def test_tab_buttons_have_opaque_readable_states() -> None:
@@ -47,3 +47,30 @@ def test_tab_overflow_dots_are_blue_only_when_not_hovered() -> None:
     assert f"{selector} svg {{" in TRANSLUME_CSS
     assert "color: var(--translume-indigo) !important;" in TRANSLUME_CSS
     assert "fill: currentColor !important;" in TRANSLUME_CSS
+
+
+def test_workflow_error_text_has_scoped_visible_color() -> None:
+    """Require readable error text in the conditional workflow panel."""
+    assert "#workflow-error .translume-error," in TRANSLUME_CSS
+    assert "#workflow-error .translume-error * {" in TRANSLUME_CSS
+    assert "color: var(--translume-danger) !important;" in TRANSLUME_CSS
+
+
+def test_pathway_processing_status_is_visible_and_readable() -> None:
+    """Require a dedicated readable timer target on the pathway tab."""
+    assert "#pathway-processing-status {" in TRANSLUME_CSS
+    assert ".translume-pathway-processing {" in TRANSLUME_CSS
+    assert "border-left: 5px solid var(--translume-blue);" in TRANSLUME_CSS
+    assert "color: #111827;" in TRANSLUME_CSS
+
+
+def test_header_omits_removed_badges() -> None:
+    """Require the header copy while omitting the three retired badges."""
+    rendered = header_html()
+    assert "Oncologist Cockpit" in rendered
+    assert "Private local models" not in rendered
+    assert "Clinician decision support" not in rendered
+    assert "Human validation required" not in rendered
+    assert "translume-badges" not in rendered
+    assert ".translume-badges" not in TRANSLUME_CSS
+    assert ".translume-badge" not in TRANSLUME_CSS

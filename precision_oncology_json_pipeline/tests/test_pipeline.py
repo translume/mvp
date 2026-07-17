@@ -379,6 +379,208 @@ def test_openai_gateway_builds_structured_web_search_request(tmp_path: Path) -> 
     assert result.web_sources[0].url == ("https://clinicaltrials.gov/study/NCT05094336")
 
 
+def test_openai_gateway_accepts_content_level_parsed_output(tmp_path: Path) -> None:
+    """Support the parsed location used by Responses API message content."""
+
+    class Echo(p.StrictModel):
+        value: str
+
+    parsed = Echo(value="content-level")
+    content = type("Content", (), {"parsed": parsed})()
+    message = type("Message", (), {"type": "message", "content": [content]})()
+
+    class FakeResponse:
+        id = "resp_content"
+        model = "gpt-5.4-mini"
+        output_parsed = None
+        output = [message]
+        output_text = ""
+        status = "completed"
+
+        def model_dump(self, *, mode: str = "json") -> dict[str, object]:
+            del mode
+            return {"status": "completed", "usage": {}, "output": []}
+
+    class FakeResponses:
+        def parse(self, **kwargs: object) -> FakeResponse:
+            del kwargs
+            return FakeResponse()
+
+    gateway = p.OpenAIResponsesGateway(
+        p.PipelineConfig(
+            api_key="sk-test",
+            model="gpt-5.4-mini",
+            reasoning_effort="medium",
+            output_dir=tmp_path,
+        ),
+        p.ArtifactStore(tmp_path, "run_content"),
+    )
+    gateway._client = type("Client", (), {"responses": FakeResponses()})()
+
+    result = gateway._call_once(
+        stage="hypothesis_synthesis",
+        prompt=p.PROMPTS["hypothesis_synthesis"],
+        payload={"hypothesis": "test"},
+        response_model=Echo,
+        use_web=False,
+        allowed_domains=(),
+        required_web=False,
+    )
+
+    assert result.parsed.value == "content-level"
+
+
+def test_hypothesis_synthesis_adapts_after_incomplete_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retry an incomplete synthesis with lower reasoning instead of identically."""
+
+    class Echo(p.StrictModel):
+        value: str
+
+    calls: list[dict[str, object]] = []
+
+    class FakeResponse:
+        def __init__(self, *, complete: bool) -> None:
+            self.id = "resp_complete" if complete else "resp_incomplete"
+            self.model = "gpt-5.4-mini"
+            self.output_parsed = Echo(value="ok") if complete else None
+            self.output = []
+            self.output_text = ""
+            self.status = "completed" if complete else "incomplete"
+            self.incomplete_details = (
+                None
+                if complete
+                else type("Incomplete", (), {"reason": "max_output_tokens"})()
+            )
+
+        def model_dump(self, *, mode: str = "json") -> dict[str, object]:
+            del mode
+            return {
+                "status": self.status,
+                "incomplete_details": (
+                    None
+                    if self.incomplete_details is None
+                    else {"reason": self.incomplete_details.reason}
+                ),
+                "usage": {
+                    "output_tokens": 30_000,
+                    "output_tokens_details": {"reasoning_tokens": 29_500},
+                },
+                "output": [],
+            }
+
+    class FakeResponses:
+        def parse(self, **kwargs: object) -> FakeResponse:
+            calls.append(dict(kwargs))
+            return FakeResponse(complete=len(calls) > 1)
+
+    monkeypatch.setattr(p.time, "sleep", lambda _seconds: None)
+    gateway = p.OpenAIResponsesGateway(
+        p.PipelineConfig(
+            api_key="sk-test",
+            model="gpt-5.4-mini",
+            reasoning_effort="medium",
+            output_dir=tmp_path,
+            max_attempts=2,
+        ),
+        p.ArtifactStore(tmp_path, "run_retry"),
+    )
+    gateway._client = type("Client", (), {"responses": FakeResponses()})()
+
+    result = gateway._call_with_retry(
+        "hypothesis_synthesis",
+        p.PROMPTS["hypothesis_synthesis"],
+        {"hypothesis": "test"},
+        Echo,
+        False,
+        (),
+        False,
+    )
+
+    assert result.parsed.value == "ok"
+    assert calls[0]["reasoning"]["effort"] == "medium"
+    assert calls[1]["reasoning"]["effort"] == "low"
+    assert calls[1]["max_output_tokens"] == 30_000
+
+
+def test_report_compiler_uses_stage_timeout_and_compacts_timeout_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use a longer report timeout and one lower-reasoning compact retry."""
+
+    class Echo(p.StrictModel):
+        value: str
+
+    class APITimeoutError(Exception):
+        pass
+
+    calls: list[dict[str, object]] = []
+    timeouts: list[float] = []
+
+    class FakeResponse:
+        id = "resp_report"
+        model = "gpt-5.4-mini"
+        output_parsed = Echo(value="ok")
+
+        def model_dump(self, *, mode: str = "json") -> dict[str, object]:
+            del mode
+            return {"usage": {}, "output": []}
+
+    class FakeResponses:
+        def parse(self, **kwargs: object) -> FakeResponse:
+            calls.append(dict(kwargs))
+            if len(calls) == 1:
+                raise APITimeoutError("timed out")
+            return FakeResponse()
+
+    class FakeClient:
+        responses = FakeResponses()
+
+        def with_options(self, *, timeout: float) -> FakeClient:
+            timeouts.append(timeout)
+            return self
+
+    monkeypatch.setattr(p.time, "sleep", lambda _seconds: None)
+    gateway = p.OpenAIResponsesGateway(
+        p.PipelineConfig(
+            api_key="sk-test",
+            model="gpt-5.4-mini",
+            reasoning_effort="medium",
+            output_dir=tmp_path,
+            max_attempts=2,
+        ),
+        p.ArtifactStore(tmp_path, "run_report_timeout"),
+    )
+    gateway._client = FakeClient()
+    payload = {
+        "secondary_findings": list(range(30)),
+        "context_findings": list(range(30)),
+        "selected_sources": [],
+        "appendix_source_assessments": [],
+    }
+
+    result = gateway._call_with_retry(
+        "report_compiler",
+        p.PROMPTS["report_compiler"],
+        payload,
+        Echo,
+        False,
+        (),
+        False,
+    )
+
+    assert result.parsed.value == "ok"
+    assert timeouts == [900.0, 900.0]
+    assert calls[0]["reasoning"]["effort"] == "medium"
+    assert calls[1]["reasoning"]["effort"] == "low"
+    retry_text = calls[1]["input"][1]["content"]
+    assert "timeout_retry_compaction" in retry_text
+    assert payload["secondary_findings"] == list(range(30))
+
+
 def test_mocked_end_to_end_run_emits_renderable_final_packet(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

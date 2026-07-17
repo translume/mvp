@@ -631,7 +631,63 @@ async def generate_resistance_forecast_stage_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
     )
-    return result.artifact
+    return fill_resistance_forecast_biomarkers(
+        result.artifact,
+        context=context,
+        treatment_pressure=treatment_pressure,
+    )
+
+
+def fill_resistance_forecast_biomarkers(
+    forecast: ResistanceForecastOutput,
+    *,
+    context: EvidenceContextBundle,
+    treatment_pressure: TreatmentPressureMapOutput,
+) -> ResistanceForecastOutput:
+    """Fill empty monitoring biomarkers from patient-specific evidence.
+
+    Acceptance criteria:
+        1. Preserve non-empty model-provided biomarker lists unchanged.
+        2. Prefer treatment-pressure watch biomarkers, then report genes.
+        3. Do not invent biomarkers absent from upstream artifacts.
+        4. Do not mutate any caller-owned artifact.
+    """
+    pressure_biomarkers = _unique_strings(
+        [
+            biomarker
+            for row in treatment_pressure.treatment_pressure_map
+            for biomarker in row.biomarkers_to_watch
+        ]
+    )
+    report_genes = _unique_strings(
+        [
+            finding.gene
+            for finding in context.extraction.molecular_findings
+            if finding.gene is not None
+        ]
+    )
+    fallback = [*pressure_biomarkers, *report_genes]
+    fallback = _unique_strings(fallback)[:12]
+    rows = []
+    for item in forecast.resistance_forecast:
+        if item.biomarkers_to_monitor:
+            rows.append(item)
+            continue
+        unresolved = list(item.unresolved_evidence)
+        if not fallback:
+            unresolved.append(
+                "No patient-specific monitoring biomarker was available in "
+                "the report or treatment-pressure evidence."
+            )
+        rows.append(
+            item.model_copy(
+                update={
+                    "biomarkers_to_monitor": fallback,
+                    "unresolved_evidence": _unique_strings(unresolved),
+                }
+            )
+        )
+    return forecast.model_copy(update={"resistance_forecast": rows})
 
 
 async def generate_biomarker_watch_stage_with_model(
@@ -2381,7 +2437,11 @@ def require_decision_stage_outputs_evidence_grounded(
             item.unresolved_evidence,
             f"{prefix}.supporting_evidence",
         )
-        _require_text_list(item.biomarkers_to_monitor, f"{prefix}.biomarkers_to_monitor")
+        _require_text_list_or_unresolved(
+            item.biomarkers_to_monitor,
+            item.unresolved_evidence,
+            f"{prefix}.biomarkers_to_monitor",
+        )
 
     _require_row_group_or_unresolved(
         biomarker_watch.biomarker_watch_list,

@@ -89,18 +89,7 @@ def run_precision_pipeline(
     output_root = session_root / "precision_oncology_outputs"
     _write_json(input_path, request.review_packet)
 
-    command = [
-        sys.executable,
-        "/app/precision_oncology_pipeline.py",
-        "--input",
-        str(input_path),
-        "--output-dir",
-        str(output_root),
-        "--model",
-        os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
-        "--reasoning-effort",
-        os.getenv("OPENAI_REASONING_EFFORT", "medium"),
-    ]
+    command = _pipeline_command(input_path, output_root)
     result = subprocess.run(
         command,
         check=False,
@@ -128,6 +117,24 @@ def run_precision_pipeline(
         run_directory=_relative_path(run_directory),
         trial_prescreens_path=_relative_path(trial_prescreens),
     )
+
+
+def _pipeline_command(input_path: Path, output_root: Path) -> list[str]:
+    """Return the bounded CLI command for one session-scoped pipeline run."""
+    return [
+        sys.executable,
+        "/app/precision_oncology_pipeline.py",
+        "--input",
+        str(input_path),
+        "--output-dir",
+        str(output_root),
+        "--model",
+        os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
+        "--reasoning-effort",
+        os.getenv("OPENAI_REASONING_EFFORT", "medium"),
+        "--request-timeout",
+        os.getenv("PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS", "900"),
+    ]
 
 
 def _validated_identifier(value: str, label: str) -> str:

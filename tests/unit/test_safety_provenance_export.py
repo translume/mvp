@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from translume_core.compiler.structured_model_artifacts import (
+    StructuredArtifactGenerationError,
     generate_clinical_narrative_with_model,
 )
 from translume_core.export.review_packet import build_review_packet_export
@@ -51,8 +52,17 @@ def test_review_packet_export_is_serializable() -> None:
 class NarrativeModelProvider:
     """Test-only structured-output model provider for narrative generation."""
 
-    def __init__(self, markdown: str) -> None:
+    def __init__(
+        self,
+        markdown: str,
+        source_artifact_ids: list[str] | None = None,
+    ) -> None:
         self.markdown = markdown
+        self.source_artifact_ids = (
+            ["artifact_report"]
+            if source_artifact_ids is None
+            else list(source_artifact_ids)
+        )
 
     async def structured_completion(
         self,
@@ -66,7 +76,7 @@ class NarrativeModelProvider:
         return {
             "artifact_id": _planned_artifact_id(user_prompt),
             "markdown": self.markdown,
-            "source_artifact_ids": ["artifact_report"],
+            "source_artifact_ids": self.source_artifact_ids,
             "safety_note": (
                 "Clinician decision support only; no certain response, cure, "
                 "survival benefit, or deterministic outcome is claimed."
@@ -353,6 +363,49 @@ async def test_clinical_narrative_generation_normalizes_vague_fragments() -> Non
     assert "report finding" in result.artifact.markdown
     report = require_narrative_fact_containment(result.artifact, bundle)
     assert report.passed is True
+
+
+@pytest.mark.asyncio
+async def test_narrative_generation_replaces_model_source_ids_from_bundle() -> None:
+    """Provenance IDs must be system-owned rather than model-authored."""
+    bundle = _containment_bundle()
+    provider = NarrativeModelProvider(
+        "CHEK2 remains a source-backed finding for clinician review.",
+        source_artifact_ids=[
+            "artifact_d35c459176355742",
+            "artifact_report",
+            "artifact_report",
+        ],
+    )
+
+    result = await generate_clinical_narrative_with_model(
+        bundle=bundle,
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.source_artifact_ids == ["artifact_report"]
+    assert require_narrative_fact_containment(result.artifact, bundle).passed
+
+
+@pytest.mark.asyncio
+async def test_narrative_generation_rejects_unknown_id_in_markdown() -> None:
+    """An unsupported artifact token in prose must fail within repair."""
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="unsupported artifact IDs",
+    ):
+        await generate_clinical_narrative_with_model(
+            bundle=_containment_bundle(),
+            model_provider=NarrativeModelProvider(
+                "Evidence artifact_d35c459176355742 requires review."
+            ),
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
 
 
 def test_narrative_containment_rejects_unknown_source_artifact_id() -> None:

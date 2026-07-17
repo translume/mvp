@@ -33,6 +33,8 @@ REQUIRED_MVP_WORKFLOWS: tuple[str, ...] = (
 )
 MAX_TOOL_QUERY_TERMS = 8
 MAX_GRAPH_QUERY_TERMS = 3
+LITERATURE_GENE_BATCH_SIZE = 3
+MAX_LITERATURE_QUERIES = 8
 STEP_FAILURE_POLICIES = frozenset({"fail", "record_unavailable"})
 
 
@@ -331,6 +333,14 @@ def validate_workflow_spec(workflow: str, spec: Any) -> None:
             raise ToolUniverseWorkflowError(
                 f"ToolUniverse step required_context must be a string list: {workflow}[{index}]"
             )
+        foreach_context = step.get("foreach_context")
+        if foreach_context is not None and (
+            not isinstance(foreach_context, str) or not foreach_context.strip()
+        ):
+            raise ToolUniverseWorkflowError(
+                "ToolUniverse step foreach_context must be a non-empty string: "
+                f"{workflow}[{index}]"
+            )
         failure_policy = str(step.get("failure_policy", "fail")).strip()
         if failure_policy not in STEP_FAILURE_POLICIES:
             allowed = ", ".join(sorted(STEP_FAILURE_POLICIES))
@@ -515,16 +525,40 @@ def run_workflow(
     successful_steps = 0
     unavailable_steps: list[str] = []
     for index, step in enumerate(spec["steps"]):
+        invocation_contexts = expand_step_contexts(step, context)
+        step_succeeded = False
         try:
-            result = run_workflow_step(
-                workflow=workflow,
-                step_index=index,
-                step=step,
-                engine=engine,
-                context=context,
-                local_tool_overrides=local_tool_overrides or {},
-            )
+            for batch_index, invocation_context in enumerate(invocation_contexts):
+                result = run_workflow_step(
+                    workflow=workflow,
+                    step_index=index,
+                    step=step,
+                    engine=engine,
+                    context=invocation_context,
+                    local_tool_overrides=local_tool_overrides or {},
+                )
+                query = str(invocation_context.get("foreach_value", ""))
+                evidence_items.extend(
+                    result_to_evidence_items(
+                        workflow,
+                        index,
+                        step,
+                        result,
+                        query=query,
+                        batch_index=batch_index,
+                    )
+                )
+                summary = summary_from_result(result)
+                if summary:
+                    summaries.append(summary)
+                step_succeeded = True
         except ToolUniverseWorkflowError as error:
+            if step_succeeded:
+                warnings.append(
+                    f"partial_query_failure:{step['tool_name']}:{batch_index}"
+                )
+                successful_steps += 1
+                continue
             if (
                 step_failure_policy(step) != "record_unavailable"
                 or not is_external_source_unavailability(error)
@@ -541,11 +575,8 @@ def run_workflow(
             summaries.append(unavailable["summary"])
             unavailable_steps.append(unavailable["tool_name"])
             continue
-        evidence_items.extend(result_to_evidence_items(workflow, index, step, result))
-        summary = summary_from_result(result)
-        if summary:
-            summaries.append(summary)
-        successful_steps += 1
+        if step_succeeded:
+            successful_steps += 1
     required_successes = workflow_minimum_successful_steps(spec)
     if successful_steps < required_successes:
         unavailable = ", ".join(unavailable_steps) or "none"
@@ -560,7 +591,11 @@ def run_workflow(
         workflow=workflow,
         input_entity_ids=[entity.entity_id for entity in entities.entities],
         summary="\n".join(summaries).strip(),
-        evidence_items=evidence_items,
+        evidence_items=(
+            deduplicate_literature_evidence(evidence_items)
+            if workflow == "literature_validation"
+            else evidence_items
+        ),
         warnings=warnings,
         requires_human_review=True,
     )
@@ -699,6 +734,30 @@ def is_missing_context_value(value: Any) -> bool:
         4. Falsey scalar values such as `0` and `False` are preserved.
     """
     return value is None or value == "" or value == []
+
+
+def expand_step_contexts(
+    step: dict[str, Any],
+    context: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return immutable-style per-value contexts for a workflow step.
+
+    Acceptance criteria:
+        1. A step without foreach_context executes once with copied context.
+        2. A foreach step executes once for every configured context value.
+        3. Every expanded context exposes foreach_value.
+        4. Caller-owned step and context mappings are not mutated.
+    """
+    foreach_key = step.get("foreach_context")
+    if foreach_key is None:
+        return [dict(context)]
+    values = context.get(str(foreach_key))
+    if not isinstance(values, list) or not values:
+        raise ToolUniverseWorkflowError(
+            "ToolUniverse foreach_context requires a non-empty list: "
+            f"{foreach_key}"
+        )
+    return [{**context, "foreach_value": value} for value in values]
 
 
 def skipped_workflow_artifact(
@@ -859,6 +918,11 @@ def template_context(
         ],
         secondary_terms=graph_nodes,
     )
+    literature_queries = build_literature_queries(
+        diseases=diseases,
+        genes=gene_terms,
+        variants=variants,
+    )
     pathway_terms = bounded_query_terms(
         priority_terms=gene_terms,
         secondary_terms=[*graph_nodes, *graph_relations],
@@ -947,6 +1011,7 @@ def template_context(
         "graph_relations": graph_relations,
         "graph_retrieval_modes": list(graph.retrieval_modes),
         "literature_query": join_terms(literature_terms),
+        "literature_queries": literature_queries,
         "pathway_query": join_terms(pathway_terms),
         "pathway_genes": list(genes[:MAX_TOOL_QUERY_TERMS]),
         "pathway_terms": local_pathway_terms,
@@ -1028,6 +1093,112 @@ def bounded_query_terms(
     return unique_nonempty(candidates)[:max_terms]
 
 
+def build_literature_queries(
+    *,
+    diseases: list[str],
+    genes: list[str],
+    variants: list[str],
+    gene_batch_size: int = LITERATURE_GENE_BATCH_SIZE,
+    max_queries: int = MAX_LITERATURE_QUERIES,
+) -> list[str]:
+    """Return bounded disease-aware Boolean literature queries.
+
+    Acceptance criteria:
+        1. Joins genes within a batch with explicit OR operators.
+        2. Joins disease and molecular clauses with an explicit AND operator.
+        3. Preserves deterministic source order and removes duplicates.
+        4. Produces gene-only or disease/variant fallbacks when needed.
+        5. Does not mutate caller-owned term lists.
+
+    Args:
+        diseases: Normalized disease labels in source order.
+        genes: Normalized gene and copy-number labels in source order.
+        variants: Normalized variant labels in source order.
+        gene_batch_size: Maximum genes in one OR clause.
+        max_queries: Maximum number of returned provider queries.
+
+    Returns:
+        Ordered Boolean query strings.
+
+    Raises:
+        ValueError: If either configured bound is not positive.
+    """
+    if gene_batch_size <= 0 or max_queries <= 0:
+        raise ValueError("literature query bounds must be positive")
+    disease_terms = unique_nonempty(diseases)
+    gene_terms = unique_nonempty(genes)[:MAX_TOOL_QUERY_TERMS]
+    variant_terms = unique_nonempty(variants)
+    gene_batches = partition_terms(gene_terms, gene_batch_size)
+    queries: list[str] = []
+    if gene_batches:
+        disease_clauses = disease_terms or [""]
+        for disease in disease_clauses:
+            for batch in gene_batches:
+                molecular_clause = render_boolean_clause(batch, "OR")
+                clauses = [
+                    clause
+                    for clause in (
+                        quote_literature_phrase(disease),
+                        f"({molecular_clause})",
+                    )
+                    if clause and clause != "()"
+                ]
+                queries.append(" AND ".join(clauses))
+    elif disease_terms or variant_terms:
+        disease_clause = render_boolean_clause(disease_terms, "OR")
+        variant_clause = render_boolean_clause(variant_terms, "OR")
+        clauses = [
+            f"({clause})"
+            for clause in (disease_clause, variant_clause)
+            if clause
+        ]
+        queries.append(" AND ".join(clauses))
+    return unique_nonempty(queries)[:max_queries]
+
+
+def partition_terms(values: list[str], size: int) -> list[list[str]]:
+    """Return ordered copies of terms partitioned into fixed-size batches.
+
+    Acceptance criteria:
+        1. Preserves input order.
+        2. Does not mutate the input list.
+        3. Rejects non-positive batch sizes.
+    """
+    if size <= 0:
+        raise ValueError("term batch size must be positive")
+    return [list(values[index : index + size]) for index in range(0, len(values), size)]
+
+
+def render_boolean_clause(values: list[str], operator: str) -> str:
+    """Return an explicitly joined Boolean clause for literature providers.
+
+    Acceptance criteria:
+        1. Quotes multi-word phrases and preserves single tokens.
+        2. Uses only AND or OR operators.
+        3. Removes duplicate and empty terms without mutating inputs.
+    """
+    normalized_operator = operator.strip().upper()
+    if normalized_operator not in {"AND", "OR"}:
+        raise ValueError("literature Boolean operator must be AND or OR")
+    return f" {normalized_operator} ".join(
+        quote_literature_phrase(value) for value in unique_nonempty(values)
+    )
+
+
+def quote_literature_phrase(value: str) -> str:
+    """Return a safely quoted multi-word literature-search term.
+
+    Acceptance criteria:
+        1. Empty values return an empty string.
+        2. Multi-word values are enclosed in double quotes.
+        3. Embedded double quotes are removed deterministically.
+    """
+    normalized = " ".join(str(value).replace('"', "").split())
+    if not normalized:
+        return ""
+    return f'"{normalized}"' if " " in normalized else normalized
+
+
 def omit_empty_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     """Remove empty optional arguments for ToolUniverse tools.
 
@@ -1085,12 +1256,61 @@ def result_to_evidence_items(
     step_index: int,
     step: dict[str, Any],
     result: Any,
+    *,
+    query: str = "",
+    batch_index: int = 0,
 ) -> list[dict[str, str]]:
     """Normalize ToolUniverse output into evidence items."""
     tool_name = str(step["tool_name"])
     if isinstance(result, list):
-        return [flatten_evidence_item(workflow, step_index, tool_name, item) for item in result]
-    return [flatten_evidence_item(workflow, step_index, tool_name, result)]
+        items = [
+            flatten_evidence_item(workflow, step_index, tool_name, item)
+            for item in result
+        ]
+    else:
+        items = [flatten_evidence_item(workflow, step_index, tool_name, result)]
+    if not query:
+        return items
+    return [
+        {**item, "query": query, "query_batch_index": str(batch_index)}
+        for item in items
+    ]
+
+
+def deduplicate_literature_evidence(
+    evidence_items: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Return evidence deduplicated by provider and publication identifier.
+
+    Acceptance criteria:
+        1. Deduplicates repeated PMID, DOI, and stable ID values per provider.
+        2. Preserves first-seen order and metadata.
+        3. Preserves items without a stable publication identifier.
+        4. Does not mutate caller-owned evidence dictionaries.
+    """
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict[str, str]] = []
+    identifier_fields = ("pmid", "doi", "id")
+    for item in evidence_items:
+        identifier = next(
+            (
+                (field, item[field].strip().casefold())
+                for field in identifier_fields
+                if item.get(field, "").strip()
+            ),
+            None,
+        )
+        if identifier is not None:
+            key = (
+                item.get("tool_name", "").casefold(),
+                identifier[0],
+                identifier[1],
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+        result.append(dict(item))
+    return result
 
 
 def flatten_evidence_item(

@@ -9,8 +9,13 @@ from translume_adapters.tool_providers.tooluniverse_runtime import (
     MAX_GRAPH_QUERY_TERMS,
     MAX_TOOL_QUERY_TERMS,
     REQUIRED_MVP_WORKFLOWS,
+    ToolUniverseWorkflowCatalog,
     ToolUniverseWorkflowError,
+    build_literature_queries,
+    deduplicate_literature_evidence,
+    expand_step_contexts,
     load_workflow_catalog,
+    run_workflow,
     template_context,
     workflow_tool_names,
 )
@@ -131,6 +136,68 @@ def test_tooluniverse_template_context_bounds_external_queries() -> None:
     assert f"expanded graph term {MAX_GRAPH_QUERY_TERMS}" not in context["literature_query"]
     assert "expanded graph term 29" not in context["literature_query"]
     assert MAX_TOOL_QUERY_TERMS == 8
+    assert context["literature_queries"] == [
+        '"acute myeloid leukemia" AND (FLT3 OR copy_number_loss)'
+    ]
+
+
+def test_build_literature_queries_batches_genes_with_explicit_or() -> None:
+    diseases = ["undifferentiated chondrosarcoma"]
+    genes = ["EGFR", "SYK", "BRAF", "MYCL", "KRAS", "AKT2", "MPL", "SDHC"]
+    original_diseases = list(diseases)
+    original_genes = list(genes)
+
+    queries = build_literature_queries(
+        diseases=diseases,
+        genes=genes,
+        variants=[],
+    )
+
+    assert queries == [
+        '"undifferentiated chondrosarcoma" AND (EGFR OR SYK OR BRAF)',
+        '"undifferentiated chondrosarcoma" AND (MYCL OR KRAS OR AKT2)',
+        '"undifferentiated chondrosarcoma" AND (MPL OR SDHC)',
+    ]
+    assert diseases == original_diseases
+    assert genes == original_genes
+
+
+def test_build_literature_queries_supports_fallbacks_and_deduplication() -> None:
+    assert build_literature_queries(
+        diseases=[],
+        genes=["EGFR", "egfr", "KRAS"],
+        variants=[],
+    ) == ["(EGFR OR KRAS)"]
+    assert build_literature_queries(
+        diseases=["lung cancer"],
+        genes=[],
+        variants=["p.L858R"],
+    ) == ['("lung cancer") AND (p.L858R)']
+
+
+def test_expand_step_contexts_and_evidence_deduplication() -> None:
+    context = {"literature_queries": ["query one", "query two"]}
+
+    expanded = expand_step_contexts(
+        {"foreach_context": "literature_queries"},
+        context,
+    )
+
+    assert [item["foreach_value"] for item in expanded] == [
+        "query one",
+        "query two",
+    ]
+    assert "foreach_value" not in context
+    evidence = deduplicate_literature_evidence(
+        [
+            {"tool_name": "PubMed_search_articles", "pmid": "123", "query": "one"},
+            {"tool_name": "PubMed_search_articles", "pmid": "123", "query": "two"},
+            {"tool_name": "EuropePMC_search_articles", "pmid": "123"},
+            {"tool_name": "PubMed_search_articles", "title": "no stable id"},
+        ]
+    )
+    assert len(evidence) == 3
+    assert evidence[0]["query"] == "one"
 
 
 def test_tooluniverse_config_rejects_missing_required_workflow(tmp_path: Path) -> None:
@@ -167,6 +234,112 @@ def test_tooluniverse_config_rejects_empty_steps(tmp_path: Path) -> None:
     )
     with pytest.raises(ToolUniverseWorkflowError, match="no executable steps"):
         load_workflow_catalog(path)
+
+
+def test_tooluniverse_config_rejects_invalid_foreach_context(tmp_path: Path) -> None:
+    path = tmp_path / "tooluniverse_workflows.json"
+    path.write_text(
+        json.dumps(
+            {
+                "required_workflows": ["literature_validation"],
+                "workflows": {
+                    "literature_validation": {
+                        "steps": [
+                            {
+                                "tool_name": "PubMed_search_articles",
+                                "foreach_context": "",
+                                "arguments": {"query": "$foreach_value"},
+                            }
+                        ]
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ToolUniverseWorkflowError, match="foreach_context"):
+        load_workflow_catalog(path)
+
+
+def test_literature_workflow_executes_every_boolean_query() -> None:
+    calls: list[str] = []
+
+    class RecordingEngine:
+        def run_one_function(
+            self,
+            function_call: dict[str, object],
+            **_: object,
+        ) -> list[dict[str, str]]:
+            arguments = function_call["arguments"]
+            assert isinstance(arguments, dict)
+            query = str(arguments["query"])
+            calls.append(query)
+            return [{"pmid": str(len(calls)), "title": query}]
+
+    entities = NormalizedEntitySet(
+        artifact_id="artifact_entities",
+        case_id="case",
+        session_id="session",
+        entities=[
+            NormalizedEntity(
+                entity_id="disease",
+                entity_type="disease",
+                original_text="lung cancer",
+                normalized_label="lung cancer",
+                source_artifact_id="report",
+            ),
+            *[
+                NormalizedEntity(
+                    entity_id=f"gene_{gene}",
+                    entity_type="gene",
+                    original_text=gene,
+                    normalized_label=gene,
+                    source_artifact_id="report",
+                )
+                for gene in ("EGFR", "KRAS", "BRAF", "MET")
+            ],
+        ],
+    )
+    catalog = ToolUniverseWorkflowCatalog(
+        required_workflows=("literature_validation",),
+        workflows={
+            "literature_validation": {
+                "required_context": ["literature_queries"],
+                "steps": [
+                    {
+                        "tool_name": "PubMed_search_articles",
+                        "required_context": ["literature_queries"],
+                        "foreach_context": "literature_queries",
+                        "arguments": {"query": "$foreach_value"},
+                    }
+                ],
+            }
+        },
+    )
+
+    artifact = run_workflow(
+        workflow="literature_validation",
+        catalog=catalog,
+        engine=RecordingEngine(),
+        entities=entities,
+        graph=GraphEvidenceArtifact(
+            artifact_id="graph",
+            source_entity_ids=[],
+            nodes=[],
+            edges=[],
+        ),
+    )
+
+    assert calls == [
+        '"lung cancer" AND (EGFR OR KRAS OR BRAF)',
+        '"lung cancer" AND (MET)',
+    ]
+    assert [item["query_batch_index"] for item in artifact.evidence_items] == [
+        "0",
+        "1",
+    ]
+    assert [item["query"] for item in artifact.evidence_items] == calls
 
 
 def test_tooluniverse_template_context_exposes_targeted_graph_queries() -> None:

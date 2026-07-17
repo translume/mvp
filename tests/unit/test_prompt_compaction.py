@@ -18,6 +18,8 @@ from translume_core.compiler.structured_model_artifacts import (
     _MAX_PROMPT_CLAIM_INPUT_TRANSITIONS,
     _MAX_PROMPT_CLAIM_INPUT_TUMOR_STATES,
     _MAX_PROMPT_CONFIRMATORY_TESTS,
+    _MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS,
+    _require_confirmatory_testing_payload_bound,
     _MAX_PROMPT_GENERATED_TEXT_CHARS,
     _MAX_PROMPT_GRAPH_EDGES,
     _MAX_PROMPT_GRAPH_NODES,
@@ -63,15 +65,19 @@ from translume_core.compiler.structured_model_artifacts import (
     compact_clinical_artifact_bundle_for_prompt,
     compact_clinical_narrative_bundle_for_prompt,
     compact_evidence_context_for_molecular_phenotype_prompt,
+    compact_evidence_context_for_confirmatory_testing_prompt,
     compact_evidence_context_for_prompt,
     compact_evidence_context_for_mechanism_sankey_prompt,
     compact_confirmatory_for_prompt,
     compact_graph_for_prompt,
     compact_matrix_for_prompt,
+    compact_matrix_for_confirmatory_testing_prompt,
     compact_matrix_for_sankey_prompt,
     compact_phenotype_for_prompt,
+    compact_phenotype_for_confirmatory_testing_prompt,
     compact_phenotype_for_sankey_prompt,
     compact_sankey_for_prompt,
+    compact_sankey_for_confirmatory_testing_prompt,
     compact_tumor_behavior_inputs_for_prompt,
     compact_tumor_behavior_for_prompt,
     truncate_text,
@@ -521,6 +527,63 @@ def test_clinical_narrative_bundle_uses_tighter_caps() -> None:
     assert len(json.dumps(compact)) < len(json.dumps(general))
     assert len(json.dumps(compact)) < 30000
     assert bundle.model_dump(mode="json") == original
+
+
+def test_confirmatory_prompt_payload_is_stage_specific_and_bounded() -> None:
+    """Confirmatory generation must not receive the broad evidence bundle."""
+    context = _large_context()
+    original = context.model_dump(mode="json")
+    payload = {
+        "evidence_context": (
+            compact_evidence_context_for_confirmatory_testing_prompt(context)
+        ),
+        "molecular_phenotype": (
+            compact_phenotype_for_confirmatory_testing_prompt(
+                _large_phenotype()
+            )
+        ),
+        "molecular_fit_matrix": (
+            compact_matrix_for_confirmatory_testing_prompt(_large_matrix())
+        ),
+        "mechanism_sankey": (
+            compact_sankey_for_confirmatory_testing_prompt(_large_sankey())
+        ),
+    }
+
+    assert len(json.dumps(payload, sort_keys=True)) <= (
+        _MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS
+    )
+    assert context.model_dump(mode="json") == original
+
+
+def test_confirmatory_payload_applies_final_deterministic_reduction() -> None:
+    """Slightly oversized real payloads should compact instead of failing."""
+    matrix = compact_matrix_for_confirmatory_testing_prompt(_large_matrix())
+    matrix["rows"] = matrix["rows"] * 8
+    payload = {
+        "evidence_context": (
+            compact_evidence_context_for_confirmatory_testing_prompt(
+                _large_context()
+            )
+        ),
+        "molecular_phenotype": (
+            compact_phenotype_for_confirmatory_testing_prompt(
+                _large_phenotype()
+            )
+        ),
+        "molecular_fit_matrix": matrix,
+        "mechanism_sankey": (
+            compact_sankey_for_confirmatory_testing_prompt(_large_sankey())
+        ),
+    }
+
+    bounded = _require_confirmatory_testing_payload_bound(payload)
+
+    assert bounded["budget_reduction"]["applied"] is True
+    assert len(bounded["molecular_fit_matrix"]["rows"]) == 1
+    assert len(json.dumps(bounded, sort_keys=True)) <= (
+        _MAX_PROMPT_CONFIRMATORY_PAYLOAD_CHARS
+    )
 
 
 def test_compact_claims_preserves_order_and_bounds_text() -> None:

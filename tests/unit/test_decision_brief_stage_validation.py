@@ -9,6 +9,7 @@ import pytest
 from translume_core.compiler.decision_brief import (
     DecisionBriefStageOutputs,
     enforce_patient_population_alignment_and_evidence_labels,
+    fill_resistance_forecast_biomarkers,
     generate_treatment_options_stage_with_model,
     require_decision_brief_matches_stage_outputs,
     require_decision_brief_rows_carry_evidence_or_unresolved,
@@ -769,6 +770,33 @@ def _treatment_options_output(
         ],
         "unresolved_evidence": [],
     }
+
+
+def test_resistance_forecast_fills_empty_biomarkers_from_evidence() -> None:
+    """Use pressure biomarkers and report genes without inventing values."""
+    stages = _stage_outputs()
+    original = stages["resistance_forecast"]
+    forecast = original.model_copy(
+        update={
+            "resistance_forecast": [
+                original.resistance_forecast[0].model_copy(
+                    update={"biomarkers_to_monitor": []}
+                )
+            ]
+        }
+    )
+
+    normalized = fill_resistance_forecast_biomarkers(
+        forecast,
+        context=_minimal_context_missing_population_fit(),
+        treatment_pressure=stages["treatment_pressure"],
+    )
+
+    assert normalized.resistance_forecast[0].biomarkers_to_monitor == [
+        "MTAP",
+        "LYN",
+    ]
+    assert forecast.resistance_forecast[0].biomarkers_to_monitor == []
 
 
 def _planned_artifact_id(user_prompt: str) -> str:

@@ -156,6 +156,12 @@ class TranslumeWorkflowConfig:
     vllm_model: str = ""
     prompts_root: Path = Path("configs/prompts")
     report_extraction_batch_max_chunks: int = 5
+    report_extraction_input_token_budget: int = 2200
+    report_extraction_initial_max_tokens: int = 2500
+    report_extraction_retry_max_tokens: int = 5000
+    report_extraction_max_split_depth: int = 6
+    report_extraction_min_segment_chars: int = 400
+    confirmatory_testing_input_token_budget: int = 8000
     tool_workflows: tuple[str, ...] = (
         "literature_validation",
         "pathway_context",
@@ -316,6 +322,11 @@ async def process_report_pdf(
                 prompts_root=config.prompts_root,
                 created_at=now,
                 batch_max_chunks=config.report_extraction_batch_max_chunks,
+                input_token_budget=config.report_extraction_input_token_budget,
+                initial_max_tokens=config.report_extraction_initial_max_tokens,
+                retry_max_tokens=config.report_extraction_retry_max_tokens,
+                max_split_depth=config.report_extraction_max_split_depth,
+                min_segment_chars=config.report_extraction_min_segment_chars,
             ),
         )
         report = report_result.artifact
@@ -492,6 +503,9 @@ async def process_report_pdf(
                 model_name=_require_vllm_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
+                input_token_budget=(
+                    config.confirmatory_testing_input_token_budget
+                ),
             ),
         )
         confirmatory = confirmatory_result.artifact

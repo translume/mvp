@@ -1,12 +1,30 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
 
 import precision_oncology_runner
+
+
+def test_pipeline_command_forwards_configured_request_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Runner timeout configuration must reach the pipeline CLI."""
+    monkeypatch.setenv("PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS", "900")
+
+    command = precision_oncology_runner._pipeline_command(
+        tmp_path / "input.json",
+        tmp_path / "outputs",
+    )
+
+    assert command[0] == sys.executable
+    timeout_index = command.index("--request-timeout")
+    assert command[timeout_index + 1] == "900"
 
 
 def test_run_directory_requires_a_child_of_output_root(tmp_path: Path) -> None:

@@ -27,6 +27,7 @@ class _TimeoutClient:
 
 class _ResponseClient:
     response_payload: dict[str, object] = {}
+    requested_url: str = ""
 
     def __init__(self, *, timeout: float) -> None:
         self.timeout = timeout
@@ -38,6 +39,8 @@ class _ResponseClient:
         return None
 
     async def post(self, url: str, json: dict[str, object]) -> httpx.Response:
+        self.requested_url = url
+        type(self).requested_url = url
         request = httpx.Request("POST", url)
         return httpx.Response(200, request=request, json=self.response_payload)
 
@@ -102,3 +105,19 @@ async def test_local_vllm_keeps_non_truncated_invalid_json_error(
 
     with pytest.raises(LocalVLLMClientError, match="content is not JSON"):
         await LocalVLLMClient("http://vllm/v1").structured_completion({})
+
+
+@pytest.mark.asyncio
+async def test_local_vllm_counts_tokens_with_server_tokenizer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Token planning should use the tokenizer hosted by the vLLM server."""
+    _ResponseClient.response_payload = {"count": 37, "tokens": [1, 2]}
+    monkeypatch.setattr(httpx, "AsyncClient", _ResponseClient)
+
+    count = await LocalVLLMClient("http://vllm:8000/v1").count_tokens(
+        {"model": "local-model", "prompt": "report text"}
+    )
+
+    assert count == 37
+    assert _ResponseClient.requested_url == "http://vllm:8000/tokenize"

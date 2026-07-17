@@ -2397,6 +2397,7 @@ class PromptSpec:
     user_label: str
     max_output_tokens: int
     reasoning_effort: str | None = None
+    request_timeout_seconds: float | None = None
 
 
 PROMPTS: dict[str, PromptSpec] = {
@@ -2585,8 +2586,8 @@ Return a response that exactly matches the supplied structured-output schema.
     "hypothesis_synthesis": PromptSpec(
         name="hypothesis_synthesis",
         version=f"{PROMPT_SET_VERSION}.hypothesis_synthesis",
-        max_output_tokens=18_000,
-        reasoning_effort="high",
+        max_output_tokens=30_000,
+        reasoning_effort="medium",
         user_label="HYPOTHESIS EVIDENCE BUNDLE",
         system="""
 You are a precision-oncology evidence synthesizer.
@@ -2618,7 +2619,8 @@ Return a response that exactly matches the supplied structured-output schema.
         name="report_compiler",
         version=f"{PROMPT_SET_VERSION}.report_compiler",
         max_output_tokens=40_000,
-        reasoning_effort="high",
+        reasoning_effort="medium",
+        request_timeout_seconds=900.0,
         user_label="VALIDATED REPORT ARTIFACTS",
         system="""
 You are the final compiler for a Precision Oncology Actionable Packet.
@@ -2833,6 +2835,108 @@ def recursive_web_sources(value: Any) -> list[WebSource]:
     return list(unique.values())
 
 
+class OpenAIParsedOutputError(RuntimeError):
+    """Describe a Responses API result without validated structured output."""
+
+    def __init__(
+        self,
+        *,
+        stage: str,
+        response_id: str | None,
+        status: str | None,
+        incomplete_reason: str | None,
+        refusal: str | None,
+        usage: Mapping[str, Any],
+    ) -> None:
+        self.stage = stage
+        self.response_id = response_id
+        self.status = status
+        self.incomplete_reason = incomplete_reason
+        self.refusal = refusal
+        self.usage = dict(usage)
+        output_details = self.usage.get("output_tokens_details") or {}
+        reasoning_tokens = (
+            output_details.get("reasoning_tokens")
+            if isinstance(output_details, Mapping)
+            else None
+        )
+        super().__init__(
+            "OpenAI returned no parsed output: "
+            f"stage={stage!r}, response_id={response_id!r}, "
+            f"status={status!r}, incomplete_reason={incomplete_reason!r}, "
+            f"refusal_present={bool(refusal)}, "
+            f"output_tokens={self.usage.get('output_tokens')!r}, "
+            f"reasoning_tokens={reasoning_tokens!r}"
+        )
+
+    @property
+    def retryable(self) -> bool:
+        """Return whether another request can plausibly change the result."""
+        return self.refusal is None and self.incomplete_reason != "content_filter"
+
+
+def _parsed_response_value(
+    response: Any,
+    response_dump: Mapping[str, Any],
+) -> object | None:
+    """Return parsed structured content from supported SDK response locations."""
+    top_level = getattr(response, "output_parsed", None)
+    if top_level is not None:
+        return top_level
+    for output in getattr(response, "output", ()) or ():
+        if getattr(output, "type", None) != "message":
+            continue
+        for content in getattr(output, "content", ()) or ():
+            parsed = getattr(content, "parsed", None)
+            if parsed is not None:
+                return parsed
+    for output in response_dump.get("output", []):
+        if not isinstance(output, Mapping) or output.get("type") != "message":
+            continue
+        for content in output.get("content", []):
+            if isinstance(content, Mapping) and content.get("parsed") is not None:
+                return content["parsed"]
+    return None
+
+
+def _parsed_output_error(
+    stage: str,
+    response: Any,
+    response_dump: Mapping[str, Any],
+) -> OpenAIParsedOutputError:
+    """Return a classified no-parsed-output error without response text."""
+    status = getattr(response, "status", None) or response_dump.get("status")
+    incomplete = (
+        getattr(response, "incomplete_details", None)
+        or response_dump.get("incomplete_details")
+        or {}
+    )
+    incomplete_reason = (
+        incomplete.get("reason")
+        if isinstance(incomplete, Mapping)
+        else getattr(incomplete, "reason", None)
+    )
+    refusal: str | None = None
+    for output in response_dump.get("output", []):
+        if not isinstance(output, Mapping) or output.get("type") != "message":
+            continue
+        for content in output.get("content", []):
+            if isinstance(content, Mapping) and content.get("type") == "refusal":
+                refusal = str(content.get("refusal") or "refusal")
+                break
+    usage = response_dump.get("usage") or {}
+    return OpenAIParsedOutputError(
+        stage=stage,
+        response_id=getattr(response, "id", None),
+        status=str(status) if status is not None else None,
+        incomplete_reason=(
+            str(incomplete_reason) if incomplete_reason is not None else None
+        ),
+        refusal=refusal,
+        usage=usage if isinstance(usage, Mapping) else {},
+    )
+
+
 class OpenAIResponsesGateway:
     """Synchronous OpenAI SDK adapter wrapped for async orchestration."""
 
@@ -2971,15 +3075,33 @@ class OpenAIResponsesGateway:
     ) -> ModelResult[T]:
         last_error: Exception | None = None
         for attempt in range(1, self.config.max_attempts + 1):
+            adaptive_retry = (
+                stage == "hypothesis_synthesis"
+                and isinstance(last_error, OpenAIParsedOutputError)
+            )
+            report_timeout_retry = (
+                stage == "report_compiler"
+                and last_error is not None
+                and last_error.__class__.__name__ == "APITimeoutError"
+            )
+            request_payload = (
+                compact_report_compiler_retry_payload(payload)
+                if report_timeout_retry
+                else payload
+            )
             try:
                 return self._call_once(
                     stage=stage,
                     prompt=prompt,
-                    payload=payload,
+                    payload=request_payload,
                     response_model=response_model,
                     use_web=use_web,
                     allowed_domains=allowed_domains,
                     required_web=required_web,
+                    reasoning_effort=(
+                        "low" if adaptive_retry or report_timeout_retry else None
+                    ),
+                    max_output_tokens=30_000 if adaptive_retry else None,
                 )
             except Exception as exc:  # SDK exception classes change over time
                 last_error = exc
@@ -2987,6 +3109,14 @@ class OpenAIResponsesGateway:
                 retryable = (
                     status in {408, 409, 429, 500, 502, 503, 504} or status is None
                 )
+                if isinstance(exc, OpenAIParsedOutputError):
+                    retryable = exc.retryable
+                if (
+                    stage == "report_compiler"
+                    and exc.__class__.__name__ == "APITimeoutError"
+                    and attempt >= 2
+                ):
+                    retryable = False
                 if not retryable or attempt >= self.config.max_attempts:
                     raise
                 delay = min(60.0, (2 ** (attempt - 1)) + random.uniform(0.0, 1.0))
@@ -3013,8 +3143,18 @@ class OpenAIResponsesGateway:
         use_web: bool,
         allowed_domains: tuple[str, ...],
         required_web: bool,
+        reasoning_effort: str | None = None,
+        max_output_tokens: int | None = None,
     ) -> ModelResult[T]:
         client = self._get_client()
+        request_timeout = (
+            prompt.request_timeout_seconds or self.config.request_timeout_seconds
+        )
+        request_client = (
+            client.with_options(timeout=request_timeout)
+            if hasattr(client, "with_options")
+            else client
+        )
         kwargs: dict[str, Any] = {
             "model": self.config.model,
             "input": [
@@ -3026,9 +3166,13 @@ class OpenAIResponsesGateway:
             ],
             "text_format": response_model,
             "reasoning": {
-                "effort": prompt.reasoning_effort or self.config.reasoning_effort
+                "effort": (
+                    reasoning_effort
+                    or prompt.reasoning_effort
+                    or self.config.reasoning_effort
+                )
             },
-            "max_output_tokens": prompt.max_output_tokens,
+            "max_output_tokens": max_output_tokens or prompt.max_output_tokens,
             "store": False,
             "metadata": {
                 "pipeline": "precision-oncology-json",
@@ -3058,30 +3202,23 @@ class OpenAIResponsesGateway:
             kwargs["tool_choice"] = "required" if required_web else "auto"
             kwargs["include"] = ["web_search_call.action.sources"]
 
-        response = client.responses.parse(**kwargs)
-        parsed = getattr(response, "output_parsed", None)
-        if parsed is None:
-            refusal = None
-            try:
-                raw = response.model_dump(mode="json")
-                for item in raw.get("output", []):
-                    if item.get("type") != "message":
-                        continue
-                    for content in item.get("content", []):
-                        if content.get("type") == "refusal":
-                            refusal = content.get("refusal")
-            except Exception:
-                refusal = None
-            raise RuntimeError(
-                f"OpenAI returned no parsed output for stage '{stage}'."
-                + (f" Refusal: {refusal}" if refusal else "")
-            )
-        if not isinstance(parsed, response_model):
-            parsed = response_model.model_validate(parsed)
-
+        response = request_client.responses.parse(**kwargs)
         response_dump = (
             response.model_dump(mode="json") if hasattr(response, "model_dump") else {}
         )
+        parsed = _parsed_response_value(response, response_dump)
+        if parsed is None:
+            output_text = getattr(response, "output_text", None)
+            if isinstance(output_text, str) and output_text.strip():
+                try:
+                    parsed = response_model.model_validate_json(output_text)
+                except (ValueError, TypeError):
+                    parsed = None
+        if parsed is None:
+            raise _parsed_output_error(stage, response, response_dump)
+        if not isinstance(parsed, response_model):
+            parsed = response_model.model_validate(parsed)
+
         usage = response_dump.get("usage") or {}
         web_sources = tuple(recursive_web_sources(response_dump))
         return ModelResult(
@@ -4094,6 +4231,79 @@ def report_compiler_payload(state: PipelineState) -> dict[str, Any]:
             ],
         },
     }
+
+
+def compact_report_compiler_retry_payload(
+    payload: Mapping[str, Any] | Sequence[Any],
+) -> Mapping[str, Any] | Sequence[Any]:
+    """Return a smaller report payload for one timeout recovery attempt.
+
+    Acceptance criteria:
+        1. Determinism: Identical input produces identical compact output.
+        2. No mutation: Caller-owned payload values remain unchanged.
+        3. Grounding: Artifact, patient-evidence, source, hypothesis, and URL
+           identifiers remain available.
+        4. Scope: Repeated appendix prose is reduced before core report content.
+    """
+    if not isinstance(payload, Mapping):
+        return payload
+    compact = json.loads(json.dumps(payload, ensure_ascii=False, default=str))
+    compact["secondary_findings"] = compact.get("secondary_findings", [])[:20]
+    compact["context_findings"] = compact.get("context_findings", [])[:20]
+    compact["selected_sources"] = [
+        _select_mapping_fields(
+            item,
+            (
+                "source_id",
+                "url",
+                "title",
+                "source_type",
+                "publisher",
+                "publication_date",
+                "identifiers",
+                "hypothesis_ids",
+            ),
+        )
+        for item in compact.get("selected_sources", [])
+        if isinstance(item, Mapping)
+    ]
+    compact["appendix_source_assessments"] = [
+        _select_mapping_fields(
+            item,
+            (
+                "assessment_id",
+                "source_id",
+                "hypothesis_id",
+                "url",
+                "source_type",
+                "relevant_pathway",
+                "opening_assessment",
+                "bottom_line_score_rows",
+                "safe_clinical_framing",
+                "preferred_language",
+                "follow_up_actions",
+                "final_judgment",
+            ),
+        )
+        for item in compact.get("appendix_source_assessments", [])
+        if isinstance(item, Mapping)
+    ]
+    compact["timeout_retry_compaction"] = {
+        "applied": True,
+        "notice": (
+            "Repeated appendix prose was removed; identifiers and report-ready "
+            "evidence remain authoritative."
+        ),
+    }
+    return compact
+
+
+def _select_mapping_fields(
+    value: Mapping[str, Any],
+    field_names: Sequence[str],
+) -> dict[str, Any]:
+    """Return present fields in the requested deterministic order."""
+    return {field: value[field] for field in field_names if field in value}
 
 
 def cross_source_payload(state: PipelineState) -> dict[str, Any]:

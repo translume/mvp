@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Settings(BaseModel):
@@ -48,7 +48,15 @@ class Settings(BaseModel):
     vllm_model: str = ""
     vllm_timeout_seconds: float = 240.0
     vllm_structured_output_max_tokens: int = Field(default=3000, ge=1)
+    vllm_structured_output_retry_max_tokens: int = Field(default=6000, ge=1)
+    vllm_model_context_tokens: int = Field(default=8192, ge=1)
     report_extraction_max_tokens: int = Field(default=2500, ge=1)
+    report_extraction_retry_max_tokens: int = Field(default=5000, ge=1)
+    report_extraction_input_token_budget: int = Field(default=2200, ge=1)
+    report_extraction_context_safety_tokens: int = Field(default=512, ge=1)
+    report_extraction_max_split_depth: int = Field(default=6, ge=0)
+    report_extraction_min_segment_chars: int = Field(default=400, ge=1)
+    confirmatory_testing_input_token_budget: int = Field(default=8000, ge=1)
     tumor_behavior_max_tokens: int = Field(default=6000, ge=1)
     report_extraction_batch_max_chunks: int = Field(default=5, ge=1)
     prompts_root: Path = Path("configs/prompts")
@@ -63,6 +71,32 @@ class Settings(BaseModel):
     precision_oncology_service_url: str = "http://precision-oncology-pipeline:8094"
     dynamic_pathway_service_url: str = "http://dynamic-pathway-analyzer:8095"
     downstream_timeout_seconds: float = 7200.0
+
+    @model_validator(mode="after")
+    def validate_report_extraction_budget(self) -> Settings:
+        """Validate that the largest extraction request fits model context."""
+        if (
+            self.vllm_structured_output_retry_max_tokens
+            <= self.vllm_structured_output_max_tokens
+        ):
+            raise ValueError(
+                "structured output retry max tokens must exceed initial max tokens"
+            )
+        if self.report_extraction_max_tokens > self.report_extraction_retry_max_tokens:
+            raise ValueError(
+                "report extraction initial max tokens must not exceed retry max tokens"
+            )
+        required = (
+            self.report_extraction_input_token_budget
+            + self.report_extraction_retry_max_tokens
+            + self.report_extraction_context_safety_tokens
+        )
+        if required > self.vllm_model_context_tokens:
+            raise ValueError(
+                "report extraction token budgets exceed vLLM model context: "
+                f"required={required}, context={self.vllm_model_context_tokens}"
+            )
+        return self
 
 
 def get_settings() -> Settings:
@@ -132,8 +166,35 @@ def get_settings() -> Settings:
         vllm_structured_output_max_tokens=int(
             os.getenv("VLLM_STRUCTURED_OUTPUT_MAX_TOKENS", "3000")
         ),
+        vllm_structured_output_retry_max_tokens=int(
+            os.getenv("VLLM_STRUCTURED_OUTPUT_RETRY_MAX_TOKENS", "6000")
+        ),
+        vllm_model_context_tokens=int(
+            os.getenv("VLLM_MODEL_CONTEXT_TOKENS", "8192")
+        ),
         report_extraction_max_tokens=int(
-            os.getenv("REPORT_EXTRACTION_MAX_TOKENS", "2500")
+            os.getenv(
+                "REPORT_EXTRACTION_INITIAL_MAX_TOKENS",
+                os.getenv("REPORT_EXTRACTION_MAX_TOKENS", "2500"),
+            )
+        ),
+        report_extraction_retry_max_tokens=int(
+            os.getenv("REPORT_EXTRACTION_RETRY_MAX_TOKENS", "5000")
+        ),
+        report_extraction_input_token_budget=int(
+            os.getenv("REPORT_EXTRACTION_INPUT_TOKEN_BUDGET", "2200")
+        ),
+        report_extraction_context_safety_tokens=int(
+            os.getenv("REPORT_EXTRACTION_CONTEXT_SAFETY_TOKENS", "512")
+        ),
+        report_extraction_max_split_depth=int(
+            os.getenv("REPORT_EXTRACTION_MAX_SPLIT_DEPTH", "6")
+        ),
+        report_extraction_min_segment_chars=int(
+            os.getenv("REPORT_EXTRACTION_MIN_SEGMENT_CHARS", "400")
+        ),
+        confirmatory_testing_input_token_budget=int(
+            os.getenv("CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET", "8000")
         ),
         tumor_behavior_max_tokens=int(
             os.getenv("VLLM_TUMOR_BEHAVIOR_MAX_TOKENS", "6000")

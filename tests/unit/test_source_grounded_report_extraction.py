@@ -16,6 +16,7 @@ from translume_core.compiler.structured_model_artifacts import (
     StructuredArtifactGenerationError,
     generate_report_extraction_with_model,
 )
+from translume_ports.model_provider import ModelOutputTruncatedError
 from translume_schemas.document import DocumentChunk, RetrievedDocumentChunk
 
 
@@ -32,6 +33,28 @@ class RecordingReportExtractionModel:
 class FailingReportExtractionModel:
     async def structured_completion(self, **_: object) -> dict[str, object]:
         raise RuntimeError("vLLM error 400: maximum context length")
+
+
+class TruncatingReportExtractionModel(RecordingReportExtractionModel):
+    """Truncate a bounded number of calls before returning valid output."""
+
+    def __init__(
+        self,
+        payload: dict[str, object],
+        *,
+        truncate_calls: int,
+    ) -> None:
+        super().__init__(payload)
+        self.truncate_calls = truncate_calls
+
+    async def structured_completion(self, **kwargs: object) -> dict[str, object]:
+        self.calls.append(dict(kwargs))
+        if len(self.calls) <= self.truncate_calls:
+            raise ModelOutputTruncatedError(
+                finish_reason="length",
+                content_chars=7299,
+            )
+        return dict(self.payload)
 
 
 def _planned_artifact_id(source_file_id: str) -> str:
@@ -59,6 +82,37 @@ def _chunk(text: str, chunk_id: str = "chunk_1") -> RetrievedDocumentChunk:
         score=1.0,
         retrieval_method="lexical_metadata",
     )
+
+
+@pytest.mark.asyncio
+async def test_report_extraction_recovers_from_truncated_batch() -> None:
+    """A truncated multi-source batch should split and merge valid leaves."""
+    source_file_id = "source_file_1"
+    payload = {
+        "artifact_id": _planned_artifact_id(source_file_id),
+        "report_type": "NGS",
+        "source_file_id": source_file_id,
+        "needs_human_review": True,
+        "negative_findings": [],
+        "assay_limitations": [],
+        "molecular_findings": [],
+    }
+    provider = TruncatingReportExtractionModel(payload, truncate_calls=1)
+
+    result = await generate_report_extraction_with_model(
+        retrieved_chunks=[_chunk("MTAP loss.", "chunk_1"), _chunk("CDKN2A loss.", "chunk_2")],
+        report_type="NGS",
+        source_file_id=source_file_id,
+        model_provider=provider,
+        model_name="local-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.molecular_findings == []
+    assert len(provider.calls) == 3
+    assert provider.calls[0]["max_tokens"] == 2500
+    assert provider.calls[1]["max_tokens"] == 5000
 
 
 @pytest.mark.asyncio
@@ -125,7 +179,10 @@ async def test_report_extraction_source_aligns_findings_to_retrieved_chunks() ->
     assert finding.source_text is not None
     assert "MTAP" in finding.source_text
     assert finding.needs_human_review is True
-    assert provider.calls[0]["schema_name"] == "ReportExtractionOutput"
+    assert provider.calls[0]["schema_name"] == "_BoundedReportExtractionOutput"
+    schema = provider.calls[0]["json_schema"]
+    assert schema["properties"]["molecular_findings"]["maxItems"] == 8
+    assert schema["properties"]["negative_findings"]["maxItems"] == 6
     assert "source_grounding_contract" in str(provider.calls[0]["user_prompt"])
 
 
@@ -164,19 +221,13 @@ async def test_report_extraction_batches_all_retrieved_chunks_in_page_order() ->
     prompt_chunks = payload["retrieved_chunks"]
 
     assert result.artifact.molecular_findings == []
-    assert len(provider.calls) == 2
-    assert len(prompt_chunks) == _MAX_PROMPT_RETRIEVED_CHUNKS
+    assert len(provider.calls) == 25
+    assert len(prompt_chunks) == 5
     assert prompt_chunks[0]["chunk_id"] == "chunk_00"
-    assert prompt_chunks[-1]["chunk_id"] == "chunk_19"
+    assert prompt_chunks[-1]["chunk_id"] == "chunk_00"
     second_payload = _payload_from_user_prompt(str(provider.calls[1]["user_prompt"]))
-    assert [item["chunk_id"] for item in second_payload["retrieved_chunks"]] == [
-        "chunk_20",
-        "chunk_21",
-        "chunk_22",
-        "chunk_23",
-        "chunk_24",
-    ]
-    assert payload["batch_context"]["total_batches"] == 2
+    assert second_payload["retrieved_chunks"][0]["chunk_id"] == "chunk_01"
+    assert payload["batch_context"]["total_batches"] == 25
     assert payload["retrieval_truncation"]["original_chunks"] == len(chunks)
     assert payload["retrieval_truncation"]["kept_chunks"] == len(prompt_chunks)
 
@@ -246,8 +297,15 @@ async def test_report_extraction_truncates_retrieved_chunk_source_text() -> None
     payload = _payload_from_user_prompt(str(provider.calls[0]["user_prompt"]))
     source_text = payload["retrieved_chunks"][0]["source_text"]
 
-    assert len(source_text) > _MAX_PROMPT_SOURCE_TEXT_CHARS
-    assert "[truncated" in source_text
+    assert len(source_text) <= _MAX_PROMPT_SOURCE_TEXT_CHARS
+    all_prompt_text = "".join(
+        item["source_text"]
+        for call in provider.calls
+        for item in _payload_from_user_prompt(
+            str(call["user_prompt"])
+        )["retrieved_chunks"]
+    )
+    assert all_prompt_text == "MTAP loss. " * 200
 
 
 @pytest.mark.asyncio

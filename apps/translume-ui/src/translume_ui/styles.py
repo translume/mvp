@@ -66,22 +66,6 @@ h1, h2, h3, h4, .prose h1, .prose h2, .prose h3 {
   line-height: 1.55;
 }
 
-.translume-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.translume-badge {
-  border: 1px solid var(--translume-line);
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 0.78rem;
-  color: var(--translume-indigo);
-  background: #ffffff;
-}
-
 .translume-panel {
   border: 1px solid var(--translume-line) !important;
   border-radius: 14px !important;
@@ -190,6 +174,12 @@ h1, h2, h3, h4, .prose h1, .prose h2, .prose h3 {
   border-radius: 0 10px 10px 0;
 }
 
+#workflow-error .translume-error,
+#workflow-error .translume-error * {
+  color: var(--translume-danger) !important;
+  opacity: 1 !important;
+}
+
 button.primary, .primary {
   background: linear-gradient(90deg, var(--translume-violet), var(--translume-blue), var(--translume-teal)) !important;
   border: none !important;
@@ -270,6 +260,19 @@ a:hover,
   color: var(--translume-teal) !important;
 }
 
+#pathway-processing-status {
+  min-height: 4.5rem;
+}
+
+.translume-pathway-processing {
+  padding: 1rem 1.25rem;
+  border-left: 5px solid var(--translume-blue);
+  border-radius: 0 1rem 1rem 0;
+  background: var(--translume-soft);
+  color: #111827;
+  font-weight: 600;
+}
+
 @media (max-width: 800px) {
   .translume-header {
     grid-template-columns: 1fr;
@@ -294,11 +297,6 @@ def header_html() -> str:
           intelligence brief with treatment logic, escape risks, biomarker
           monitoring, re-testing triggers, and next-test guidance.
         </p>
-        <div class="translume-badges">
-          <span class="translume-badge">Private local models</span>
-          <span class="translume-badge">Clinician decision support</span>
-          <span class="translume-badge">Human validation required</span>
-        </div>
       </div>
     </section>
     """

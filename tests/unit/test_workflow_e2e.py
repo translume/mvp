@@ -201,10 +201,14 @@ class FakeStructuredModelProvider:
         user_prompt: str,
         schema_name: str,
         json_schema: dict[str, object],
+        max_tokens: int | None = None,
     ) -> dict[str, object]:
         self.schema_calls.append(schema_name)
         artifact_id = _planned_artifact_id(user_prompt)
-        if schema_name == "ReportExtractionOutput":
+        if schema_name in {
+            "ReportExtractionOutput",
+            "_BoundedReportExtractionOutput",
+        }:
             return {
                 "artifact_id": artifact_id,
                 "report_type": "NGS",
@@ -324,7 +328,10 @@ class FakeStructuredModelProvider:
                     {"source_node_id": "fit", "target_node_id": "validation", "value": 1.0, "claim_class": "speculative_requires_validation", "validation_required": True, "source_artifact_ids": ["artifact_tool"]},
                 ],
             }
-        if schema_name == "ConfirmatoryTestingOutput":
+        if schema_name in {
+            "ConfirmatoryTestingOutput",
+            "_BoundedConfirmatoryTestingOutput",
+        }:
             return {
                 "artifact_id": artifact_id,
                 "tests": [

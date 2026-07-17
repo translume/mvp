@@ -78,6 +78,27 @@ class LocalVLLMClient:
             raise LocalVLLMClientError("vLLM structured output is not a JSON object")
         return parsed
 
+    async def count_tokens(self, request: dict[str, object]) -> int:
+        """Return a token count from vLLM's model-native tokenizer endpoint."""
+        base_root = self._base_url.removesuffix("/v1")
+        url = f"{base_root}/tokenize"
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+                response = await client.post(url, json=request)
+        except httpx.TimeoutException as error:
+            raise LocalVLLMClientError(
+                f"Local vLLM tokenization timed out: {url}"
+            ) from error
+        if response.status_code >= 400:
+            raise LocalVLLMClientError(
+                f"vLLM tokenize error {response.status_code}: {response.text}"
+            )
+        data = response.json()
+        count = data.get("count") if isinstance(data, dict) else None
+        if not isinstance(count, int) or count < 0:
+            raise LocalVLLMClientError("invalid vLLM tokenize response shape")
+        return count
+
 
 def _strip_json_fence(content: str) -> str:
     stripped = content.strip()

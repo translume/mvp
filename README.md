@@ -174,11 +174,26 @@ reject remote-provider credentials.
 ### Structured-output request budgets
 
 The local vLLM workflow bounds every structured response with
-`VLLM_STRUCTURED_OUTPUT_MAX_TOKENS`. Report extraction additionally uses
-`REPORT_EXTRACTION_BATCH_MAX_CHUNKS` page-ordered chunks per call and
-`REPORT_EXTRACTION_MAX_TOKENS` output tokens. The defaults process every
-retrieved chunk in five-chunk batches, then merge the validated outputs; they
-do not discard source pages to shorten a prompt.
+`VLLM_STRUCTURED_OUTPUT_MAX_TOKENS`. Report extraction additionally uses the
+served model tokenizer plus explicit input, initial-output, and retry-output
+budgets. The chunk count is a secondary guard. Length-stopped requests are
+deterministically subdivided and validated leaves are merged; partial JSON is
+never used. Long chunks retain their original source ID while being segmented,
+so report text is not discarded to shorten a prompt.
+Leaf responses use a bounded internal schema to prevent repeated strings or
+array entries from consuming the output window. Those bounds apply per source
+unit only; the final merged report remains capable of containing every finding.
+
+Confirmatory-test generation uses a separate validation-focused compactor and
+an exact rendered-prompt token preflight. Configure its input allowance with
+`CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET` (default `8000`). Oversized broad
+evidence bundles are not sent to vLLM.
+
+Local structured stages retry one length-stopped response with
+`VLLM_STRUCTURED_OUTPUT_RETRY_MAX_TOKENS` (default `6000`). Structured decoding
+also applies generation-only string and array limits to prevent repeated rows
+or text from exhausting the response window. Repeated failures identify the
+schema, output allowance, and attempt count.
 
 If tumor-behavior generation reaches the general output limit, it is retried
 once with `VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` (default `6000`). A second
@@ -391,6 +406,12 @@ download controls, and the distinction between the full provisioned snapshot
 and the DepMap resource currently used for automatic report enrichment.
 
 Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, `trial_context_review`, `therapy_context`, `resistance_mechanism_context`, `biomarker_retesting_context`, `guideline_context`, `clinical_trial_context`, `lineage_transformation_context`, and `recent_therapy_agent_backfill_context`.
+
+Literature validation groups source-derived genes into bounded OR clauses and
+pairs them with the report disease, such as
+`"lung cancer" AND (EGFR OR KRAS OR BRAF)`. This avoids the overly restrictive
+implicit-AND behavior of a single multi-gene query. Each PubMed and Europe PMC
+result retains the exact query used and still requires clinical review.
 
 When current-case MIMS evidence is available, tumor-behavior output must cite at
 least one current-case OptimusKG, ToolUniverse, or Medea artifact/node/edge ID.
