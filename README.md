@@ -144,6 +144,12 @@ pipeline and both dynamic pathway-analysis stages through internal services.
 The cockpit then displays the pathway analysis, research memo, and tumor-board
 causal summary in its **Pathway analysis** tab.
 
+After the pathway content loads, **Download Pathway Analysis PDF** creates a
+local, paginated export containing all three displayed sections. The same
+export is available after a completed-session ZIP is loaded. PDF generation
+runs only in the Gradio container, does not fetch remote images or execute
+embedded HTML, and retains the clinician-review disclaimer.
+
 To display a previously completed run without rerunning any service, ZIP one
 `data/artifacts/session_*` directory. In the cockpit sidebar, open **Load
 completed session**, upload the ZIP, and click **Load saved pathway session**.

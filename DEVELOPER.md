@@ -100,6 +100,14 @@ packet and executes the existing precision CLI. The API next calls the internal
 `dynamic-pathway-analyzer` runner at port `8095`, which executes both existing
 dynamic analyzer commands and verifies all expected Markdown files.
 
+The Pathway analysis tab can export its three displayed Markdown artifacts as
+one PDF. `translume_ui.pathway_pdf` owns block parsing and local ReportLab
+layout; `translume_ui.app.download_pathway_analysis_pdf` is the filesystem
+boundary. Freshly processed sessions and validated ZIP imports populate a
+dedicated pathway session state used for the filename and footer. Content is
+escaped, raw HTML remains inert, remote resources are not fetched, and files
+are atomically placed under `TRANSLUME_UI_EXPORT_DIR`.
+
 The precision pipeline classifies Responses API structured-output failures
 before retrying. Hypothesis synthesis starts with medium reasoning and retries
 an incomplete response at low reasoning. The gateway reads parsed content from

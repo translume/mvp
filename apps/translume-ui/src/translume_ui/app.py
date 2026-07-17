@@ -26,6 +26,10 @@ from translume_ui.panels import (
     build_clinical_panel_data,
     empty_mechanism_figure,
 )
+from translume_ui.pathway_pdf import (
+    normalize_pathway_sections,
+    write_pathway_pdf,
+)
 from translume_ui.session_import import SessionImportError, load_pathway_session_zip
 from translume_ui.styles import TRANSLUME_CSS, header_html
 
@@ -182,7 +186,7 @@ def show_pathway_processing_status() -> Any:
 
 def load_saved_pathway_session(
     zip_path: str | None,
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, str, Any]:
     """Load saved pathway artifacts without running backend workflows.
 
     Acceptance criteria:
@@ -197,12 +201,21 @@ def load_saved_pathway_session(
             "",
             "",
             "",
+            "",
+            gr.update(interactive=False),
         )
     try:
         imported = load_pathway_session_zip(Path(zip_path))
     except (OSError, SessionImportError, ValueError) as error:
         logger.exception("Saved pathway session could not be loaded")
-        return _error_html(str(error)), "", "", ""
+        return (
+            _error_html(str(error)),
+            "",
+            "",
+            "",
+            "",
+            gr.update(interactive=False),
+        )
     status = (
         '<div class="translume-status">'
         f"Loaded saved pathway session <strong>{html.escape(imported.session_id)}</strong> "
@@ -211,9 +224,55 @@ def load_saved_pathway_session(
     )
     return (
         status,
+        imported.session_id,
         imported.pathway_analysis_markdown,
         imported.research_memo_markdown,
         imported.tumor_board_summary_markdown,
+        gr.update(interactive=True),
+    )
+
+
+def download_pathway_analysis_pdf(
+    session_id: str,
+    pathway_markdown: str,
+    research_markdown: str,
+    tumor_board_markdown: str,
+) -> tuple[str | None, str]:
+    """Create a local PDF from the complete displayed pathway-tab content.
+
+    Acceptance criteria:
+        1. Requires at least one non-empty pathway section.
+        2. Uses the current displayed Markdown values, including ZIP imports.
+        3. Writes only through the configured UI export directory.
+        4. Returns a bounded visible error without exposing clinical content.
+    """
+    if not any(
+        value.strip()
+        for value in (
+            pathway_markdown,
+            research_markdown,
+            tumor_board_markdown,
+        )
+    ):
+        return None, _error_html("No pathway analysis is available to export.")
+    try:
+        output_path = write_pathway_pdf(
+            export_root_from_environment(os.environ),
+            session_id=session_id,
+            sections=normalize_pathway_sections(
+                pathway_markdown,
+                research_markdown,
+                tumor_board_markdown,
+            ),
+        )
+    except (OSError, TypeError, ValueError) as error:
+        logger.exception("Pathway PDF export could not be generated")
+        return None, _error_html(
+            f"Pathway PDF generation failed: {type(error).__name__}"
+        )
+    return (
+        str(output_path),
+        '<div class="translume-status">Pathway analysis PDF is ready.</div>',
     )
 
 
@@ -347,6 +406,7 @@ def build_app() -> gr.Blocks:
             elem_id="workflow-error",
         )
         session_state = gr.State("")
+        pathway_session_state = gr.State("")
 
         with gr.Row(equal_height=False):
             with gr.Column(scale=3, min_width=300):
@@ -406,6 +466,16 @@ def build_app() -> gr.Blocks:
                             label="Tumor board causal summary",
                             sanitize_html=True,
                         )
+                        pathway_export_button = gr.Button(
+                            "Download Pathway Analysis PDF",
+                            variant="secondary",
+                            interactive=False,
+                        )
+                        pathway_export_file = gr.File(
+                            label="Pathway analysis PDF download",
+                            interactive=False,
+                        )
+                        pathway_export_status = gr.HTML("")
 
                     with gr.Tab("Clinical review"):
                         with gr.Accordion("1. Oncologist decision brief", open=True):
@@ -805,6 +875,8 @@ def build_app() -> gr.Blocks:
             workflow_error,
             pathway_processing_status,
             session_state,
+            pathway_session_state,
+            pathway_export_button,
             decision_snapshot,
             decision_summary,
             translational_checks_table,
@@ -857,10 +929,22 @@ def build_app() -> gr.Blocks:
             inputs=[session_zip],
             outputs=[
                 session_import_status,
+                pathway_session_state,
+                pathway_analysis_markdown,
+                research_memo_markdown,
+                tumor_board_summary_markdown,
+                pathway_export_button,
+            ],
+        )
+        pathway_export_button.click(
+            download_pathway_analysis_pdf,
+            inputs=[
+                pathway_session_state,
                 pathway_analysis_markdown,
                 research_memo_markdown,
                 tumor_board_summary_markdown,
             ],
+            outputs=[pathway_export_file, pathway_export_status],
         )
         validate_button.click(
             submit_validation,
@@ -924,6 +1008,8 @@ def _process_outputs(
             visible=bool(downstream_status),
         ),
         session_id,
+        session_id,
+        gr.update(interactive=downstream is not None),
         panels.decision_snapshot_html,
         panels.decision_summary_markdown,
         panels.translational_check_rows,
@@ -983,6 +1069,8 @@ def _empty_process_outputs(error_message: str) -> tuple[Any, ...]:
             visible=True,
         ),
         "",
+        "",
+        gr.update(interactive=False),
         _error_html(error_message),
         "",
         empty_tables[0],

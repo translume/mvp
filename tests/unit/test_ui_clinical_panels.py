@@ -682,6 +682,41 @@ def test_download_persisted_decision_brief_uses_focused_endpoint(
     )
 
 
+def test_download_pathway_analysis_pdf_uses_displayed_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from translume_ui.app import download_pathway_analysis_pdf
+
+    monkeypatch.setattr(
+        "translume_ui.app.export_root_from_environment",
+        lambda _environment: tmp_path,
+    )
+
+    output_path, status_html = download_pathway_analysis_pdf(
+        "session-ui",
+        "# Pathway\nPathway information.",
+        "# Research\nResearch information.",
+        "# Tumor board\nSummary information.",
+    )
+
+    assert output_path is not None
+    assert Path(output_path).read_bytes().startswith(b"%PDF-")
+    assert Path(output_path).name == (
+        "translume-pathway-analysis-session-ui.pdf"
+    )
+    assert "PDF is ready" in status_html
+
+
+def test_download_pathway_analysis_pdf_rejects_empty_content() -> None:
+    from translume_ui.app import download_pathway_analysis_pdf
+
+    output_path, status_html = download_pathway_analysis_pdf("", "", "", "")
+
+    assert output_path is None
+    assert "No pathway analysis is available" in status_html
+
+
 def test_gradio_app_exposes_clinical_panel_labels() -> None:
     app = build_app()
     config = str(app.get_config_file())
@@ -707,6 +742,8 @@ def test_gradio_app_exposes_clinical_panel_labels() -> None:
     assert "workflow-error" in config
     assert "pathway-processing-status" in config
     assert "Tumor board causal summary" in config
+    assert "Download Pathway Analysis PDF" in config
+    assert "Pathway analysis PDF download" in config
 
 
 def test_process_handler_renders_persisted_export_not_unpersisted_response(
