@@ -186,35 +186,35 @@ def show_pathway_processing_status() -> Any:
 
 def load_saved_pathway_session(
     zip_path: str | None,
-) -> tuple[str, str, str, str, str, Any]:
-    """Load saved pathway artifacts without running backend workflows.
+) -> tuple[Any, ...]:
+    """Load saved clinical and pathway artifacts without backend workflows.
 
     Acceptance criteria:
         1. Requires one valid completed-session ZIP.
-        2. Populates only the three Pathway analysis Markdown components.
-        3. Does not call FastAPI, persistence, or model services.
-        4. Returns a visible bounded error when import validation fails.
+        2. Populates every clinical, evidence, audit, raw, and pathway panel.
+        3. Uses only the schema-valid review packet contained in the archive.
+        4. Does not call FastAPI, persistence, or model services.
+        5. Clears stale panel values when import validation fails.
     """
     if not zip_path:
+        message = "Upload a saved session ZIP before loading."
         return (
-            _error_html("Upload a saved session ZIP before loading."),
-            "",
-            "",
-            "",
-            "",
-            gr.update(interactive=False),
+            _error_html(message),
+            *_empty_process_outputs(message),
         )
     try:
         imported = load_pathway_session_zip(Path(zip_path))
-    except (OSError, SessionImportError, ValueError) as error:
+        panels = build_clinical_panel_data(imported.review_packet)
+    except (
+        OSError,
+        SessionImportError,
+        ClinicalPanelRenderError,
+        ValueError,
+    ) as error:
         logger.exception("Saved pathway session could not be loaded")
         return (
             _error_html(str(error)),
-            "",
-            "",
-            "",
-            "",
-            gr.update(interactive=False),
+            *_empty_process_outputs(str(error)),
         )
     status = (
         '<div class="translume-status">'
@@ -224,11 +224,14 @@ def load_saved_pathway_session(
     )
     return (
         status,
-        imported.session_id,
-        imported.pathway_analysis_markdown,
-        imported.research_memo_markdown,
-        imported.tumor_board_summary_markdown,
-        gr.update(interactive=True),
+        *_panel_outputs(
+            session_id=imported.session_id,
+            panels=panels,
+            downstream_status="",
+            pathway_analysis_markdown=imported.pathway_analysis_markdown,
+            research_memo_markdown=imported.research_memo_markdown,
+            tumor_board_summary_markdown=imported.tumor_board_summary_markdown,
+        ),
     )
 
 
@@ -436,7 +439,7 @@ def build_app() -> gr.Blocks:
                         type="filepath",
                     )
                     load_session = gr.Button(
-                        "Load saved pathway session",
+                        "Load completed session",
                         variant="secondary",
                     )
                     session_import_status = gr.HTML(
@@ -477,7 +480,10 @@ def build_app() -> gr.Blocks:
                         )
                         pathway_export_status = gr.HTML("")
 
-                    with gr.Tab("Clinical review"):
+                    with gr.Tab(
+                        "Clinical review",
+                        elem_id="clinical-review-tab",
+                    ):
                         with gr.Accordion("1. Oncologist decision brief", open=True):
                             decision_snapshot = gr.HTML(
                                 '<div class="translume-safety-note">No decision brief is loaded.</div>',
@@ -743,7 +749,10 @@ def build_app() -> gr.Blocks:
                             narrative_markdown = gr.Markdown("")
                             containment_markdown = gr.Markdown("")
 
-                    with gr.Tab("Evidence details"):
+                    with gr.Tab(
+                        "Evidence details",
+                        elem_id="evidence-details-tab",
+                    ):
                         with gr.Accordion("OptimusKG graph context", open=True):
                             graph_nodes_table = gr.Dataframe(
                                 headers=["Node", "Kind", "Source"],
@@ -781,10 +790,16 @@ def build_app() -> gr.Blocks:
                             )
 
                         with gr.Accordion("Medea bounded reasoning", open=True):
-                            medea_markdown = gr.Markdown("")
+                            medea_markdown = gr.Markdown(
+                                "",
+                                elem_id="medea-reasoning-content",
+                            )
 
                         with gr.Accordion("Evidence gaps and conflicts", open=True):
-                            evidence_gaps_markdown = gr.Markdown("")
+                            evidence_gaps_markdown = gr.Markdown(
+                                "",
+                                elem_id="evidence-gaps-content",
+                            )
 
                         with gr.Accordion("Human claim validation", open=True):
                             claims_table = gr.Dataframe(
@@ -820,7 +835,10 @@ def build_app() -> gr.Blocks:
                             )
                             validation_status_message = gr.HTML("")
 
-                    with gr.Tab("Technical audit"):
+                    with gr.Tab(
+                        "Technical audit",
+                        elem_id="technical-audit-tab",
+                    ):
                         validation_decisions_table = gr.Dataframe(
                             headers=[
                                 "Status",
@@ -831,6 +849,7 @@ def build_app() -> gr.Blocks:
                             interactive=False,
                             wrap=True,
                             label="Human validation decisions",
+                            elem_id="technical-validation-table",
                         )
                         provenance_table = gr.Dataframe(
                             headers=[
@@ -844,6 +863,7 @@ def build_app() -> gr.Blocks:
                             interactive=False,
                             wrap=True,
                             label="Artifact provenance",
+                            elem_id="technical-provenance-table",
                         )
                         ledger_table = gr.Dataframe(
                             headers=[
@@ -854,6 +874,7 @@ def build_app() -> gr.Blocks:
                             interactive=False,
                             wrap=True,
                             label="Discovery ledger",
+                            elem_id="technical-ledger-table",
                         )
                         export_button = gr.Button(
                             "Fetch technical packet export",
@@ -929,11 +950,7 @@ def build_app() -> gr.Blocks:
             inputs=[session_zip],
             outputs=[
                 session_import_status,
-                pathway_session_state,
-                pathway_analysis_markdown,
-                research_memo_markdown,
-                tumor_board_summary_markdown,
-                pathway_export_button,
+                *process_outputs,
             ],
         )
         pathway_export_button.click(
@@ -998,6 +1015,42 @@ def _process_outputs(
     downstream: DownstreamAnalysisResult | None,
     downstream_status: str,
 ) -> tuple[Any, ...]:
+    return _panel_outputs(
+        session_id=session_id,
+        panels=panels,
+        downstream_status=downstream_status,
+        pathway_analysis_markdown=(
+            downstream_status
+            if downstream is None
+            else downstream.pathway_analysis_markdown
+        ),
+        research_memo_markdown=(
+            "" if downstream is None else downstream.research_memo_markdown
+        ),
+        tumor_board_summary_markdown=(
+            "" if downstream is None else downstream.tumor_board_summary_markdown
+        ),
+    )
+
+
+def _panel_outputs(
+    *,
+    session_id: str,
+    panels: ClinicalPanelData,
+    downstream_status: str,
+    pathway_analysis_markdown: str,
+    research_memo_markdown: str,
+    tumor_board_summary_markdown: str,
+) -> tuple[Any, ...]:
+    """Return complete Gradio panel values from validated artifacts."""
+    pathway_available = any(
+        value.strip()
+        for value in (
+            pathway_analysis_markdown,
+            research_memo_markdown,
+            tumor_board_summary_markdown,
+        )
+    )
     return (
         gr.update(
             value=downstream_status,
@@ -1009,7 +1062,7 @@ def _process_outputs(
         ),
         session_id,
         session_id,
-        gr.update(interactive=downstream is not None),
+        gr.update(interactive=pathway_available),
         panels.decision_snapshot_html,
         panels.decision_summary_markdown,
         panels.translational_check_rows,
@@ -1047,13 +1100,9 @@ def _process_outputs(
         panels.provenance_rows,
         panels.ledger_rows,
         panels.raw_json,
-        (
-            downstream_status
-            if downstream is None
-            else downstream.pathway_analysis_markdown
-        ),
-        "" if downstream is None else downstream.research_memo_markdown,
-        "" if downstream is None else downstream.tumor_board_summary_markdown,
+        pathway_analysis_markdown,
+        research_memo_markdown,
+        tumor_board_summary_markdown,
     )
 
 

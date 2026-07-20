@@ -310,6 +310,9 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         confirmatory_testing_input_token_budget=(
             settings.confirmatory_testing_input_token_budget
         ),
+        tumor_behavior_input_token_budget=(
+            settings.tumor_behavior_input_token_budget
+        ),
         tool_workflows=settings.tool_workflows,
         enable_provider_cache=settings.enable_provider_cache,
         graph_cache_ttl_seconds=settings.graph_cache_ttl_seconds,

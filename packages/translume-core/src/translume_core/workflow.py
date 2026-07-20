@@ -162,6 +162,7 @@ class TranslumeWorkflowConfig:
     report_extraction_max_split_depth: int = 6
     report_extraction_min_segment_chars: int = 400
     confirmatory_testing_input_token_budget: int = 8000
+    tumor_behavior_input_token_budget: int = 24000
     tool_workflows: tuple[str, ...] = (
         "literature_validation",
         "pathway_context",
@@ -528,6 +529,7 @@ async def process_report_pdf(
                 model_name=_require_vllm_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
+                input_token_budget=config.tumor_behavior_input_token_budget,
             ),
         )
         tumor_behavior = tumor_behavior_result.artifact

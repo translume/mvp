@@ -57,6 +57,7 @@ class Settings(BaseModel):
     report_extraction_max_split_depth: int = Field(default=6, ge=0)
     report_extraction_min_segment_chars: int = Field(default=400, ge=1)
     confirmatory_testing_input_token_budget: int = Field(default=8000, ge=1)
+    tumor_behavior_input_token_budget: int = Field(default=24000, ge=1)
     tumor_behavior_max_tokens: int = Field(default=6000, ge=1)
     report_extraction_batch_max_chunks: int = Field(default=5, ge=1)
     prompts_root: Path = Path("configs/prompts")
@@ -195,6 +196,9 @@ def get_settings() -> Settings:
         ),
         confirmatory_testing_input_token_budget=int(
             os.getenv("CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET", "8000")
+        ),
+        tumor_behavior_input_token_budget=int(
+            os.getenv("TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET", "24000")
         ),
         tumor_behavior_max_tokens=int(
             os.getenv("VLLM_TUMOR_BEHAVIOR_MAX_TOKENS", "6000")

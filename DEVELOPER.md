@@ -174,6 +174,18 @@ Confirmatory testing has a separate compaction boundary that retains bounded
 findings, evidence gaps, graph/tool/Medea context, phenotype axes, matrix rows,
 and Sankey endpoints. `_generate_artifact` measures its complete rendered
 prompt before model I/O and rejects budget violations deterministically.
+Tumor-behavior generation uses the same tokenizer-backed preflight with
+`TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET`. Its payload guard and rendered prompt use
+one canonical compact JSON serialization, preventing pretty-print whitespace
+from bypassing the guard. The input allowance must reserve capacity for
+`VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` because that larger allowance is used for the
+single truncation retry.
+Clinical-narrative generation validates against an internal bounded schema
+before conversion to `ClinicalNarrativeCompilerOutput`. Generation permits at
+most 8,000 Markdown characters, four 160-character source IDs, and a
+500-character safety note. `_normalize_and_validate_clinical_narrative`
+replaces model-authored source IDs with the full canonical bundle allowlist,
+so generation bounds do not reduce persisted provenance.
 Clinical narrative generation does not trust model-authored provenance IDs.
 It assigns `source_artifact_ids` from `_bundle_source_ids()` and validates any
 artifact token written into Markdown against that same case-local allowlist.
@@ -427,15 +439,19 @@ for displaying completed pathway runs. It accepts a ZIP containing a
 `session_*` directory, or that directory's contents at the archive root. The
 importer requires one coherent `run_*` set containing the pathway-analysis
 Markdown, research-memo Markdown, tumor-board Markdown, and tumor-board JSON
-manifest. It validates paths, links, member counts, expanded sizes,
-compression ratios, UTF-8 content, manifest JSON, and declared SHA-256 hashes.
-It reads required members directly and never extracts the archive.
+manifest, plus exactly one `translume_review_packet.json`. It validates paths,
+links, member counts, expanded sizes, compression ratios, UTF-8 content,
+manifest JSON, declared SHA-256 hashes, the `ReviewPacketExport` schema, and
+session coherence. It reads required members directly and never extracts the
+archive.
 
 `load_saved_pathway_session()` in `translume_ui.app` binds that importer to the
-sidebar. The callback updates only the three Markdown components in the first
-**Pathway analysis** tab. It does not call FastAPI, persistence, or model
-services and does not reconstruct any clinical-review artifact. Focused tests
-live in `tests/unit/test_ui_session_import.py`.
+sidebar. The callback sends the imported packet through
+`build_clinical_panel_data()` and updates the clinical review, evidence,
+technical audit, raw packet, and pathway tabs. It does not call FastAPI,
+persistence, or model services and does not reconstruct any clinical artifact.
+Focused tests live in `tests/unit/test_ui_session_import.py` and
+`tests/unit/test_ui_clinical_panels.py`.
 
 ## Human validation-card workflow
 

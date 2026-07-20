@@ -1,5 +1,5 @@
 ---
-license: apache-2.0
+license: cc-by-nc-sa-4.0
 language:
 - en
 tags:
@@ -8,8 +8,15 @@ pretty_name: medea_db
 ---
 
 # MEDEA-DB 
+**MEDEA-DB** is the curated data and model release accompanying **Medea: An AI agent for therapeutic reasoning across biological contexts**. It contains the databases, pre-trained embeddings, and model checkpoints used by Medea across its tool space.
 
-This database contains curated databases and pre-trained model weights across multiple domains of tools leveraged by Medea, including:
+🔗 **Links**
+- 📄 **Paper (bioRxiv):** https://www.biorxiv.org/content/10.64898/2026.01.16.696667  <!-- replace with the DOI on your Version 2 submission page (BIORXIV/2025/696667) -->
+- 💻 **Code (GitHub):** https://github.com/mims-harvard/Medea
+- 🌐 **Project website:** https://medea.openscientist.ai
+- 🧬 **Yeast E-MAP screen (Figshare):** https://doi.org/10.6084/m9.figshare.32782446
+
+This repository contains curated databases and pre-trained model weights across multiple domains of tools leveraged by Medea, including:
 
 - PPI networks & Multi-scale gene/protein embeddings (PINNACLE, TranscriptFormer, etc.)
 - Gene correlation and dependency statistics (Chronos gene-effect profiles from DepMap 24Q2 CRISPR)
@@ -64,9 +71,22 @@ This database contains curated databases and pre-trained model weights across mu
 
 ---
 
-## Data Sources & Citations
+## Citation
 
-Please cite the original sources when using specific datasets or models.
+If you use MEDEA-DB or Medea in your work, please cite:
+
+```bibtex
+@article {Sui2026.01.16.696667,
+	author = {Sui, Pengwei and Li, Michelle and Munson, Brenton P. and Gao, Shanghua and Shen, Wanxiang and Giunchiglia, Valentina and Shen, Andrew and Huang, Yepeng and Kong, Zhenglun and Licon, Katherine and Ideker, Trey and Zitnik, Marinka},
+	title = {Medea: An AI agent for therapeutic reasoning across biological contexts},
+	year = {2026},
+	doi = {10.64898/2026.01.16.696667},
+	URL = {https://www.biorxiv.org/content/10.64898/2026.01.16.696667},
+	journal = {bioRxiv}
+}
+```
+
+Please also cite the original sources of any specific dataset or model you use (PINNACLE, TranscriptFormer, DepMap, COMPASS, etc.).
 
 ---
 

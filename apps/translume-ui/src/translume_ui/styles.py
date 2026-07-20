@@ -241,6 +241,42 @@ button[role="tab"][aria-selected="true"]:focus-visible {
   opacity: 1 !important;
 }
 
+#clinical-review-tab .prose,
+#clinical-review-tab .prose * {
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+#clinical-review-tab .translume-decision-card {
+  background: linear-gradient(180deg, #374151, #1f2937) !important;
+}
+
+#clinical-review-tab .md :not(pre) > code,
+#clinical-review-tab .prose :not(pre) > code {
+  background: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+#medea-reasoning-content .prose,
+#medea-reasoning-content .prose :not(code),
+#evidence-gaps-content .prose,
+#evidence-gaps-content .prose :not(code) {
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+#technical-validation-table:is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-validation-table :is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-provenance-table:is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-provenance-table :is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-ledger-table:is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-ledger-table :is(.block-info, .label-wrap, [data-testid="block-info"]) {
+  color: #111827 !important;
+  opacity: 1 !important;
+}
+
 .gradio-container .md :not(pre) > code,
 .gradio-container .prose :not(pre) > code {
   background: #d9e0ff !important;

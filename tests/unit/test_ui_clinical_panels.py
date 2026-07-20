@@ -14,12 +14,13 @@ from translume_ui.api_client import (
     write_persisted_decision_brief,
     write_persisted_review_packet,
 )
-from translume_ui.app import build_api_client, build_app
+from translume_ui.app import build_api_client, build_app, load_saved_pathway_session
 from translume_ui.panels import (
     ClinicalPanelRenderError,
     build_clinical_panel_data,
     build_mechanism_sankey_figure,
 )
+from translume_ui.session_import import ImportedPathwaySession
 
 
 def _packet() -> ReviewPacketExport:
@@ -726,6 +727,14 @@ def test_gradio_app_exposes_clinical_panel_labels() -> None:
     assert "Case summary" not in config
     assert "No persisted case is loaded" not in config
     assert "Oncologist decision brief" in config
+    assert "clinical-review-tab" in config
+    assert "evidence-details-tab" in config
+    assert "medea-reasoning-content" in config
+    assert "evidence-gaps-content" in config
+    assert "technical-audit-tab" in config
+    assert "technical-validation-table" in config
+    assert "technical-provenance-table" in config
+    assert "technical-ledger-table" in config
     assert "Fast decision snapshot" in config
     assert "Fetch decision brief JSON" in config
     assert "Decision brief JSON download" in config
@@ -737,13 +746,46 @@ def test_gradio_app_exposes_clinical_panel_labels() -> None:
     assert "Diagnosis" in config
     assert "Load completed session" in config
     assert "Completed session ZIP" in config
-    assert "Load saved pathway session" in config
+    assert "Load completed session" in config
     assert "session-import-status" in config
     assert "workflow-error" in config
     assert "pathway-processing-status" in config
     assert "Tumor board causal summary" in config
     assert "Download Pathway Analysis PDF" in config
     assert "Pathway analysis PDF download" in config
+
+
+def test_completed_session_populates_all_packet_panels(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Completed-session loading should reuse the full packet renderer."""
+    packet = _packet()
+    imported = ImportedPathwaySession(
+        session_id=packet.session_id,
+        run_id="run-ui",
+        pathway_analysis_markdown="# Pathway\nSaved pathway.",
+        research_memo_markdown="# Research\nSaved memo.",
+        tumor_board_summary_markdown="# Board\nSaved summary.",
+        manifest={"diagnosis": "Example"},
+        review_packet=packet,
+    )
+    monkeypatch.setattr(
+        "translume_ui.app.load_pathway_session_zip",
+        lambda _path: imported,
+    )
+
+    outputs = load_saved_pathway_session(str(tmp_path / "completed.zip"))
+
+    assert len(outputs) == 43
+    assert outputs[3] == "session-ui"
+    assert outputs[4] == "session-ui"
+    assert "Treat now" in outputs[6]
+    assert outputs[18][0][0] == "GENE1"
+    assert '"session_id": "session-ui"' in outputs[39]
+    assert outputs[40] == "# Pathway\nSaved pathway."
+    assert outputs[41] == "# Research\nSaved memo."
+    assert outputs[42] == "# Board\nSaved summary."
 
 
 def test_process_handler_renders_persisted_export_not_unpersisted_response(

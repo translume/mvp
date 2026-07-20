@@ -131,6 +131,7 @@ _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS = 140
 _MAX_PROMPT_TUMOR_INPUT_SUMMARY_CHARS = 360
 _MAX_PROMPT_TUMOR_SUPPORT_ID_CHARS = 160
 _MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS = 40000
+_DEFAULT_TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET = 24000
 _MAX_PROMPT_NARRATIVE_FINDINGS = 6
 _MAX_PROMPT_NARRATIVE_AXES = 3
 _MAX_PROMPT_NARRATIVE_MATRIX_ROWS = 2
@@ -226,6 +227,26 @@ class _BoundedConfirmatoryTestingOutput(ConfirmatoryTestingOutput):
     must_not_assume: list[
         Annotated[str, StringConstraints(max_length=500)]
     ] = Field(default_factory=list, max_length=12)
+
+
+_BoundedNarrativeText = Annotated[str, StringConstraints(max_length=8000)]
+_BoundedNarrativeSafetyNote = Annotated[
+    str,
+    StringConstraints(max_length=500),
+]
+_BoundedNarrativeArtifactId = Annotated[
+    str,
+    StringConstraints(max_length=160),
+]
+
+
+class _BoundedClinicalNarrativeCompilerOutput(ClinicalNarrativeCompilerOutput):
+    """Bound narrative generation without changing the persisted schema."""
+
+    artifact_id: _BoundedNarrativeArtifactId
+    markdown: _BoundedNarrativeText
+    source_artifact_ids: list[_BoundedNarrativeArtifactId] = Field(max_length=4)
+    safety_note: _BoundedNarrativeSafetyNote
 
 
 class InvalidMechanismSankeyError(StructuredArtifactGenerationError):
@@ -786,8 +807,32 @@ async def generate_tumor_behavior_model_with_model(
     model_name: str,
     prompts_root: Path,
     created_at: datetime,
+    input_token_budget: int = _DEFAULT_TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET,
 ) -> StructuredArtifactResult[TumorBehaviorModelOutput]:
-    """Generate TumorBehaviorModelOutput through local vLLM structured output."""
+    """Generate TumorBehaviorModelOutput through local vLLM structured output.
+
+    Acceptance criteria:
+        1. The rendered prompt is measured with the served model tokenizer.
+        2. Oversized prompts fail before any structured-completion request.
+        3. The input budget reserves room for the larger output retry.
+        4. Caller-owned clinical artifacts are not mutated.
+
+    Args:
+        context: Current case evidence context.
+        phenotype: Current molecular phenotype artifact.
+        matrix: Current molecular-fit matrix artifact.
+        sankey: Current mechanism Sankey artifact.
+        confirmatory: Current confirmatory-testing artifact.
+        model_provider: Local structured-output provider boundary.
+        model_name: Served local model name.
+        prompts_root: Structured prompt directory.
+        created_at: Provenance timestamp.
+        input_token_budget: Maximum complete prompt tokens, sized to reserve
+            capacity for the larger tumor-behavior output retry.
+
+    Returns:
+        Validated tumor-behavior artifact and provenance.
+    """
     artifact_id = _artifact_id(context.artifact_id, "TumorBehaviorModelOutput")
     payload = compact_tumor_behavior_inputs_for_prompt(
         context=context,
@@ -815,6 +860,8 @@ async def generate_tumor_behavior_model_with_model(
         model_name=model_name,
         prompts_root=prompts_root,
         created_at=created_at,
+        input_token_budget=input_token_budget,
+        compact_payload_json=True,
     )
     try:
         normalized_artifact = _normalize_and_validate_tumor_behavior(
@@ -861,6 +908,8 @@ async def generate_tumor_behavior_model_with_model(
             model_name=model_name,
             prompts_root=prompts_root,
             created_at=created_at,
+            input_token_budget=input_token_budget,
+            compact_payload_json=True,
         )
         normalized_artifact = _normalize_and_validate_tumor_behavior(
             result.artifact,
@@ -1469,13 +1518,30 @@ async def generate_clinical_narrative_with_model(
     prompts_root: Path,
     created_at: datetime,
 ) -> StructuredArtifactResult[ClinicalNarrativeCompilerOutput]:
-    """Generate ClinicalNarrativeCompilerOutput through local vLLM structured output."""
+    """Generate a bounded clinical narrative through local structured output.
+
+    Acceptance criteria:
+        1. Generation bounds narrative prose, safety text, and model-authored IDs.
+        2. Canonical source IDs are assigned from the bundle after generation.
+        3. The persisted artifact retains the public narrative schema.
+        4. Caller-owned bundle values are not mutated.
+
+    Args:
+        bundle: Current clinical artifact bundle.
+        model_provider: Local structured-output provider boundary.
+        model_name: Served local model name.
+        prompts_root: Structured prompt directory.
+        created_at: Provenance timestamp.
+
+    Returns:
+        Public narrative artifact and canonicalized provenance.
+    """
     source_ids = _bundle_source_ids(bundle)
     artifact_id = _artifact_id(bundle.session_id, "ClinicalNarrativeCompilerOutput")
     compact_bundle = compact_clinical_narrative_bundle_for_prompt(bundle)
     result = await _generate_artifact(
         prompt_name="clinical_narrative",
-        schema_model=ClinicalNarrativeCompilerOutput,
+        schema_model=_BoundedClinicalNarrativeCompilerOutput,
         planned_artifact_id=artifact_id,
         payload={"clinical_artifact_bundle": compact_bundle},
         source_artifact_ids=source_ids,
@@ -1493,7 +1559,15 @@ async def generate_clinical_narrative_with_model(
             )
         ),
     )
-    return result
+    return StructuredArtifactResult(
+        artifact=ClinicalNarrativeCompilerOutput.model_validate(
+            result.artifact.model_dump()
+        ),
+        provenance=_canonicalize_provenance_schema(
+            result.provenance,
+            ClinicalNarrativeCompilerOutput,
+        ),
+    )
 
 
 class ClaimEvidenceListOutput(BaseModel):
@@ -2641,7 +2715,7 @@ def _require_tumor_behavior_payload_bound(
             not produce a payload within the safe prompt budget.
     """
     bounded = dict(payload)
-    payload_chars = len(json.dumps(bounded, sort_keys=True))
+    payload_chars = len(_serialize_prompt_payload(bounded))
     if payload_chars > _MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS:
         raise StructuredArtifactGenerationError(
             "TumorBehaviorModelOutput prompt payload exceeds the configured "
@@ -5579,6 +5653,29 @@ def _edge_target_id(edge: Mapping[str, Any]) -> str:
     return str(edge.get("target_node_id", "")).strip()
 
 
+def _serialize_prompt_payload(payload: Mapping[str, Any]) -> str:
+    """Return the canonical compact JSON representation used in prompts.
+
+    Acceptance criteria:
+        1. Determinism: Identical mappings produce identical JSON text.
+        2. No mutation: The caller-owned mapping is not modified.
+        3. Consistency: Payload guards and prompts use this exact text.
+        4. Compactness: Formatting whitespace does not consume model context.
+
+    Args:
+        payload: JSON-serializable prompt payload.
+
+    Returns:
+        Stable compact JSON text.
+    """
+    return json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 async def _generate_artifact(
     *,
     prompt_name: str,
@@ -5595,6 +5692,7 @@ async def _generate_artifact(
     artifact_validator: Callable[[T], T] | None = None,
     max_tokens: int | None = None,
     input_token_budget: int | None = None,
+    compact_payload_json: bool = False,
 ) -> StructuredArtifactResult[T]:
     """Generate a schema-valid artifact with one repair retry.
 
@@ -5622,12 +5720,18 @@ async def _generate_artifact(
         prompts_root: Directory containing prompt templates.
         created_at: Provenance timestamp.
         artifact_validator: Optional post-schema domain validator/normalizer.
+        compact_payload_json: Whether to omit formatting whitespace from the
+            payload JSON embedded in the prompt.
 
     Returns:
         Schema-validated artifact and provenance.
     """
     prompts = _load_prompt_pair(prompts_root, prompt_name)
-    payload_json = json.dumps(payload, sort_keys=True, indent=2)
+    payload_json = (
+        _serialize_prompt_payload(payload)
+        if compact_payload_json
+        else json.dumps(payload, sort_keys=True, indent=2)
+    )
     user_prompt = prompts.user.format(
         planned_artifact_id=planned_artifact_id,
         payload_json=payload_json,

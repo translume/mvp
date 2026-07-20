@@ -152,12 +152,16 @@ embedded HTML, and retains the clinician-review disclaimer.
 
 To display a previously completed run without rerunning any service, ZIP one
 `data/artifacts/session_*` directory. In the cockpit sidebar, open **Load
-completed session**, upload the ZIP, and click **Load saved pathway session**.
+completed session**, upload the ZIP, and click **Load completed session**.
 The importer reads the pathway analysis, research memo, tumor-board summary,
-and tumor-board manifest directly from one coherent `run_*` artifact set. It
-populates only the **Pathway analysis** tab and does not restore or synthesize
-the clinical-review tabs. Archives with missing, ambiguous, unsafe, empty, or
-hash-mismatched artifacts are rejected.
+tumor-board manifest, and `translume_review_packet.json` directly from one
+coherent completed session. The packet is validated as `ReviewPacketExport`
+and must match the pathway session. The importer then populates **Clinical
+review**, **Evidence details**, **Technical audit**, **Raw packet**, and
+**Pathway analysis** through the same panel renderer used for live API results.
+It does not synthesize artifacts or rerun services. Archives with missing,
+ambiguous, unsafe, malformed, empty, mismatched, or hash-invalid artifacts are
+rejected.
 
 Artifacts are isolated below `data/artifacts/<session_id>/`. The precision
 pipeline writes its `run_<id>` directory under `precision_oncology_outputs`,
@@ -194,6 +198,21 @@ Confirmatory-test generation uses a separate validation-focused compactor and
 an exact rendered-prompt token preflight. Configure its input allowance with
 `CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET` (default `8000`). Oversized broad
 evidence bundles are not sent to vLLM.
+
+Tumor-behavior generation serializes its compacted evidence payload as
+canonical compact JSON and measures the complete rendered prompt with the
+served model tokenizer before generation. Configure the input allowance with
+`TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET` (default `24000`), leaving room for
+`VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` and serving overhead. The same bound protects
+the larger truncation retry, so an oversized prompt fails locally instead of
+reaching vLLM as a context-length request.
+
+Clinical-narrative generation uses a dedicated bounded generation schema. Its
+Markdown is capped at 8,000 characters, its safety note at 500 characters, and
+model-authored provenance is limited to four short IDs. Translume replaces
+those IDs with the complete canonical bundle provenance after validation. This
+keeps the narrative within the structured-output allowance without weakening
+source containment or changing the persisted public schema.
 
 Local structured stages retry one length-stopped response with
 `VLLM_STRUCTURED_OUTPUT_RETRY_MAX_TOKENS` (default `6000`). Structured decoding

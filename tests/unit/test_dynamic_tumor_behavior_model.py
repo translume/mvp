@@ -52,6 +52,18 @@ class TumorBehaviorModelProvider:
         return payload
 
 
+class TokenCountingTumorBehaviorModelProvider(TumorBehaviorModelProvider):
+    """Return a fixed tokenizer count while recording generation calls."""
+
+    def __init__(self, output: dict[str, object], token_count: int) -> None:
+        super().__init__(output)
+        self.token_count = token_count
+
+    async def count_tokens(self, *, model_name: str, text: str) -> int:
+        """Return the configured complete-prompt token count."""
+        return self.token_count
+
+
 class SequencedTumorBehaviorModelProvider:
     """Test provider that returns a configured output per model call."""
 
@@ -519,6 +531,58 @@ async def test_tumor_behavior_accepts_case_derived_model(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
+async def test_tumor_behavior_rejects_one_token_over_budget_before_model() -> None:
+    """Reject the observed context boundary before structured generation."""
+    provider = TokenCountingTumorBehaviorModelProvider(
+        _valid_output(),
+        token_count=29769,
+    )
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="29769 > 29768",
+    ):
+        await generate_tumor_behavior_model_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            sankey=_sankey(),
+            confirmatory=_confirmatory(),
+            model_provider=provider,
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            input_token_budget=29768,
+        )
+
+    assert provider.schema_names == []
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_accepts_prompt_equal_to_budget() -> None:
+    """Permit a complete rendered prompt exactly at its configured bound."""
+    provider = TokenCountingTumorBehaviorModelProvider(
+        _valid_output(),
+        token_count=29768,
+    )
+
+    await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        input_token_budget=29768,
+    )
+
+    assert provider.schema_names == ["TumorBehaviorModelOutput"]
+
+
+@pytest.mark.asyncio
 async def test_tumor_behavior_normalizes_generated_validation_status() -> None:
     output = _valid_output()
     output["transition_hypotheses"][0]["validation_status"] = "validated"
@@ -915,7 +979,7 @@ async def test_tumor_behavior_repairs_missing_required_mims_support() -> None:
         "TumorBehaviorModelOutput",
         "TumorBehaviorModelOutput",
     ]
-    assert '"required": true' in provider.user_prompts[0]
+    assert '"required":true' in provider.user_prompts[0]
     assert "required_mims_support_ids" in provider.user_prompts[1]
     assert "edge_mtap_prmt5" in provider.user_prompts[1]
 

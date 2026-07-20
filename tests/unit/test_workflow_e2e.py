@@ -585,7 +585,10 @@ class FakeStructuredModelProvider:
                     }
                 ],
             }
-        if schema_name == "ClinicalNarrativeCompilerOutput":
+        if schema_name in {
+            "ClinicalNarrativeCompilerOutput",
+            "_BoundedClinicalNarrativeCompilerOutput",
+        }:
             return {
                 "artifact_id": artifact_id,
                 "markdown": "# Translume Tumor Behavior Intelligence Brief\n\nThe decision brief summarizes source-backed tumor biology, treatment-pressure logic, resistance watch items, and re-testing triggers for clinician review.",

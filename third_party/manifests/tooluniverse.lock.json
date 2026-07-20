@@ -1,6 +1,6 @@
 {
   "branch": "main",
-  "commit": "7dace8a33db76e1dbe0d6c44450d7050f6906b0a",
+  "commit": "4af4552515d800afc5cb82bd9dc8b670dc39dd58",
   "name": "ToolUniverse",
   "remote_url": "https://github.com/mims-harvard/ToolUniverse.git",
   "target": "/home/ubuntu/mvp/third_party/upstream/ToolUniverse",

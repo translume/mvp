@@ -58,6 +58,8 @@ class NarrativeModelProvider:
         source_artifact_ids: list[str] | None = None,
     ) -> None:
         self.markdown = markdown
+        self.schema_names: list[str] = []
+        self.json_schemas: list[dict[str, object]] = []
         self.source_artifact_ids = (
             ["artifact_report"]
             if source_artifact_ids is None
@@ -73,6 +75,8 @@ class NarrativeModelProvider:
         schema_name: str,
         json_schema: dict[str, object],
     ) -> dict[str, object]:
+        self.schema_names.append(schema_name)
+        self.json_schemas.append(json_schema)
         return {
             "artifact_id": _planned_artifact_id(user_prompt),
             "markdown": self.markdown,
@@ -388,6 +392,34 @@ async def test_narrative_generation_replaces_model_source_ids_from_bundle() -> N
 
     assert result.artifact.source_artifact_ids == ["artifact_report"]
     assert require_narrative_fact_containment(result.artifact, bundle).passed
+
+
+@pytest.mark.asyncio
+async def test_narrative_generation_uses_bounded_internal_schema() -> None:
+    """Constrain narrative output before vLLM can exhaust its token allowance."""
+    provider = NarrativeModelProvider(
+        "CHEK2 remains a source-backed finding for clinician review."
+    )
+
+    result = await generate_clinical_narrative_with_model(
+        bundle=_containment_bundle(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    schema = provider.json_schemas[0]
+    properties = schema["properties"]
+    assert provider.schema_names == [
+        "_BoundedClinicalNarrativeCompilerOutput"
+    ]
+    assert properties["markdown"]["maxLength"] == 8000
+    assert properties["source_artifact_ids"]["maxItems"] == 4
+    assert properties["source_artifact_ids"]["items"]["maxLength"] == 160
+    assert properties["safety_note"]["maxLength"] == 500
+    assert result.artifact.__class__ is ClinicalNarrativeCompilerOutput
+    assert result.provenance.schema_name == "ClinicalNarrativeCompilerOutput"
 
 
 @pytest.mark.asyncio

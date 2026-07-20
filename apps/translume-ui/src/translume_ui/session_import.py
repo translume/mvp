@@ -11,6 +11,10 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Final, Mapping
 
+from pydantic import ValidationError
+
+from translume_schemas.export import ReviewPacketExport
+
 
 MAX_ARCHIVE_BYTES: Final = 256 * 1024 * 1024
 MAX_EXPANDED_BYTES: Final = 512 * 1024 * 1024
@@ -22,6 +26,7 @@ _PATHWAY_FILENAME: Final = "state_after_trial_prescreens.pathway_analysis.md"
 _RESEARCH_FILENAME: Final = "state_after_trial_prescreens.research_memo.md"
 _SUMMARY_FILENAME: Final = "onco_board_summary.md"
 _MANIFEST_FILENAME: Final = "onco_board_summary.manifest.json"
+_REVIEW_PACKET_FILENAME: Final = "translume_review_packet.json"
 
 
 class SessionImportError(ValueError):
@@ -35,7 +40,8 @@ class ImportedPathwaySession:
     Acceptance criteria:
         1. Contains one coherent session and run identifier.
         2. Contains non-empty pathway, research, and tumor-board Markdown.
-        3. Exposes validated manifest metadata without filesystem extraction.
+        3. Contains one schema-valid, session-coherent review packet.
+        4. Exposes validated manifest metadata without filesystem extraction.
     """
 
     session_id: str
@@ -44,11 +50,12 @@ class ImportedPathwaySession:
     research_memo_markdown: str
     tumor_board_summary_markdown: str
     manifest: Mapping[str, Any]
+    review_packet: ReviewPacketExport
 
 
 @dataclass(frozen=True)
 class _ArtifactMembers:
-    """Identify the four required archive members for one run."""
+    """Identify required pathway and review-packet archive members."""
 
     session_id: str
     run_id: str
@@ -56,6 +63,7 @@ class _ArtifactMembers:
     research: str
     summary: str
     manifest: str
+    review_packet: str
 
 
 def load_pathway_session_zip(zip_path: Path) -> ImportedPathwaySession:
@@ -92,17 +100,26 @@ def load_pathway_session_zip(zip_path: Path) -> ImportedPathwaySession:
             research = _read_required_markdown(archive, selected.research)
             summary = _read_required_markdown(archive, selected.summary)
             manifest = _read_manifest(archive, selected.manifest)
+            review_packet = _read_review_packet(
+                archive,
+                selected.review_packet,
+            )
     except (OSError, zipfile.BadZipFile) as error:
         raise SessionImportError("Saved session upload is not a readable ZIP.") from error
 
     validate_tumor_board_manifest(manifest, pathway, research)
+    session_id = _validated_review_packet_session(
+        review_packet,
+        selected.session_id,
+    )
     return ImportedPathwaySession(
-        session_id=selected.session_id,
+        session_id=session_id,
         run_id=selected.run_id,
         pathway_analysis_markdown=pathway,
         research_memo_markdown=research,
         tumor_board_summary_markdown=summary,
         manifest=MappingProxyType(dict(manifest)),
+        review_packet=review_packet,
     )
 
 
@@ -159,8 +176,13 @@ def select_pathway_artifact_members(
     """
     artifacts_by_run: dict[str, dict[str, str]] = {}
     sessions_by_run: dict[str, set[str]] = {}
+    review_packets: list[tuple[str, str]] = []
     for member in members:
         if member.is_dir():
+            continue
+        packet_session = _locate_review_packet(member.filename)
+        if packet_session is not None:
+            review_packets.append((member.filename, packet_session))
             continue
         located = _locate_artifact(member.filename)
         if located is None:
@@ -197,6 +219,16 @@ def select_pathway_artifact_members(
     if len(sessions) > 1:
         raise SessionImportError("Saved session ZIP mixes multiple session folders.")
     session_id = next(iter(sessions), _session_id_from_archive_stem(archive_stem))
+    if len(review_packets) != 1:
+        raise SessionImportError(
+            "Saved session ZIP must contain exactly one "
+            f"{_REVIEW_PACKET_FILENAME}."
+        )
+    review_packet, review_packet_session = review_packets[0]
+    if review_packet_session and review_packet_session != session_id:
+        raise SessionImportError(
+            "Saved review packet is stored under a different session folder."
+        )
     artifacts = artifacts_by_run[run_id]
     return _ArtifactMembers(
         session_id=session_id,
@@ -205,6 +237,7 @@ def select_pathway_artifact_members(
         research=artifacts["research"],
         summary=artifacts["summary"],
         manifest=artifacts["manifest"],
+        review_packet=review_packet,
     )
 
 
@@ -259,6 +292,20 @@ def _locate_artifact(filename: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _locate_review_packet(filename: str) -> str | None:
+    """Return the optional session folder for one review-packet member."""
+    path = PurePosixPath(filename)
+    if path.name != _REVIEW_PACKET_FILENAME:
+        return None
+    if len(path.parts) == 1:
+        return ""
+    if len(path.parts) == 2 and path.parts[0].startswith("session_"):
+        return path.parts[0]
+    raise SessionImportError(
+        "Saved review packet must be at the archive root or session root."
+    )
+
+
 def _validate_member_path(filename: str) -> None:
     if "\\" in filename:
         raise SessionImportError(f"Archive member uses an unsafe path: {filename}")
@@ -290,6 +337,52 @@ def _read_manifest(
     if not isinstance(payload, dict):
         raise SessionImportError("Tumor-board manifest must be a JSON object.")
     return payload
+
+
+def _read_review_packet(
+    archive: zipfile.ZipFile,
+    member_name: str,
+) -> ReviewPacketExport:
+    """Read and validate one persisted review packet without extraction.
+
+    Acceptance criteria:
+        1. Accepts only UTF-8 JSON matching `ReviewPacketExport`.
+        2. Does not mutate archive data or write to the filesystem.
+        3. Raises a bounded domain error without returning packet content.
+    """
+    try:
+        content = archive.read(member_name).decode("utf-8")
+        return ReviewPacketExport.model_validate_json(content)
+    except (UnicodeDecodeError, ValidationError) as error:
+        raise SessionImportError(
+            "Saved review packet is not valid ReviewPacketExport JSON."
+        ) from error
+
+
+def _validated_review_packet_session(
+    packet: ReviewPacketExport,
+    selected_session_id: str,
+) -> str:
+    """Return a coherent session ID for the archive and review packet.
+
+    Acceptance criteria:
+        1. Packet and bundle session identifiers must match.
+        2. Explicit archive session identifiers must match the packet.
+        3. Rootless generically named archives use the validated packet ID.
+    """
+    packet_session_id = packet.session_id.strip()
+    if not packet_session_id or packet.bundle.session_id != packet_session_id:
+        raise SessionImportError(
+            "Saved review packet contains inconsistent session identifiers."
+        )
+    if (
+        selected_session_id != "imported_session"
+        and selected_session_id != packet_session_id
+    ):
+        raise SessionImportError(
+            "Saved review packet session does not match the pathway session."
+        )
+    return packet_session_id
 
 
 def _verify_manifest_hash(

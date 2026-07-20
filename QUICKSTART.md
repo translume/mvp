@@ -21,6 +21,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 source "$HOME/.local/bin/env"
 
 export COMPOSE_PROFILES=gpu,docling
+
+rmdir third_party/upstream/ToolUniverse \
+      third_party/upstream/OptimusKG \
+      third_party/upstream/Medea
 ```
 
 ## 2. Install the host-side CLI and test dependencies

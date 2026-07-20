@@ -1,6 +1,6 @@
 {
   "branch": "main",
-  "commit": "b4ff6cb24feae527672631e0511508b62987f541",
+  "commit": "49a7abbfddd7c713add0f7b8ba77bc94a9af2c15",
   "name": "Medea",
   "remote_url": "https://github.com/mims-harvard/Medea.git",
   "target": "/home/ubuntu/mvp/third_party/upstream/Medea",
