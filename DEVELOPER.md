@@ -4,6 +4,228 @@
 
 Translume uses ports and adapters. Domain logic lives under `packages/translume-core`. Stable protocols live under `packages/translume-ports`. External systems and Harvard MIMS repos are isolated behind adapters under `packages/translume-adapters` or service wrappers under `services`.
 
+The standalone `precision_oncology_json_pipeline` is packaged separately from
+the ports-and-adapters application. Its container definition is
+`docker/precision-oncology-pipeline.Dockerfile`, and the
+`precision-oncology-pipeline` Compose service runs it as a persistent command
+container.
+The service mounts one input packet at `/inputs/review_packet.json` and writes
+its persistent output under `/outputs`. The host
+`precision_oncology_json_pipeline` directory is bind-mounted at `/app`, making
+source changes immediately available without rebuilding. Its entrypoint
+prepares the output mount for the configured UID/GID and then drops root
+privileges before starting the keep-alive process.
+
+Start the container with:
+
+```bash
+docker compose up --build -d precision-oncology-pipeline
+```
+
+Use a live, cost-controlled run with:
+
+```bash
+docker compose exec --user pipeline precision-oncology-pipeline \
+  python /app/precision_oncology_pipeline.py \
+  --input /inputs/review_packet.json \
+  --output-dir /outputs \
+  --model gpt-5.6-luna \
+  --quick-test
+```
+
+Host input/output paths and container UID/GID are configured by the
+`PRECISION_ONCOLOGY_*` variables documented in `.env.example`. Live runs also
+require `DOWNSTREAM_OPENAI_API_KEY`; dry runs do not.
+Pass `--user pipeline` to `compose exec` so output files use the configured
+host UID/GID. Stop the persistent container with
+`docker compose stop precision-oncology-pipeline`.
+
+The standalone `dynamic_pathway_analyzer` is packaged with
+`docker/dynamic-pathway-analyzer.Dockerfile`. The
+`dynamic-pathway-analyzer` Compose service installs the directory's existing
+`requirements.txt`, bind-mounts the host directory at `/app`, and remains
+running as a command container. It has no dependency on the Translume API,
+database, search, vLLM, or MIMS services.
+
+Start the service with:
+
+```bash
+docker compose up --build -d dynamic-pathway-analyzer
+```
+
+Run the pathway analyzer with:
+
+```bash
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/dynamic_pathway_analyzer.py \
+  /app/state_after_trial_prescreens.json \
+  --diagnosis "dedifferentiated chondrosarcoma" \
+  --output-dir /app/pathway_output
+```
+
+Run the no-web tumor-board synthesis with:
+
+```bash
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/tumor_board_causal_synthesis.py \
+  --pathway-analysis \
+  /app/pathway_output/state_after_trial_prescreens.pathway_analysis.md \
+  --research-memo \
+  /app/pathway_output/state_after_trial_prescreens.research_memo.md \
+  --diagnosis "dedifferentiated chondrosarcoma" \
+  --output-dir /app/tumor_board_output
+```
+
+The service receives `DOWNSTREAM_OPENAI_API_KEY` as `OPENAI_API_KEY`, plus
+`OPENAI_MODEL`,
+`OPENAI_NORMALIZER_MODEL`, `MAX_JSON_CHARS`, `MAX_FINDINGS`,
+`MAX_SOURCE_RECORDS`, and `MAX_RESEARCH_PATHWAYS` from Compose. The
+`DYNAMIC_PATHWAY_UID` and `DYNAMIC_PATHWAY_GID` variables control the runtime
+user identity and default to `1000`. Use `--user analyzer` with `compose exec`
+so generated files retain that identity on the host bind mount. Stop the
+container with `docker compose stop dynamic-pathway-analyzer`.
+
+## Downstream pathway-analysis orchestration
+
+Gradio remains an API-only client. The UI submits the PDF to `translume-api`,
+reloads the persisted review packet, then posts the user-entered diagnosis to:
+
+```text
+POST /api/v1/review-packets/{session_id}/downstream-analysis
+```
+
+The API loads the exact packet from Postgres and calls the internal
+`precision-oncology-pipeline` runner at port `8094`. That runner writes the
+packet and executes the existing precision CLI. The API next calls the internal
+`dynamic-pathway-analyzer` runner at port `8095`, which executes both existing
+dynamic analyzer commands and verifies all expected Markdown files.
+
+The Pathway analysis tab can export its three displayed Markdown artifacts as
+one PDF. `translume_ui.pathway_pdf` owns block parsing and local ReportLab
+layout; `translume_ui.app.download_pathway_analysis_pdf` is the filesystem
+boundary. Freshly processed sessions and validated ZIP imports populate a
+dedicated pathway session state used for the filename and footer. Content is
+escaped, raw HTML remains inert, remote resources are not fetched, and files
+are atomically placed under `TRANSLUME_UI_EXPORT_DIR`.
+
+The precision pipeline classifies Responses API structured-output failures
+before retrying. Hypothesis synthesis starts with medium reasoning and retries
+an incomplete response at low reasoning. The gateway reads parsed content from
+both SDK-supported response locations and reports response status, incomplete
+reason, output tokens, and reasoning tokens without returning clinical text.
+Report compilation uses the stage-specific
+`PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS` value (900 seconds by default).
+After one timeout it retries once with low reasoning and a deterministic,
+non-mutating compacted payload that retains required identifiers and evidence
+URLs.
+
+All artifacts are stored below:
+
+```text
+data/artifacts/<session_id>/
+  translume_review_packet.json
+  precision_oncology_outputs/run_<run_id>/
+  pathway_output_comprehensive/<run_id>/
+  tumor_board_output/<run_id>/
+```
+
+The services share that host directory as `/app/outputs`, but accept only
+validated session and run identifiers. Do not add Docker-socket mounts or let
+the UI execute shell commands. Configure runner URLs and bounded execution
+times through `PRECISION_ONCOLOGY_SERVICE_URL`,
+`DYNAMIC_PATHWAY_SERVICE_URL`, and `TRANSLUME_DOWNSTREAM_TIMEOUT_SECONDS`.
+
+When the precision-oncology subprocess fails, the runner returns the final
+`Pipeline failed:` message instead of leading serializer warnings, infers the
+failing stage from completed checkpoints, and redacts credential-shaped text.
+The same bounded diagnostic is written atomically to:
+
+```text
+data/artifacts/<session_id>/precision_oncology_outputs/run_<run_id>/pipeline_failure.json
+```
+
+If no run directory was created, the fallback location is
+`data/artifacts/<session_id>/pipeline_failure.json`. Known Pydantic serializer
+warnings are summarized in the HTTP error rather than returned verbatim.
+
+For the integrated UI workflow, use the root Makefile rather than starting the
+four application services manually:
+
+```bash
+make gradio-up
+```
+
+The target starts `precision-oncology-pipeline`, `dynamic-pathway-analyzer`,
+`translume-api`, and `translume-ui` after its existing foundation-service
+startup and initialization steps. The remote credential is mapped only into
+the two runner containers; set `DOWNSTREAM_OPENAI_API_KEY`, not
+`OPENAI_API_KEY`, in `.env`. Use `make gradio-down` to stop the stack.
+
+## Structured-output request budgets
+
+`VLLM_STRUCTURED_OUTPUT_MAX_TOKENS` bounds every local structured-output
+request. Report extraction uses the served model tokenizer and explicit input,
+initial-output, retry-output, safety, and split-depth budgets. The chunk count
+is a secondary bound. Its flow is source segmentation, token measurement,
+bounded batching, generation, truncation classification, recursive splitting,
+leaf validation/source alignment, and deterministic merge. Partial content
+from a length-stopped response is never validated or persisted.
+Confirmatory testing has a separate compaction boundary that retains bounded
+findings, evidence gaps, graph/tool/Medea context, phenotype axes, matrix rows,
+and Sankey endpoints. `_generate_artifact` measures its complete rendered
+prompt before model I/O and rejects budget violations deterministically.
+Tumor-behavior generation uses the same tokenizer-backed preflight with
+`TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET`. Its payload guard and rendered prompt use
+one canonical compact JSON serialization, preventing pretty-print whitespace
+from bypassing the guard. The input allowance must reserve capacity for
+`VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` because that larger allowance is used for the
+single truncation retry.
+Clinical-narrative generation validates against an internal bounded schema
+before conversion to `ClinicalNarrativeCompilerOutput`. Generation permits at
+most 8,000 Markdown characters, four 160-character source IDs, and a
+500-character safety note. `_normalize_and_validate_clinical_narrative`
+replaces model-authored source IDs with the full canonical bundle allowlist,
+so generation bounds do not reduce persisted provenance.
+Clinical narrative generation does not trust model-authored provenance IDs.
+It assigns `source_artifact_ids` from `_bundle_source_ids()` and validates any
+artifact token written into Markdown against that same case-local allowlist.
+`LocalVLLMProvider` owns the shared structured-output truncation retry and
+generation-only schema bounds. Core generation wraps repeated non-report
+truncations with prompt and schema diagnostics; report extraction deliberately
+re-raises the typed signal to its adaptive splitter.
+`TumorBehaviorModelOutput` retries once after `finish_reason=length`, using
+the larger `VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` bound. A repeated truncation is
+surfaced without logging or returning the partial clinical response.
+Narrative containment excludes normalized administrative missing values and
+requires slash-delimited candidates to have a biomedical-symbol anchor.
+Consequently, `N/A` and `and/or` are ignored while `BRAF/MEK` remains checked
+against the source artifact corpus.
+Mechanism Sankey domain validation runs inside the structured-output repair
+loop. Conflicting node IDs and missing endpoints are retried once; repeated
+graph-invariant failures use the existing deterministic, source-backed Sankey
+generator with `deterministic_fallback` provenance.
+The ranked-treatment normalizer populates empty `required_before_use_tests` and
+`limitations` for every option row. It prioritizes matrix limitations,
+actionable-biology uncertainty, and row-level unresolved evidence before using
+conservative clinician-review fallback text.
+
+## Pathway-source availability
+
+The `pathway_context` workflow permits its configured external pathway sources
+to report temporary unavailability. It records the source, HTTP status, and
+reason in the tool artifact, then continues to the remaining sources. The
+workflow requires at least one successful source and fails explicitly if none
+can provide real evidence.
+
+### Local Reactome GraphDB override
+
+`ReactomeContent_search` is intercepted inside `ToolUniverseRuntime` and
+served by `reactome_graphdb.py`; every other configured name remains a vendor
+ToolUniverse call. Service composition lives in
+`tooluniverse_service/local_tool_overrides.py`. One runtime and Neo4j pool are
+cached per worker and closed on lifespan shutdown. Release validation and
+rollback are documented in `docs/architecture/reactome_local_graphdb.md`.
+
 ## Dependency direction
 
 Allowed:
@@ -210,6 +432,27 @@ TRANSLUME_UI_PORT=7860
 The live VM validation path runs `scripts/check_ui_health.py` after container
 startup to prove the Gradio app is actually reachable.
 
+### Saved pathway-session ZIP import
+
+`apps/translume-ui/src/translume_ui/session_import.py` is the read-only boundary
+for displaying completed pathway runs. It accepts a ZIP containing a
+`session_*` directory, or that directory's contents at the archive root. The
+importer requires one coherent `run_*` set containing the pathway-analysis
+Markdown, research-memo Markdown, tumor-board Markdown, and tumor-board JSON
+manifest, plus exactly one `translume_review_packet.json`. It validates paths,
+links, member counts, expanded sizes, compression ratios, UTF-8 content,
+manifest JSON, declared SHA-256 hashes, the `ReviewPacketExport` schema, and
+session coherence. It reads required members directly and never extracts the
+archive.
+
+`load_saved_pathway_session()` in `translume_ui.app` binds that importer to the
+sidebar. The callback sends the imported packet through
+`build_clinical_panel_data()` and updates the clinical review, evidence,
+technical audit, raw packet, and pathway tabs. It does not call FastAPI,
+persistence, or model services and does not reconstruct any clinical artifact.
+Focused tests live in `tests/unit/test_ui_session_import.py` and
+`tests/unit/test_ui_clinical_panels.py`.
+
 ## Human validation-card workflow
 
 Human validation is now part of the production MVP workflow. The core pure logic
@@ -393,6 +636,15 @@ Use `make optimuskg-data` to populate `data/optimuskg_cache` through the vendore
 
 The default ToolUniverse workflow config includes `literature_validation`, `pathway_context`, `target_context`, `variant_context`, and `trial_context_review`. Each workflow maps to explicit ToolUniverse tool names and dynamic arguments derived from normalized entities and graph evidence. If your vendored ToolUniverse version changes tool names or parameters, update `configs/local/tooluniverse_workflows.json` and rerun `make validate-prime-directives`, `make vendor-status`, and `make test`; do not edit Translume core compiler code or the upstream ToolUniverse repo.
 
+`literature_validation` builds disease-aware Boolean queries instead of placing
+all report genes into an implicit-AND search. Source-derived genes are retained
+in deterministic order, deduplicated, and partitioned into batches of three.
+Each batch is rendered as `"disease" AND (GENE1 OR GENE2 OR GENE3)` and is
+executed independently through PubMed and Europe PMC. The runtime records the
+rendered query and batch index on every evidence item and deduplicates repeated
+publications by provider plus PMID, DOI, or stable ID. At most eight literature
+queries are generated for one workflow execution.
+
 
 ## Medea literature and database runtime enforcement
 
@@ -405,6 +657,13 @@ Full path and endpoint details are in
 ## Evidence-derived tumor behavior validation
 
 TumorBehaviorModelOutput is generated through the local vLLM structured-output path and then validated for case-derived evidence support. The fixed state vocabulary is allowed, but selected states, transition hypotheses, rationale, and supporting artifacts must come from the current report extraction, normalized entities, OptimusKG graph evidence, ToolUniverse artifacts, Medea reasoning, molecular phenotype, molecular-fit matrix, mechanism Sankey, and confirmatory testing gaps. Generic hardcoded transitions, unsupported support IDs, transition probabilities, outcome predictions, and treatment-directing language fail the production workflow instead of being returned as a polished review packet.
+
+When the current case contains OptimusKG, ToolUniverse, or Medea evidence, the
+tumor-behavior model must cite at least one valid direct MIMS support ID. The
+prompt exposes bounded artifact/node/edge IDs directly and never uses free-text
+Medea hypotheses as citation IDs. An initial omission receives one constrained
+correction request; a repeated omission fails explicitly rather than fabricating
+evidence or relaxing the requirement.
 
 ## Provenance requirements
 

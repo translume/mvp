@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -28,6 +27,7 @@ REQUIRED_ENV = {
     "TRANSLUME_REQUIRE_OPENSEARCH": "true",
     "TRANSLUME_REQUIRE_POSTGRES": "true",
     "BLOCK_REMOTE_MODEL_PROVIDERS": "true",
+    "REACTOME_LOCAL_ENABLED": "true",
     "VLLM_BASE_URL": "http://vllm-clinical:8000/v1",
     "VLLM_MODEL": "real/model-id",
     "DOCLING_SERVICE_URL": "http://docling-service:8090",
@@ -36,8 +36,19 @@ REQUIRED_ENV = {
     "MEDEA_SERVICE_URL": "http://medea-service:8093",
     "OPENSEARCH_URL": "http://opensearch:9200",
     "POSTGRES_DSN": "postgresql://translume:translume@postgres:5432/translume",
-    "TRANSLUME_TOOL_WORKFLOWS": "literature_validation,pathway_context,target_context,variant_context,trial_context_review",
+    "TRANSLUME_TOOL_WORKFLOWS": "literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context",
     "TRANSLUME_RETRIEVAL_MODE": "lexical",
+    "REACTOME_GRAPHDB_IMAGE": "public.ecr.aws/reactome/graphdb:Release97",
+    "REACTOME_RELEASE": "97",
+    "REACTOME_NEO4J_URI": "bolt://reactome-graphdb:7687",
+    "REACTOME_NEO4J_DATABASE": "graph.db",
+    "REACTOME_NEO4J_AUTH_MODE": "basic",
+    "REACTOME_NEO4J_USER": "neo4j",
+    "REACTOME_NEO4J_PASSWORD": "test",
+    "REACTOME_QUERY_TIMEOUT_SECONDS": "30",
+    "REACTOME_MAX_RESULTS": "30",
+    "REACTOME_MAX_QUERY_TERMS": "8",
+    "REACTOME_REMOTE_FALLBACK": "false",
 }
 
 
@@ -98,6 +109,12 @@ def _write_tooluniverse_workflow_config(root: Path) -> None:
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     config.write_text(
         json.dumps(
@@ -142,6 +159,12 @@ def _prepare_root(tmp_path: Path) -> Path:
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
     ]
     workflow_config.write_text(
         json.dumps(
@@ -203,6 +226,35 @@ def test_gate_passes_with_real_git_vendors_and_required_config(tmp_path: Path) -
     payload = prime_directives_report_to_dict(report)
     assert payload["ok"] is True
     assert "PRIME_DIRECTIVES gate: OK" in render_prime_directives_report(report)
+
+
+@pytest.mark.skipif(not _git_available(), reason="git is required for this test")
+@pytest.mark.parametrize(
+    ("updates", "rule_id"),
+    (
+        ({"REACTOME_LOCAL_ENABLED": "false"}, "required_true:REACTOME_LOCAL_ENABLED"),
+        ({"REACTOME_GRAPHDB_IMAGE": "reactome:latest"}, "reactome:image_public_ecr"),
+        ({"REACTOME_RELEASE": "96"}, "reactome:image_release_pinned"),
+        ({"REACTOME_NEO4J_URI": "https://reactome.org"}, "reactome:bolt_uri"),
+        ({"REACTOME_NEO4J_AUTH_MODE": "none"}, "reactome:auth_mode"),
+        ({"REACTOME_REMOTE_FALLBACK": "true"}, "reactome:remote_fallback_disabled"),
+        ({"REACTOME_MAX_RESULTS": "31"}, "reactome:numeric:REACTOME_MAX_RESULTS"),
+    ),
+)
+def test_gate_rejects_invalid_local_reactome_runtime(
+    tmp_path: Path,
+    updates: dict[str, str],
+    rule_id: str,
+) -> None:
+    root = _prepare_root(tmp_path)
+    _prepare_git_vendors(root)
+    report = validate_prime_directives(
+        environment={**REQUIRED_ENV, **updates},
+        root=root,
+        force=True,
+    )
+    assert report.ok is False
+    assert any(finding.rule_id == rule_id for finding in report.findings)
 
 
 def test_gate_fails_zip_extracted_vendors(tmp_path: Path) -> None:

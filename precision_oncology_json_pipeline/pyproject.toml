@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "precision-oncology-json-pipeline"
+version = "1.0.0"
+description = "Deterministic OpenAI-powered JSON pipeline for precision-oncology actionable packets"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Proprietary / internal evaluation"}
+authors = [{name = "Translume integration team"}]
+dependencies = [
+  "fastapi==0.139.0",
+  "openai>=2.45.0,<3.0.0",
+  "pydantic>=2.13.4,<3.0.0",
+  "uvicorn==0.51.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.0,<10.0.0",
+  "pytest-cov>=7.0.0,<8.0.0",
+  "ruff>=0.15.0,<1.0.0",
+  "mypy>=1.20.0,<2.0.0",
+]
+
+[project.scripts]
+precision-oncology-pipeline = "precision_oncology_pipeline:main"
+
+[tool.setuptools]
+py-modules = ["precision_oncology_pipeline"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]

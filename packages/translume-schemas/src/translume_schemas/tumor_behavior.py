@@ -4,6 +4,15 @@ from translume_schemas.base import TranslumeBaseModel
 
 
 STATE_LABELS = [
+    "driver_dependency",
+    "bypass_signaling_risk",
+    "secondary_resistance_mutation_risk",
+    "copy_number_evolution_risk",
+    "fusion_rearrangement_risk",
+    "dna_repair_restoration_risk",
+    "immune_escape_risk",
+    "histologic_transformation_risk",
+    "resistant_subclone_expansion_risk",
     "proliferative",
     "stress_adapted_survival",
     "plastic_dedifferentiated",

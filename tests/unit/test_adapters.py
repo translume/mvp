@@ -134,6 +134,35 @@ async def test_optimuskg_provider_uses_real_package_parquet_path(tmp_path, monke
 
 
 @pytest.mark.asyncio
+async def test_optimuskg_provider_records_requested_retrieval_modes(tmp_path, monkeypatch) -> None:
+    monkeypatch.delitem(sys.modules, "optimuskg", raising=False)
+    repo, cache_dir = _write_fake_optimuskg_repo(tmp_path)
+    graph = await OptimusKGGraphProvider(
+        repo,
+        cache_dir=cache_dir,
+        max_edges=10,
+    ).retrieve_context(
+        _entities(),
+        retrieval_modes=("general_context", "resistance_path", "biomarker_monitoring"),
+    )
+
+    modes = [subgraph.retrieval_mode for subgraph in graph.subgraphs]
+
+    assert graph.retrieval_modes == [
+        "general_context",
+        "resistance_path",
+        "biomarker_monitoring",
+    ]
+    assert modes == graph.retrieval_modes
+    assert graph.subgraphs[0].node_ids
+    assert graph.subgraphs[0].edge_ids
+    assert any(
+        warning == "no_edges_matched_resistance_path"
+        for warning in graph.subgraphs[1].warnings
+    )
+
+
+@pytest.mark.asyncio
 async def test_optimuskg_provider_rejects_csv_substitute(tmp_path) -> None:
     edge_file = tmp_path / "edges.csv"
     edge_file.write_text("subject,relation_type,object\nCHEK2,related_to,DDR\n", encoding="utf-8")
@@ -288,3 +317,10 @@ async def test_medea_provider_reads_bounded_reasoning_artifact(tmp_path) -> None
     result = await MedeaReasoningProvider(reasoning).reason_over_context(context)
     assert result.summary == "Local Medea reasoning requires review."
     assert result.requires_human_review is True
+    assert result.decision_support_role == "hypothesis_support_only"
+    assert result.downstream_uses == [
+        "resistance_escape_forecast",
+        "treatment_pressure_map",
+        "biomarker_watch_list",
+        "evidence_limitations",
+    ]

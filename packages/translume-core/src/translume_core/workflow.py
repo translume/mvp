@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
+from translume_core.compiler.decision_brief import (
+    DecisionBriefLatencyBudgets,
+    generate_oncologist_decision_brief_with_model,
+)
 from translume_core.compiler.entity_normalization import normalize_report_entities
 from translume_core.compiler.evidence_context import combine_evidence_sources
 from translume_core.compiler.structured_model_artifacts import (
-    StructuredArtifactResult,
     generate_claim_evidence_with_model,
     generate_clinical_narrative_with_model,
     generate_confirmatory_testing_with_model,
@@ -46,15 +50,50 @@ from translume_core.provenance.coverage import (
     require_bundle_provenance_complete,
 )
 from translume_core.provenance.provenance import build_artifact_provenance
+from translume_core.performance import (
+    AsyncInMemoryCache,
+    run_with_latency_budget,
+    stable_cache_key,
+)
 from translume_core.safety.containment import require_narrative_fact_containment
 from translume_schemas.document import DocumentChunk
 from translume_schemas.evidence import EvidenceContextBundle
 from translume_schemas.export import ClinicalArtifactBundle, NarrativeContainmentReport, ReviewPacketExport
-from translume_schemas.graph import GraphEvidenceArtifact
+from translume_schemas.graph import GraphEvidenceArtifact, GraphRetrievalMode
 from translume_schemas.ledger import LedgerEvent
 from translume_schemas.medea import MedeaReasoningArtifact
 from translume_schemas.provenance import ArtifactProvenance
 from translume_schemas.tools import ToolRunArtifact
+
+
+_DEFAULT_PROVIDER_CACHE = AsyncInMemoryCache()
+
+
+def _workflow_cache(
+    providers: TranslumeWorkflowProviders,
+    config: TranslumeWorkflowConfig,
+) -> AsyncInMemoryCache | None:
+    if not config.enable_provider_cache:
+        return None
+    return providers.performance_cache or _DEFAULT_PROVIDER_CACHE
+
+
+def _workflow_stage_latency_budget(
+    config: TranslumeWorkflowConfig,
+    stage_name: str,
+) -> float | None:
+    if stage_name in config.stage_latency_budgets_seconds:
+        return config.stage_latency_budgets_seconds[stage_name]
+    return config.async_stage_latency_budget_seconds
+
+
+def _decision_brief_latency_budgets(
+    config: TranslumeWorkflowConfig,
+) -> DecisionBriefLatencyBudgets:
+    return DecisionBriefLatencyBudgets(
+        default_timeout_seconds=config.decision_brief_stage_latency_budget_seconds,
+        stage_timeout_seconds=config.stage_latency_budgets_seconds,
+    )
 
 
 @dataclass(frozen=True)
@@ -79,6 +118,7 @@ class TranslumeWorkflowProviders:
     ledger_store: object | None = None
     document_extractor: object | None = None
     model_provider: object | None = None
+    performance_cache: AsyncInMemoryCache | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +130,8 @@ class TranslumeWorkflowConfig:
         max_chunk_chars: Maximum merged chunk size.
         require_mims: Whether graph/tool/Medea providers are required.
         tool_workflows: Allow-listed ToolUniverse workflow names to run.
+        graph_retrieval_modes: Targeted OptimusKG retrieval modes for therapy,
+            resistance, drug-target-biomarker, and monitoring context.
         require_opensearch: Whether OpenSearch persistence is mandatory.
         require_postgres: Whether Postgres metadata persistence is mandatory.
         retrieval_mode: OpenSearch retrieval scope. The MVP supports lexical only.
@@ -98,6 +140,8 @@ class TranslumeWorkflowConfig:
         require_local_vllm: Whether local vLLM structured outputs are required.
         vllm_model: Model identifier served by local vLLM.
         prompts_root: Directory containing structured-output prompt files.
+        report_extraction_batch_max_chunks: Maximum source chunks per
+            page-ordered report-extraction request.
     """
 
     storage_root: Path
@@ -111,13 +155,42 @@ class TranslumeWorkflowConfig:
     require_local_vllm: bool = True
     vllm_model: str = ""
     prompts_root: Path = Path("configs/prompts")
+    report_extraction_batch_max_chunks: int = 5
+    report_extraction_input_token_budget: int = 2200
+    report_extraction_initial_max_tokens: int = 2500
+    report_extraction_retry_max_tokens: int = 5000
+    report_extraction_max_split_depth: int = 6
+    report_extraction_min_segment_chars: int = 400
+    confirmatory_testing_input_token_budget: int = 8000
+    tumor_behavior_input_token_budget: int = 24000
     tool_workflows: tuple[str, ...] = (
         "literature_validation",
         "pathway_context",
         "target_context",
         "variant_context",
         "trial_context_review",
+        "therapy_context",
+        "resistance_mechanism_context",
+        "biomarker_retesting_context",
+        "guideline_context",
+        "clinical_trial_context",
+        "lineage_transformation_context",
+        "recent_therapy_agent_backfill_context",
     )
+    graph_retrieval_modes: tuple[GraphRetrievalMode, ...] = (
+        "general_context",
+        "therapy_pressure",
+        "resistance_path",
+        "drug_target_biomarker",
+        "biomarker_monitoring",
+    )
+    enable_provider_cache: bool = True
+    graph_cache_ttl_seconds: float | None = 3600.0
+    tool_cache_ttl_seconds: float | None = 1800.0
+    medea_cache_ttl_seconds: float | None = 1800.0
+    async_stage_latency_budget_seconds: float | None = None
+    decision_brief_stage_latency_budget_seconds: float | None = None
+    stage_latency_budgets_seconds: dict[str, float] = field(default_factory=dict)
 
 
 async def process_report_pdf(
@@ -143,8 +216,9 @@ async def process_report_pdf(
         6. MIMS providers run in strict mode or fail explicitly.
         7. OpenSearch and Postgres are required by default and fail loudly when
            unavailable.
-        8. No treatment recommendation, outcome prediction, or transition
-           probability is generated.
+        8. Produces evidence-grounded oncologist decision support while
+           rejecting unsupported certainty, cure, survival, or deterministic
+           outcome claims.
 
     Args:
         filename: Original uploaded filename.
@@ -248,6 +322,12 @@ async def process_report_pdf(
                 model_name=_require_vllm_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
+                batch_max_chunks=config.report_extraction_batch_max_chunks,
+                input_token_budget=config.report_extraction_input_token_budget,
+                initial_max_tokens=config.report_extraction_initial_max_tokens,
+                retry_max_tokens=config.report_extraction_retry_max_tokens,
+                max_split_depth=config.report_extraction_max_split_depth,
+                min_segment_chars=config.report_extraction_min_segment_chars,
             ),
         )
         report = report_result.artifact
@@ -282,7 +362,7 @@ async def process_report_pdf(
         model_provenance.append(
             provenance_for_graph_evidence(graph, entities, report, created_at=now)
         )
-        preliminary_context = await _run_sync_workflow_stage(
+        await _run_sync_workflow_stage(
             "preliminary_evidence_context",
             ledger_events,
             session,
@@ -424,6 +504,9 @@ async def process_report_pdf(
                 model_name=_require_vllm_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
+                input_token_budget=(
+                    config.confirmatory_testing_input_token_budget
+                ),
             ),
         )
         confirmatory = confirmatory_result.artifact
@@ -446,31 +529,58 @@ async def process_report_pdf(
                 model_name=_require_vllm_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
+                input_token_budget=config.tumor_behavior_input_token_budget,
             ),
         )
         tumor_behavior = tumor_behavior_result.artifact
         model_provenance.append(tumor_behavior_result.provenance)
-        claims_result = await _run_async_workflow_stage(
-            "claim_evidence",
-            ledger_events,
-            session,
-            stored_file,
-            now,
-            providers,
-            config,
-            lambda: generate_claim_evidence_with_model(
-                context=context,
-                phenotype=phenotype,
-                matrix=matrix,
-                sankey=sankey,
-                confirmatory=confirmatory,
-                tumor_behavior=tumor_behavior,
-                model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
-                prompts_root=config.prompts_root,
-                created_at=now,
+        decision_brief_result, claims_result = await asyncio.gather(
+            _run_async_workflow_stage(
+                "oncologist_decision_brief",
+                ledger_events,
+                session,
+                stored_file,
+                now,
+                providers,
+                config,
+                lambda: generate_oncologist_decision_brief_with_model(
+                    context=context,
+                    phenotype=phenotype,
+                    matrix=matrix,
+                    sankey=sankey,
+                    confirmatory=confirmatory,
+                    tumor_behavior=tumor_behavior,
+                    model_provider=_require_model_provider(providers, config),
+                    model_name=_require_vllm_model(config),
+                    prompts_root=config.prompts_root,
+                    created_at=now,
+                    latency_budgets=_decision_brief_latency_budgets(config),
+                ),
+            ),
+            _run_async_workflow_stage(
+                "claim_evidence",
+                ledger_events,
+                session,
+                stored_file,
+                now,
+                providers,
+                config,
+                lambda: generate_claim_evidence_with_model(
+                    context=context,
+                    phenotype=phenotype,
+                    matrix=matrix,
+                    sankey=sankey,
+                    confirmatory=confirmatory,
+                    tumor_behavior=tumor_behavior,
+                    model_provider=_require_model_provider(providers, config),
+                    model_name=_require_vllm_model(config),
+                    prompts_root=config.prompts_root,
+                    created_at=now,
+                ),
             ),
         )
+        decision_brief = decision_brief_result.artifact
+        model_provenance.append(decision_brief_result.provenance)
         claims = claims_result.artifact.claims
         model_provenance.extend(
             provenance_for_claim(claim, report, created_at=now) for claim in claims
@@ -496,6 +606,7 @@ async def process_report_pdf(
             sankey=sankey,
             confirmatory=confirmatory,
             tumor_behavior=tumor_behavior,
+            decision_brief=decision_brief,
             claims=claims,
             provenance=provenance,
             ledger_events=list(ledger_events),
@@ -734,7 +845,11 @@ async def _run_async_workflow_stage(
         details={"stage": stage_name, "status": "started"},
     )
     try:
-        result = await operation()
+        result = await run_with_latency_budget(
+            stage_name=stage_name,
+            timeout_seconds=_workflow_stage_latency_budget(config, stage_name),
+            awaitable=operation(),
+        )
     except Exception as error:
         await _record_workflow_failure(
             stage_name,
@@ -1103,13 +1218,31 @@ async def _get_graph_evidence(
     if providers.graph_provider is None:
         if config.require_mims:
             raise RuntimeError("MIMS graph provider is required but not configured")
-        return _missing_graph_evidence(entities, "graph_provider_not_configured")
+        return _missing_graph_evidence(
+            entities,
+            "graph_provider_not_configured",
+            config.graph_retrieval_modes,
+        )
+
+    async def retrieve() -> GraphEvidenceArtifact:
+        return await providers.graph_provider.retrieve_context(
+            entities,
+            retrieval_modes=config.graph_retrieval_modes,
+        )
+
     try:
-        return await providers.graph_provider.retrieve_context(entities)
+        cache = _workflow_cache(providers, config)
+        if cache is None:
+            return await retrieve()
+        return await cache.get_or_set(
+            stable_cache_key("optimuskg_graph", entities, config.graph_retrieval_modes),
+            retrieve,
+            ttl_seconds=config.graph_cache_ttl_seconds,
+        )
     except Exception as error:
         if config.require_mims:
             raise
-        return _missing_graph_evidence(entities, str(error))
+        return _missing_graph_evidence(entities, str(error), config.graph_retrieval_modes)
 
 
 async def _get_tool_outputs(
@@ -1122,11 +1255,27 @@ async def _get_tool_outputs(
         if config.require_mims:
             raise RuntimeError("MIMS tool provider is required but not configured")
         return []
-    try:
+
+    async def run_tools() -> list[ToolRunArtifact]:
         return await providers.tool_provider.run_workflows(
             workflows=list(config.tool_workflows),
             entities=entities,
             graph=graph,
+        )
+
+    try:
+        cache = _workflow_cache(providers, config)
+        if cache is None:
+            return await run_tools()
+        return await cache.get_or_set(
+            stable_cache_key(
+                "tooluniverse_workflows",
+                config.tool_workflows,
+                entities,
+                graph,
+            ),
+            run_tools,
+            ttl_seconds=config.tool_cache_ttl_seconds,
         )
     except Exception:
         if config.require_mims:
@@ -1142,17 +1291,35 @@ async def _get_medea_reasoning(
     if providers.reasoning_provider_factory is None:
         if config.require_mims:
             raise RuntimeError("MIMS reasoning provider is required but not configured")
-        return _missing_medea_reasoning(context.artifact_id, "reasoning_provider_not_configured")
-    try:
+        return _missing_medea_reasoning(
+            context.artifact_id,
+            "reasoning_provider_not_configured",
+        )
+
+    async def reason() -> MedeaReasoningArtifact:
         provider = providers.reasoning_provider_factory(context)
         return await provider.reason_over_context(context)
+
+    try:
+        cache = _workflow_cache(providers, config)
+        if cache is None:
+            return await reason()
+        return await cache.get_or_set(
+            stable_cache_key("medea_reasoning", context),
+            reason,
+            ttl_seconds=config.medea_cache_ttl_seconds,
+        )
     except Exception as error:
         if config.require_mims:
             raise
         return _missing_medea_reasoning(context.artifact_id, str(error))
 
 
-def _missing_graph_evidence(entities, warning: str) -> GraphEvidenceArtifact:
+def _missing_graph_evidence(
+    entities,
+    warning: str,
+    retrieval_modes: Sequence[GraphRetrievalMode] | None = None,
+) -> GraphEvidenceArtifact:
     artifact_id = f"artifact_{uuid5(NAMESPACE_URL, entities.artifact_id + ':missing_graph').hex[:16]}"
     return GraphEvidenceArtifact(
         artifact_id=artifact_id,
@@ -1161,6 +1328,7 @@ def _missing_graph_evidence(entities, warning: str) -> GraphEvidenceArtifact:
         edges=[],
         missing_entities=[entity.entity_id for entity in entities.entities],
         warnings=[warning],
+        retrieval_modes=list(retrieval_modes or []),
     )
 
 
@@ -1174,6 +1342,8 @@ def _empty_medea_reasoning(seed: str) -> MedeaReasoningArtifact:
         weakened_hypotheses=[],
         warnings=[],
         requires_human_review=True,
+        decision_support_role="hypothesis_support_only",
+        downstream_uses=[],
     )
 
 
@@ -1187,6 +1357,8 @@ def _missing_medea_reasoning(seed: str, warning: str) -> MedeaReasoningArtifact:
         weakened_hypotheses=[],
         warnings=[warning],
         requires_human_review=True,
+        decision_support_role="hypothesis_support_only",
+        downstream_uses=["evidence_limitations"],
     )
 
 

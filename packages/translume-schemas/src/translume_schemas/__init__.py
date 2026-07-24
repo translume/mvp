@@ -10,9 +10,11 @@ from translume_schemas.matrix import *
 from translume_schemas.sankey import *
 from translume_schemas.confirmatory import *
 from translume_schemas.tumor_behavior import *
+from translume_schemas.decision_brief import *
 from translume_schemas.claims import *
 from translume_schemas.validation import *
 from translume_schemas.provenance import *
 from translume_schemas.ledger import *
 from translume_schemas.export import *
 from translume_schemas.session import *
+from translume_schemas.downstream import *

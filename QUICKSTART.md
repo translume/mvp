@@ -19,6 +19,12 @@ If `uv` is missing:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source "$HOME/.local/bin/env"
+
+export COMPOSE_PROFILES=gpu,docling
+
+rmdir third_party/upstream/ToolUniverse \
+      third_party/upstream/OptimusKG \
+      third_party/upstream/Medea
 ```
 
 ## 2. Install the host-side CLI and test dependencies
@@ -81,6 +87,15 @@ VLLM_BASE_URL=http://vllm-clinical:8000/v1
 VLLM_PUBLIC_BASE_URL=http://localhost:8000/v1
 VLLM_MODEL=<REAL_PUBLIC_HUGGING_FACE_MODEL_ID>
 VLLM_TIMEOUT_SECONDS=240
+VLLM_STRUCTURED_OUTPUT_RETRY_MAX_TOKENS=6000
+VLLM_MODEL_CONTEXT_TOKENS=8192
+REPORT_EXTRACTION_INITIAL_MAX_TOKENS=2500
+REPORT_EXTRACTION_RETRY_MAX_TOKENS=5000
+REPORT_EXTRACTION_INPUT_TOKEN_BUDGET=2200
+REPORT_EXTRACTION_CONTEXT_SAFETY_TOKENS=512
+REPORT_EXTRACTION_MAX_SPLIT_DEPTH=6
+REPORT_EXTRACTION_MIN_SEGMENT_CHARS=400
+CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET=8000
 TRANSLUME_PROMPTS_ROOT=/app/configs/prompts
 
 DOCLING_SERVICE_URL=http://docling-service:8090
@@ -102,7 +117,7 @@ TOOLUNIVERSE_PUBLIC_URL=http://localhost:8092
 TOOLUNIVERSE_VENDOR_DIR=/app/third_party/upstream/ToolUniverse
 TOOLUNIVERSE_WORKFLOW_CONFIG=/app/configs/local/tooluniverse_workflows.json
 TOOLUNIVERSE_MODULE_NAMES=tooluniverse
-TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review
+TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context,recent_therapy_agent_backfill_context
 MIMS_TIMEOUT_SECONDS=240
 
 MEDEA_SERVICE_URL=http://medea-service:8093
@@ -125,7 +140,7 @@ TRANSLUME_UI_HOST=0.0.0.0
 TRANSLUME_UI_PORT=7860
 TRANSLUME_UI_URL=http://localhost:7860
 TRANSLUME_UI_API_TIMEOUT_SECONDS=120
-TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS=900
+TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS=3600
 TRANSLUME_UI_EXPORT_DIR=/tmp/translume-ui-exports
 
 TRANSLUME_MAX_CHUNK_CHARS=2400
@@ -147,6 +162,11 @@ Do not set real remote-model credentials in this shell or `.env`. Clear inherite
 unset OPENAI_API_KEY OPENROUTER_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY GOOGLE_API_KEY AZURE_OPENAI_API_KEY AZURE_OPENAI_ENDPOINT NVIDIA_API_KEY NVIDIA_API_BASE
 ```
 
+For the optional downstream oncology analysis, set
+`DOWNSTREAM_OPENAI_API_KEY` instead. Compose maps it only into the two
+downstream runner containers, so the demo-mode Translume API retains its
+local-vLLM-only credential policy.
+
 Load `.env` for host-side CLI commands:
 
 ```bash
@@ -164,6 +184,16 @@ make mims-data-status
 
 This stores MedeaDB at `data/medea_cache/MedeaDB` and the OptimusKG client cache at `data/optimuskg_cache`. Compose bind-mounts those exact `MEDEADB_PATH` and `OPTIMUSKG_CACHE_DIR` host paths into the services; the data is not copied into Docker images. The combined target is cache-aware, so rerunning it reuses complete downloads.
 
+Pull the release-pinned Reactome graph image:
+
+```bash
+make reactome-image
+```
+
+After startup, verify GraphDB readiness and the complete pathway workflow with
+`make reactome-status` and `make reactome-smoke`. ToolUniverse remains HTTP 503
+while the graph initializes or if its configured release does not match.
+
 ## 6. Validate configuration before starting Docker
 
 ```bash
@@ -177,30 +207,21 @@ Fix the first reported error instead of disabling a required service.
 
 ## 7. Start the real MVP stack
 
-The command below intentionally starts one GPU-backed vLLM service. It does not start the unused `vllm-docling` or worker services.
+Use the root Makefile to provision required data, start the foundation
+services, initialize persistence, and launch the UI workflow services.
 
 ```bash
-export COMPOSE_PROFILES=gpu,docling
-
-docker compose up --build -d --wait --wait-timeout 1800 \
-  postgres \
-  opensearch \
-  vllm-clinical \
-  docling-service \
-  optimuskg-service \
-  tooluniverse-service \
-  medea-service \
-  translume-api \
-  translume-ui
+make gradio-up
 ```
 
 Check container state:
 
 ```bash
-docker compose ps
+make gradio-status
 ```
 
-Initialize and verify persistence through host-accessible endpoints:
+`make gradio-up` initializes Postgres and OpenSearch. Verify persistence
+through host-accessible endpoints:
 
 ```bash
 OPENSEARCH_URL="$OPENSEARCH_PUBLIC_URL" uv run python scripts/init_opensearch.py

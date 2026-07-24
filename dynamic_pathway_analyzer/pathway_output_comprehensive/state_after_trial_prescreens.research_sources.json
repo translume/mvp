@@ -1,0 +1,3554 @@
+[
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10417069/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10417069/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/28420036/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/28420036/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/34734747/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/34734747/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/41895355/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/41895355/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/37383872/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37383872/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38311185/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38311185/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10013202/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10013202/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/20140939/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/20140939/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/33147331/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/33147331/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/35485870/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/35485870/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/16631464/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/16631464/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/88/NCT03666988/SAP_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/88/NCT03666988/SAP_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC431183/pdf/pnas00040-0366.pdf",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC431183/pdf/pnas00040-0366.pdf",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.clinicaltrials.gov/ProvidedDocs/68/NCT02903368/Prot_SAP_000.pdf",
+    "url": "https://www.clinicaltrials.gov/ProvidedDocs/68/NCT02903368/Prot_SAP_000.pdf",
+    "domain": "www.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/17/NCT02693717/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/17/NCT02693717/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336",
+    "url": "https://clinicaltrials.gov/study/NCT05094336",
+    "domain": "clinicaltrials.gov",
+    "source_type": "open_page"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/api/v2/studies/NCT05094336",
+    "url": "https://clinicaltrials.gov/api/v2/studies/NCT05094336",
+    "domain": "clinicaltrials.gov",
+    "source_type": "open_page"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=53&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=53&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/data-about-studies/api-migration",
+    "url": "https://clinicaltrials.gov/data-about-studies/api-migration",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/data-api/about-api/study-data-structure",
+    "url": "https://clinicaltrials.gov/data-api/about-api/study-data-structure",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/data-about-studies/learn-about-api",
+    "url": "https://clinicaltrials.gov/data-about-studies/learn-about-api",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/find-studies",
+    "url": "https://clinicaltrials.gov/find-studies",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/?rel=0",
+    "url": "https://clinicaltrials.gov/?rel=0",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT07594626",
+    "url": "https://clinicaltrials.gov/study/NCT07594626",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06883747",
+    "url": "https://clinicaltrials.gov/study/NCT06883747",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06188702?checkSpell=&rank=5&term=AREA%5BConditionSearch%5D%28%28METHIONINE+ADENOSYLTRANSFERASE+I%2FIII+DEFICIENCY%29+OR+%28mat2a%29%29",
+    "url": "https://clinicaltrials.gov/study/NCT06188702?checkSpell=&rank=5&term=AREA%5BConditionSearch%5D%28%28METHIONINE+ADENOSYLTRANSFERASE+I%2FIII+DEFICIENCY%29+OR+%28mat2a%29%29",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06855771",
+    "url": "https://clinicaltrials.gov/study/NCT06855771",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06922591",
+    "url": "https://clinicaltrials.gov/study/NCT06922591",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05732831",
+    "url": "https://clinicaltrials.gov/study/NCT05732831",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/modernization/CTGModernizationPublicMeetingTranscript.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/modernization/CTGModernizationPublicMeetingTranscript.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/modernization/WebsiteFunctionalityPanel.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/modernization/WebsiteFunctionalityPanel.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/modernization/IntroductionandOverviewSession.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/modernization/IntroductionandOverviewSession.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/35/NCT03314935/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/35/NCT03314935/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/53/NCT05138653/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/53/NCT05138653/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05275478",
+    "url": "https://clinicaltrials.gov/study/NCT05275478",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=22&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=22&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT07492680",
+    "url": "https://clinicaltrials.gov/study/NCT07492680",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=58&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=58&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT07549022",
+    "url": "https://clinicaltrials.gov/study/NCT07549022",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06810544",
+    "url": "https://clinicaltrials.gov/study/NCT06810544",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT03435250?a=41&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT03435250?a=41&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06188702",
+    "url": "https://clinicaltrials.gov/study/NCT06188702",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06360354?tab=table",
+    "url": "https://clinicaltrials.gov/study/NCT06360354?tab=table",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT07579221",
+    "url": "https://clinicaltrials.gov/study/NCT07579221",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/79/NCT04770779/SAP_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/79/NCT04770779/SAP_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/51/NCT04415151/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/51/NCT04415151/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/52/NCT05259852/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/52/NCT05259852/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/04/NCT04281004/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/04/NCT04281004/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?cond=NCT05094336",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?cond=NCT05094336",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05245500",
+    "url": "https://clinicaltrials.gov/study/NCT05245500",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT04794699",
+    "url": "https://clinicaltrials.gov/study/NCT04794699",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06914128?tab=table",
+    "url": "https://clinicaltrials.gov/study/NCT06914128?tab=table",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06968572",
+    "url": "https://clinicaltrials.gov/study/NCT06968572",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06589596",
+    "url": "https://clinicaltrials.gov/study/NCT06589596",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/59/NCT02462759/Prot_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/59/NCT02462759/Prot_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/62/NCT04599062/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/62/NCT04599062/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/14/NCT04863014/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/14/NCT04863014/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/18/NCT04233918/Prot_002.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/18/NCT04233918/Prot_002.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/69/NCT00819169/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/69/NCT00819169/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/26912360/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/26912360/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4997612/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4997612/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/26912361/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/26912361/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/39282709/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/39282709/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/41512197/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/41512197/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13044523/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13044523/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/37774699/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37774699/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38595098/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38595098/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8270912/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8270912/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/40146197/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/40146197/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/37552839/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37552839/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/39919252/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/39919252/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5644504/pdf/nihms886790.pdf",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5644504/pdf/nihms886790.pdf",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1839956/pdf/nihms15677.pdf",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1839956/pdf/nihms15677.pdf",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7817689/pdf/41467_2020_Article_20790.pdf",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7817689/pdf/41467_2020_Article_20790.pdf",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4883595/pdf/nihms770340.pdf",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4883595/pdf/nihms770340.pdf",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4052024/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4052024/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4498940/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4498940/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13004474/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13004474/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4325180/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4325180/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6248264/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6248264/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1852953/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1852953/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8001927/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8001927/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/19336518/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/19336518/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/40627883/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/40627883/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3018623/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3018623/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/44/NCT03110744/Prot_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/44/NCT03110744/Prot_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/20/NCT04436120/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/20/NCT04436120/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/83/NCT02187783/Prot_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/83/NCT02187783/Prot_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/20/NCT02530320/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/20/NCT02530320/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/78/NCT03519178/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/78/NCT03519178/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/01/NCT03070301/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/01/NCT03070301/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.ncbi.nlm.nih.gov/clinvar/variation/216652/",
+    "url": "https://www.ncbi.nlm.nih.gov/clinvar/variation/216652/",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.ncbi.nlm.nih.gov/clinvar/variation/216652",
+    "url": "https://www.ncbi.nlm.nih.gov/clinvar/variation/216652",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38484203/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38484203/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/42133897/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/42133897/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/37211773/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37211773/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/28082821/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/28082821/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/33516088/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/33516088/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/35550005/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/35550005/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38993246/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38993246/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/35768576/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/35768576/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/41352287/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/41352287/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38848470/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38848470/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/22674453/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/22674453/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/36926116/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/36926116/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/30281149/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/30281149/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/27248819/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/27248819/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/10881744/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/10881744/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/40117529/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/40117529/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/31615936/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/31615936/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/28301537/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/28301537/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/41420192/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/41420192/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/41752158/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/41752158/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/32427623/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/32427623/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/33/NCT04187833/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/33/NCT04187833/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/47/NCT03207347/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/47/NCT03207347/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/27/NCT04439227/Prot_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/27/NCT04439227/Prot_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/12/NCT04266912/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/12/NCT04266912/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/32/NCT02095132/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/32/NCT02095132/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/20/NCT02838420/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/20/NCT02838420/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3182699/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3182699/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5796255/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5796255/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8685273/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8685273/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9862566/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9862566/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12531285/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12531285/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/27047227/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/27047227/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6889735/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6889735/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4229252/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4229252/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5656027/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5656027/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/92/NCT04632992/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/92/NCT04632992/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/74/NCT04464174/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/74/NCT04464174/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/16/NCT02677116/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/16/NCT02677116/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/02/NCT04762602/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/02/NCT04762602/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/22/NCT04458922/ICF_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/22/NCT04458922/ICF_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/53/NCT03046953/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/53/NCT03046953/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfPMN/pmn.cfm",
+    "url": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfPMN/pmn.cfm",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://precision.fda.gov/ginas/app/ui/substances/5139b555-a1ec-41f1-960c-99fa8863dba3",
+    "url": "https://precision.fda.gov/ginas/app/ui/substances/5139b555-a1ec-41f1-960c-99fa8863dba3",
+    "domain": "precision.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-amivantamab-and-hyaluronidase-lpuj-subcutaneous-injection",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-amivantamab-and-hyaluronidase-lpuj-subcutaneous-injection",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpma/pma.cfm?ID=P230011S002",
+    "url": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpma/pma.cfm?ID=P230011S002",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpma/pma.cfm?id=P230042",
+    "url": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpma/pma.cfm?id=P230042",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.fda.gov/news-events/press-announcements/fda-approves-gene-therapy-treatment-spinal-muscular-atrophy",
+    "url": "https://www.fda.gov/news-events/press-announcements/fda-approves-gene-therapy-treatment-spinal-muscular-atrophy",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpcd/classification.cfm?deviceclass=&devicename=&implant_flag=&life_sustain_support_flag=&pagenum=10&panel=OR&productcode=&regulationnumber=&sortcolumn=productcode&start_search=191&submission_type_id=1&summary_malfunction_reporting=&thirdparty=",
+    "url": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpcd/classification.cfm?deviceclass=&devicename=&implant_flag=&life_sustain_support_flag=&pagenum=10&panel=OR&productcode=&regulationnumber=&sortcolumn=productcode&start_search=191&submission_type_id=1&summary_malfunction_reporting=&thirdparty=",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/scripts/cdrh/Cfdocs/cfrl/rl.cfm?lid=509743&lpcd=EYQ",
+    "url": "https://www.accessdata.fda.gov/scripts/cdrh/Cfdocs/cfrl/rl.cfm?lid=509743&lpcd=EYQ",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpma/pma.cfm?ID=P010019",
+    "url": "https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfpma/pma.cfm?ID=P010019",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-amivantamab-vmjw-egfr-exon-20-insertion-mutated-non-small-cell-lung-cancer-indications",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-amivantamab-vmjw-egfr-exon-20-insertion-mutated-non-small-cell-lung-cancer-indications",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-grants-accelerated-approval-amivantamab-vmjw-metastatic-non-small-cell-lung-cancer",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-grants-accelerated-approval-amivantamab-vmjw-metastatic-non-small-cell-lung-cancer",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/appletter/2020/761077Orig1s004ltr.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/appletter/2020/761077Orig1s004ltr.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.fda.gov/news-events/press-announcements/fda-approves-first-gene-therapy-severe-leukocyte-adhesion-deficiency-type-i",
+    "url": "https://www.fda.gov/news-events/press-announcements/fda-approves-first-gene-therapy-severe-leukocyte-adhesion-deficiency-type-i",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2018/761077Orig1s000ChemR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2018/761077Orig1s000ChemR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2015/125522Orig1s000OtherR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2015/125522Orig1s000OtherR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2008/125268s000_ChemR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2008/125268s000_ChemR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2024/761344Orig1s000OtherR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2024/761344Orig1s000OtherR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2015/125522Orig1s000SumR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2015/125522Orig1s000SumR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/policy/faq",
+    "url": "https://clinicaltrials.gov/policy/faq",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT04754191?intr=Enfortumab&page=1&rank=10&viewType=Table",
+    "url": "https://clinicaltrials.gov/study/NCT04754191?intr=Enfortumab&page=1&rank=10&viewType=Table",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT02453282",
+    "url": "https://clinicaltrials.gov/study/NCT02453282",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT02923778",
+    "url": "https://clinicaltrials.gov/study/NCT02923778",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05747534",
+    "url": "https://clinicaltrials.gov/study/NCT05747534",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT07505303",
+    "url": "https://clinicaltrials.gov/study/NCT07505303",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/nct05609578?tab=history",
+    "url": "https://clinicaltrials.gov/study/nct05609578?tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT04644770",
+    "url": "https://clinicaltrials.gov/study/NCT04644770",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT02152631?id=%22NCT01655225%22OR%22NCT02079636%22OR%22NCT02152631%22OR%22NCT02308020%22OR%22NCT02411591%22OR%22NCT02450539%22&rank=4",
+    "url": "https://clinicaltrials.gov/study/NCT02152631?id=%22NCT01655225%22OR%22NCT02079636%22OR%22NCT02152631%22OR%22NCT02308020%22OR%22NCT02411591%22OR%22NCT02450539%22&rank=4",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT04956640?id=NCT04956640&rank=1",
+    "url": "https://clinicaltrials.gov/study/NCT04956640?id=NCT04956640&rank=1",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05463224",
+    "url": "https://clinicaltrials.gov/study/NCT05463224",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/Observational_Study_Protocol_Registration_Template.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/Observational_Study_Protocol_Registration_Template.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/RFIConsolidatedComments.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/RFIConsolidatedComments.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/Interventional_Study_Protocol_Registration_Template_Jan_2018.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/Interventional_Study_Protocol_Registration_Template_Jan_2018.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/67/NCT04279067/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/67/NCT04279067/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=26&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=26&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=25&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=25&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=39&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=39&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06593522",
+    "url": "https://clinicaltrials.gov/study/NCT06593522",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=41&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=41&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06360354?rank=1&term=AREA%5BBasicSearch%5D%28AREA%5BConditionSearch%5D%28Pancreatic+Cancer%29+AND+AREA%5BBasicSearch%5D%28Metastatic%29+AND+SEARCH%5BLocation%5D%28AREA%5BLocationCountry%5DUnited+States+AND+AREA%5BLocationState%5DNew+York+AND+AREA%5BLocationCity%5DNew+York%29+AND+AREA%5BOverallStatus%5D%28NOT_YET_RECRUITING+OR+RECRUITING%29%29",
+    "url": "https://clinicaltrials.gov/study/NCT06360354?rank=1&term=AREA%5BBasicSearch%5D%28AREA%5BConditionSearch%5D%28Pancreatic+Cancer%29+AND+AREA%5BBasicSearch%5D%28Metastatic%29+AND+SEARCH%5BLocation%5D%28AREA%5BLocationCountry%5DUnited+States+AND+AREA%5BLocationState%5DNew+York+AND+AREA%5BLocationCity%5DNew+York%29+AND+AREA%5BOverallStatus%5D%28NOT_YET_RECRUITING+OR+RECRUITING%29%29",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06333951?intr=AMG193&rank=3",
+    "url": "https://clinicaltrials.gov/study/NCT06333951?intr=AMG193&rank=3",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT06333951",
+    "url": "https://clinicaltrials.gov/study/NCT06333951",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT07553572",
+    "url": "https://clinicaltrials.gov/study/NCT07553572",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/89/NCT04342689/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/89/NCT04342689/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/50/NCT03103750/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/50/NCT03103750/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/23/NCT03258723/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/23/NCT03258723/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/25/NCT03700125/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/25/NCT03700125/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/?locale=us",
+    "url": "https://clinicaltrials.gov/?locale=us",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/trainTrainer/SMART-Study-Design-Example-Record.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/trainTrainer/SMART-Study-Design-Example-Record.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://cdn.clinicaltrials.gov/documents/trainTrainer/Parallel-Design-Answer-Key.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/trainTrainer/Parallel-Design-Answer-Key.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/?utm_source=openai",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/?utm_source=openai",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4997612/?utm_source=openai",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4997612/?utm_source=openai",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/39282709/?utm_source=openai",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/39282709/?utm_source=openai",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8270912/?utm_source=openai",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8270912/?utm_source=openai",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?cond=NCT05094336&utm_source=openai",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?cond=NCT05094336&utm_source=openai",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://clinicaltrials.gov/study/NCT05275478?utm_source=openai",
+    "url": "https://clinicaltrials.gov/study/NCT05275478?utm_source=openai",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4325180/?utm_source=openai",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4325180/?utm_source=openai",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/36926116/?utm_source=openai",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/36926116/?utm_source=openai",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://www.ncbi.nlm.nih.gov/clinvar/variation/216652/?utm_source=openai",
+    "url": "https://www.ncbi.nlm.nih.gov/clinvar/variation/216652/?utm_source=openai",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/33147331/?utm_source=openai",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/33147331/?utm_source=openai",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38484203/?utm_source=openai",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38484203/?utm_source=openai",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6248264/?utm_source=openai",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6248264/?utm_source=openai",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "authoritative",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6889735/?utm_source=openai",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6889735/?utm_source=openai",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.ncbi.nlm.nih.gov/clinvar/RCV000222175/",
+    "url": "https://www.ncbi.nlm.nih.gov/clinvar/RCV000222175/",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.ncbi.nlm.nih.gov/clinvar/RCV002229123/",
+    "url": "https://www.ncbi.nlm.nih.gov/clinvar/RCV002229123/",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6980683/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6980683/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://ascopubs.org/doi/10.1200/JCO.2026.44.16_suppl.11528",
+    "url": "https://ascopubs.org/doi/10.1200/JCO.2026.44.16_suppl.11528",
+    "domain": "ascopubs.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.mdpi.com/2072-6694/15/15/3924",
+    "url": "https://www.mdpi.com/2072-6694/15/15/3924",
+    "domain": "www.mdpi.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://aacrjournals.org/clincancerres/article/15/8/2685/74768/Genomic-Profiling-of-Chondrosarcoma-Chromosomal",
+    "url": "https://aacrjournals.org/clincancerres/article/15/8/2685/74768/Genomic-Profiling-of-Chondrosarcoma-Chromosomal",
+    "domain": "aacrjournals.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sciencedirect.com/science/article/abs/pii/S1040842826001848",
+    "url": "https://www.sciencedirect.com/science/article/abs/pii/S1040842826001848",
+    "domain": "www.sciencedirect.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.ambrygen.com/file/view/729/Espenschied_C_ECCO_2017_Classifying_variants_in_the_CHEK2_gene_the_importance_of_collaboration_Abstract_and_poster.pdf",
+    "url": "https://www.ambrygen.com/file/view/729/Espenschied_C_ECCO_2017_Classifying_variants_in_the_CHEK2_gene_the_importance_of_collaboration_Abstract_and_poster.pdf",
+    "domain": "www.ambrygen.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.abacusdx.com/media/AMP%202022_Abstracts.pdf",
+    "url": "https://www.abacusdx.com/media/AMP%202022_Abstracts.pdf",
+    "domain": "www.abacusdx.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.spandidos-publications.com/5324/downloadSupplementary",
+    "url": "https://www.spandidos-publications.com/5324/downloadSupplementary",
+    "domain": "www.spandidos-publications.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.nature.com/articles/s41374-021-00549-x.pdf",
+    "url": "https://www.nature.com/articles/s41374-021-00549-x.pdf",
+    "domain": "www.nature.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://repository.icr.ac.uk/server/api/core/bitstreams/74dbf531-9187-4ca2-9640-02c03db5c39c/content",
+    "url": "https://repository.icr.ac.uk/server/api/core/bitstreams/74dbf531-9187-4ca2-9640-02c03db5c39c/content",
+    "domain": "repository.icr.ac.uk",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pdfs.semanticscholar.org/b5fa/d62c7870927106411135716ad550e8a7215e.pdf",
+    "url": "https://pdfs.semanticscholar.org/b5fa/d62c7870927106411135716ad550e8a7215e.pdf",
+    "domain": "pdfs.semanticscholar.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/BRCA/comments/1q8ij19/chek2_variant_c8464delagta_and_hormone_positive_bc/",
+    "url": "https://www.reddit.com/r/BRCA/comments/1q8ij19/chek2_variant_c8464delagta_and_hormone_positive_bc/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/ClinicalGenetics/comments/14xuusn",
+    "url": "https://www.reddit.com/r/ClinicalGenetics/comments/14xuusn",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/18htlni",
+    "url": "https://www.reddit.com/r/breastcancer/comments/18htlni",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/BRCA/comments/1implnw/got_my_genetic_testing_resultschek2/",
+    "url": "https://www.reddit.com/r/BRCA/comments/1implnw/got_my_genetic_testing_resultschek2/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2505.08508",
+    "url": "https://arxiv.org/abs/2505.08508",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2006.07296",
+    "url": "https://arxiv.org/abs/2006.07296",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2407.13463",
+    "url": "https://arxiv.org/abs/2407.13463",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1udwy45/tango_462_trial_update/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1udwy45/tango_462_trial_update/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/1sinfgx/my_chek2_mutation_sisters/",
+    "url": "https://www.reddit.com/r/breastcancer/comments/1sinfgx/my_chek2_mutation_sisters/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1809.08289",
+    "url": "https://arxiv.org/abs/1809.08289",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/AskDocs/comments/zt68n6",
+    "url": "https://www.reddit.com/r/AskDocs/comments/zt68n6",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/genetics/comments/1ue3dym/chek2_ile157thr/",
+    "url": "https://www.reddit.com/r/genetics/comments/1ue3dym/chek2_ile157thr/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/DNA/comments/1goeoia",
+    "url": "https://www.reddit.com/r/DNA/comments/1goeoia",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/ProstateCancer/comments/1rl01jq/anyone_ever_had_a_variant_of_unknown_significance/",
+    "url": "https://www.reddit.com/r/ProstateCancer/comments/1rl01jq/anyone_ever_had_a_variant_of_unknown_significance/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/ClinicalGenetics/comments/1r57roq/can_someone_help_explain_vus_results/",
+    "url": "https://www.reddit.com/r/ClinicalGenetics/comments/1r57roq/can_someone_help_explain_vus_results/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/genetics/comments/134qclw",
+    "url": "https://www.reddit.com/r/genetics/comments/134qclw",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.cancer.gov/publications/dictionaries/cancer-drug/def/prmt5-mta-inhibitor-mrtx1719",
+    "url": "https://www.cancer.gov/publications/dictionaries/cancer-drug/def/prmt5-mta-inhibitor-mrtx1719",
+    "domain": "www.cancer.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sciencedirect.com/science/article/pii/S2211124716302996",
+    "url": "https://www.sciencedirect.com/science/article/pii/S2211124716302996",
+    "domain": "www.sciencedirect.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sciencedirect.com/science/article/pii/S0923753426000992",
+    "url": "https://www.sciencedirect.com/science/article/pii/S0923753426000992",
+    "domain": "www.sciencedirect.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/42321016/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/42321016/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://ascopubs.org/doi/10.1200/JCO.2026.44.16_suppl.3115",
+    "url": "https://ascopubs.org/doi/10.1200/JCO.2026.44.16_suppl.3115",
+    "domain": "ascopubs.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sciencedirect.com/science/article/pii/S0006295226003631",
+    "url": "https://www.sciencedirect.com/science/article/pii/S0006295226003631",
+    "domain": "www.sciencedirect.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://digitalcommons.library.tmc.edu/utgsbs_dissertations/1290/",
+    "url": "https://digitalcommons.library.tmc.edu/utgsbs_dissertations/1290/",
+    "domain": "digitalcommons.library.tmc.edu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.frontiersin.org/journals/cell-and-developmental-biology/articles/10.3389/fcell.2023.1173356/full",
+    "url": "https://www.frontiersin.org/journals/cell-and-developmental-biology/articles/10.3389/fcell.2023.1173356/full",
+    "domain": "www.frontiersin.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9346486/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9346486/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.tangotx.com/wp-content/uploads/Briggs_et_al_AACR2025_MTAP.pdf",
+    "url": "https://www.tangotx.com/wp-content/uploads/Briggs_et_al_AACR2025_MTAP.pdf",
+    "domain": "www.tangotx.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://translational-medicine.biomedcentral.com/counter/pdf/10.1186/s12967-022-03823-8.pdf",
+    "url": "https://translational-medicine.biomedcentral.com/counter/pdf/10.1186/s12967-022-03823-8.pdf",
+    "domain": "translational-medicine.biomedcentral.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://sellerslab.org/wp-content/uploads/2020/07/Mavrakis2016.pdf",
+    "url": "https://sellerslab.org/wp-content/uploads/2020/07/Mavrakis2016.pdf",
+    "domain": "sellerslab.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.annualreviews.org/docserver/fulltext/pharmtox/66/1/annurev-pharmtox-062124-035809.pdf?accname=guest&checksum=B6B39C44FA02A2605E178BEB3901A5B9&expires=1778072472&id=id",
+    "url": "https://www.annualreviews.org/docserver/fulltext/pharmtox/66/1/annurev-pharmtox-062124-035809.pdf?accname=guest&checksum=B6B39C44FA02A2605E178BEB3901A5B9&expires=1778072472&id=id",
+    "domain": "www.annualreviews.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://watermark02.silverchair.com/neuro-oncology_25_s1_issue.pdf?token=AQECAHi208BE49Ooan9kkhW_Ercy7Dm3ZL_9Cf3qfKAc485ysgAAA2wwggNoBgkqhkiG9w0BBwagggNZMIIDVQIBADCCA04GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMVs8Ajv6uOkuUSxqKAgEQgIIDH4NI5EYr5dG9EjSrlbabvo1EIoUYSp_zQZM-ZbAmBLiyJYI6oztH1LdHFh8norHqq4wbNa5bWwIYAsmkoIg2o3ghGpnXIE6PFMad8sjkIVCj-uXQtm4ZXkndIvgl02ZtUXNd_MVm9ivvW-V3-X7LBIZnmDsPIrLg3LMLjX_koIxCKTHeQZrSc2d6KRKKafLFJwJQEaZdQysCbkB5Oh1E0PL7Q90zQG0p_TkZyIkUbuEU9Bg48KpveAkdDBQo6MNlPxOXn8mDCDGNUgf7mQvvmdcY5SWY5h1xUjKCKMk5U9-ngd40gK9L1q4qvw0HzPvyFRZjDGSDGE4wgnkWdb1eq6RqhtNq-r7p9oz04krTBRvg-XRA9LSaUy3hkRakgaSixpgn94fwhf1_kmWpYVXWnSAF-7OaaJo-pRW_9punPVVZ3dguN31z7LSe73CudlK6ikMe6e2KO6MKPJTeQHFtFXrlhmHJQ-fdWSJao5hCZ3RkI2iGUAxf6XbuyGFwcogL9z_ER7l_GsPG86lUty5XyxzwtYgtsUbYGQA6zGdrZ9Wef7Jpj1zxmSr09_UCyKJE-dK7I4wM-r5Lw8-rn70Qi8OARakJkcrvEzjq0NDFCxBxR7FVtikBP-xECFBIZhhQGmRiDY6FIKPzQh-7npP2L8Z3tMumXMkXg2LYs278mKeeN_XZ1LtQzNiAz5zhtprj6kNdugK3p80toZAFdSvNl6b-ReI0R2htA0kgFCVIBP06jEQnyOBW2kWKVDFXmlkRYh_hCeSu-RtDwT4zePwHRkN4X_3cXqIHdsbJXZNN08IGKPAo_biBYViC50za60tBWtiPeQf9_pvzgSVxj65r3nmGfnjasbQeS8CMtO9zKIWxIKPR0dnpZpiVEavXSgqK2jVbFIzJj5PCRp0RMaZJJxldhjasAoEklWbZ06JeKGZ_fR1ndoWrKoGNJ5TL4qfR-4ZYgr7T--tQr3I2legOcajHDDjrmz1SObjV6113rmfEc809-E-RwGzrL01IQAa6CtcCwNgRtBBZmCx5uL0gV02ZV3Jxx5rC59e07lW_3QI",
+    "url": "https://watermark02.silverchair.com/neuro-oncology_25_s1_issue.pdf?token=AQECAHi208BE49Ooan9kkhW_Ercy7Dm3ZL_9Cf3qfKAc485ysgAAA2wwggNoBgkqhkiG9w0BBwagggNZMIIDVQIBADCCA04GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMVs8Ajv6uOkuUSxqKAgEQgIIDH4NI5EYr5dG9EjSrlbabvo1EIoUYSp_zQZM-ZbAmBLiyJYI6oztH1LdHFh8norHqq4wbNa5bWwIYAsmkoIg2o3ghGpnXIE6PFMad8sjkIVCj-uXQtm4ZXkndIvgl02ZtUXNd_MVm9ivvW-V3-X7LBIZnmDsPIrLg3LMLjX_koIxCKTHeQZrSc2d6KRKKafLFJwJQEaZdQysCbkB5Oh1E0PL7Q90zQG0p_TkZyIkUbuEU9Bg48KpveAkdDBQo6MNlPxOXn8mDCDGNUgf7mQvvmdcY5SWY5h1xUjKCKMk5U9-ngd40gK9L1q4qvw0HzPvyFRZjDGSDGE4wgnkWdb1eq6RqhtNq-r7p9oz04krTBRvg-XRA9LSaUy3hkRakgaSixpgn94fwhf1_kmWpYVXWnSAF-7OaaJo-pRW_9punPVVZ3dguN31z7LSe73CudlK6ikMe6e2KO6MKPJTeQHFtFXrlhmHJQ-fdWSJao5hCZ3RkI2iGUAxf6XbuyGFwcogL9z_ER7l_GsPG86lUty5XyxzwtYgtsUbYGQA6zGdrZ9Wef7Jpj1zxmSr09_UCyKJE-dK7I4wM-r5Lw8-rn70Qi8OARakJkcrvEzjq0NDFCxBxR7FVtikBP-xECFBIZhhQGmRiDY6FIKPzQh-7npP2L8Z3tMumXMkXg2LYs278mKeeN_XZ1LtQzNiAz5zhtprj6kNdugK3p80toZAFdSvNl6b-ReI0R2htA0kgFCVIBP06jEQnyOBW2kWKVDFXmlkRYh_hCeSu-RtDwT4zePwHRkN4X_3cXqIHdsbJXZNN08IGKPAo_biBYViC50za60tBWtiPeQf9_pvzgSVxj65r3nmGfnjasbQeS8CMtO9zKIWxIKPR0dnpZpiVEavXSgqK2jVbFIzJj5PCRp0RMaZJJxldhjasAoEklWbZ06JeKGZ_fR1ndoWrKoGNJ5TL4qfR-4ZYgr7T--tQr3I2legOcajHDDjrmz1SObjV6113rmfEc809-E-RwGzrL01IQAa6CtcCwNgRtBBZmCx5uL0gV02ZV3Jxx5rC59e07lW_3QI",
+    "domain": "watermark02.silverchair.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2205.12202",
+    "url": "https://arxiv.org/abs/2205.12202",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1504.02816",
+    "url": "https://arxiv.org/abs/1504.02816",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/MTAP",
+    "url": "https://en.wikipedia.org/wiki/MTAP",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1710.03268",
+    "url": "https://arxiv.org/abs/1710.03268",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1efi9zw/does_anyone_have_the_mutation_mtap_deletion/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1efi9zw/does_anyone_have_the_mutation_mtap_deletion/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1703.07724",
+    "url": "https://arxiv.org/abs/1703.07724",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1u8831a/amgen_terminating_amg193_and_leaving_responding/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1u8831a/amgen_terminating_amg193_and_leaving_responding/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1ud0j1w/mtap_drug_trial/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1ud0j1w/mtap_drug_trial/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.nlm.nih.gov/pubs/techbull/ma24/ma24_clinicaltrials_api.html",
+    "url": "https://www.nlm.nih.gov/pubs/techbull/ma24/ma24_clinicaltrials_api.html",
+    "domain": "www.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.nlm.nih.gov/pubs/techbull/ja25/ja25_clinical_trials_screen-scraping.html",
+    "url": "https://www.nlm.nih.gov/pubs/techbull/ja25/ja25_clinical_trials_screen-scraping.html",
+    "domain": "www.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://catalog.data.gov/dataset/clinicaltrials-gov",
+    "url": "https://catalog.data.gov/dataset/clinicaltrials-gov",
+    "domain": "catalog.data.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://biotechhunter.com/trials/NCT05094336",
+    "url": "https://biotechhunter.com/trials/NCT05094336",
+    "domain": "biotechhunter.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cancer.ucsf.edu/_docs/trials/current_trials.pdf",
+    "url": "https://cancer.ucsf.edu/_docs/trials/current_trials.pdf",
+    "domain": "cancer.ucsf.edu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://druglandscape.com/trial/NCT06810544",
+    "url": "https://druglandscape.com/trial/NCT06810544",
+    "domain": "druglandscape.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10741595/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10741595/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.volcengine.com/article/1250834",
+    "url": "https://www.volcengine.com/article/1250834",
+    "domain": "www.volcengine.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://zingu.ai/apis/clinicaltrials.gov%3Aclinicaltrials.gov-api",
+    "url": "https://zingu.ai/apis/clinicaltrials.gov%3Aclinicaltrials.gov-api",
+    "domain": "zingu.ai",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://public-pages-files-2025.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1264785/pdf",
+    "url": "https://public-pages-files-2025.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1264785/pdf",
+    "domain": "public-pages-files-2025.frontiersin.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://bioascend.com/wp-content/uploads/2025/11/19_Ardrshir_Atlanta-Lung_Final-2025v5.pdf",
+    "url": "https://bioascend.com/wp-content/uploads/2025/11/19_Ardrshir_Atlanta-Lung_Final-2025v5.pdf",
+    "domain": "bioascend.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.ecommunity.com/sites/default/files/uploads/2024-09/Clinical-Trials-Open-Protocols-Oncology-091224.pdf",
+    "url": "https://www.ecommunity.com/sites/default/files/uploads/2024-09/Clinical-Trials-Open-Protocols-Oncology-091224.pdf",
+    "domain": "www.ecommunity.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.jpma.or.jp/information/evaluation/results/allotment/tcjmdm0000001m62-att/DS_202406_OSS.pdf",
+    "url": "https://www.jpma.or.jp/information/evaluation/results/allotment/tcjmdm0000001m62-att/DS_202406_OSS.pdf",
+    "domain": "www.jpma.or.jp",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/mcp/comments/1ruy1te/clinical_trials_mcp_server_provides_programmatic/",
+    "url": "https://www.reddit.com/r/mcp/comments/1ruy1te/clinical_trials_mcp_server_provides_programmatic/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2603.15936",
+    "url": "https://arxiv.org/abs/2603.15936",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/mcp/comments/1rt44mj/plainyogurt21clintrialsmcp_provide_structured/",
+    "url": "https://www.reddit.com/r/mcp/comments/1rt44mj/plainyogurt21clintrialsmcp_provide_structured/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/PowerBI/comments/1lag5ik",
+    "url": "https://www.reddit.com/r/PowerBI/comments/1lag5ik",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2307.14522",
+    "url": "https://arxiv.org/abs/2307.14522",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/learnpython/comments/fy2b1q",
+    "url": "https://www.reddit.com/r/learnpython/comments/fy2b1q",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/ApoE4/comments/1unc6s1/i_got_tired_of_decoding_clinicaltrialsgov_so_i/",
+    "url": "https://www.reddit.com/r/ApoE4/comments/1unc6s1/i_got_tired_of_decoding_clinicaltrialsgov_so_i/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/mcp/comments/1r1ho9k/medical_research_mcp_suite_enables_comprehensive/",
+    "url": "https://www.reddit.com/r/mcp/comments/1r1ho9k/medical_research_mcp_suite_enables_comprehensive/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/RegulatoryClinWriting/comments/1u2ft8p/fda_sbia_presents_virtual_training_with_upcoming/",
+    "url": "https://www.reddit.com/r/RegulatoryClinWriting/comments/1u2ft8p/fda_sbia_presents_virtual_training_with_upcoming/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/clinicalresearch/comments/1mcm9gj",
+    "url": "https://www.reddit.com/r/clinicalresearch/comments/1mcm9gj",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/RetatrutideTrial/comments/1suyu7l/arizona_research_center/",
+    "url": "https://www.reddit.com/r/RetatrutideTrial/comments/1suyu7l/arizona_research_center/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2512.08193",
+    "url": "https://arxiv.org/abs/2512.08193",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/clinicalresearch/comments/1iadac9/easier_search_for_clinicaltrialsgov/",
+    "url": "https://www.reddit.com/r/clinicalresearch/comments/1iadac9/easier_search_for_clinicaltrialsgov/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LeronLimab_Times/comments/12lgq2q",
+    "url": "https://www.reddit.com/r/LeronLimab_Times/comments/12lgq2q",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/clinicalresearch/comments/1kingas/clinicaltrialsgov_is_the_most_mindnumbingly_awful/",
+    "url": "https://www.reddit.com/r/clinicalresearch/comments/1kingas/clinicaltrialsgov_is_the_most_mindnumbingly_awful/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2405.07998",
+    "url": "https://arxiv.org/abs/2405.07998",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/find-studies/how-to-search-for-studies-with-results",
+    "url": "https://clinicaltrials.gov/find-studies/how-to-search-for-studies-with-results",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT07277413",
+    "url": "https://clinicaltrials.gov/study/NCT07277413",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT02693717?a=6&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT02693717?a=6&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT03744793",
+    "url": "https://clinicaltrials.gov/study/NCT03744793",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/81/NCT07536581/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/81/NCT07536581/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/04/NCT04531904/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/04/NCT04531904/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/19/NCT05303519/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/19/NCT05303519/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/37/NCT04442737/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/37/NCT04442737/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.med.nyu.edu/clinicaltrial/2430/phase-12-multi-center-open-label/",
+    "url": "https://clinicaltrials.med.nyu.edu/clinicaltrial/2430/phase-12-multi-center-open-label/",
+    "domain": "clinicaltrials.med.nyu.edu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://braintumorcenter.ucsf.edu/clinical-trial/phase-iii-multicenter-open-label-study-evaluate-safety-tolerability-and-preliminary",
+    "url": "https://braintumorcenter.ucsf.edu/clinical-trial/phase-iii-multicenter-open-label-study-evaluate-safety-tolerability-and-preliminary",
+    "domain": "braintumorcenter.ucsf.edu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.clinicaltrialsregister.eu/ctr-search/trial/2021-005605-27/FR",
+    "url": "https://www.clinicaltrialsregister.eu/ctr-search/trial/2021-005605-27/FR",
+    "domain": "www.clinicaltrialsregister.eu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://ckb.genomenon.com/clinicalTrial/show?nctId=NCT05275478",
+    "url": "https://ckb.genomenon.com/clinicalTrial/show?nctId=NCT05275478",
+    "domain": "ckb.genomenon.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.invivochem.cn/TNG-908.html",
+    "url": "https://www.invivochem.cn/TNG-908.html",
+    "domain": "www.invivochem.cn",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sec.gov/Archives/edgar/data/1819133/000095017025028353/tngx-20241231.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1819133/000095017025028353/tngx-20241231.htm",
+    "domain": "www.sec.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://fdaaa.trialstracker.net/trial/NCT05275478/",
+    "url": "https://fdaaa.trialstracker.net/trial/NCT05275478/",
+    "domain": "fdaaa.trialstracker.net",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sec.gov/Archives/edgar/data/1819133/000119312526160323/d145279dars.pdf",
+    "url": "https://www.sec.gov/Archives/edgar/data/1819133/000119312526160323/d145279dars.pdf",
+    "domain": "www.sec.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reginfo.gov/public/do/DownloadDocument?objectID=128670501",
+    "url": "https://www.reginfo.gov/public/do/DownloadDocument?objectID=128670501",
+    "domain": "www.reginfo.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pryzm.ozmosi.com/product/25339",
+    "url": "https://pryzm.ozmosi.com/product/25339",
+    "domain": "pryzm.ozmosi.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1152087/pdf",
+    "url": "https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1152087/pdf",
+    "domain": "www.frontiersin.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://go.drugbank.com/drugs/DB17411/clinical_trials?conditions=DBCOND0012992%2CDBCOND0043840%2CDBCOND0091517%2CDBCOND0017375%2CDBCOND0026806%2CDBCOND0041813%2CDBCOND0029860&phase=1&purpose=treatment&status=active_not_recruiting",
+    "url": "https://go.drugbank.com/drugs/DB17411/clinical_trials?conditions=DBCOND0012992%2CDBCOND0043840%2CDBCOND0091517%2CDBCOND0017375%2CDBCOND0026806%2CDBCOND0041813%2CDBCOND0029860&phase=1&purpose=treatment&status=active_not_recruiting",
+    "domain": "go.drugbank.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://scholarworks.indianapolis.iu.edu//bitstreams/bdf1e0b8-e595-4d21-8d45-fafd51e72333/download",
+    "url": "https://scholarworks.indianapolis.iu.edu//bitstreams/bdf1e0b8-e595-4d21-8d45-fafd51e72333/download",
+    "domain": "scholarworks.indianapolis.iu.edu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech_stocks/comments/1slffjp/genmab_gmab_stops_development_of_gen1047_after/",
+    "url": "https://www.reddit.com/r/biotech_stocks/comments/1slffjp/genmab_gmab_stops_development_of_gen1047_after/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech_stocks/comments/1q8iaue/vor_phase_3_marked_terminated_on_ctgov_business/",
+    "url": "https://www.reddit.com/r/biotech_stocks/comments/1q8iaue/vor_phase_3_marked_terminated_on_ctgov_business/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LeronLimab_Times/comments/zv860e",
+    "url": "https://www.reddit.com/r/LeronLimab_Times/comments/zv860e",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech_stocks/comments/1qj43e3/bntx_bnt142_trial_in_cldn6_solid_tumors_now/",
+    "url": "https://www.reddit.com/r/biotech_stocks/comments/1qj43e3/bntx_bnt142_trial_in_cldn6_solid_tumors_now/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech_stocks/comments/1rqygza/eli_lilly_lly_terminates_phase_3_pediatric/",
+    "url": "https://www.reddit.com/r/biotech_stocks/comments/1rqygza/eli_lilly_lly_terminates_phase_3_pediatric/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Livimmune/comments/1ncp4c7",
+    "url": "https://www.reddit.com/r/Livimmune/comments/1ncp4c7",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/sellaslifesciences/comments/1ud12cx/ptcl_leukemia_data_due_june_30_from_genfleet/",
+    "url": "https://www.reddit.com/r/sellaslifesciences/comments/1ud12cx/ptcl_leukemia_data_due_june_30_from_genfleet/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/clinicalresearch/comments/18o85w8",
+    "url": "https://www.reddit.com/r/clinicalresearch/comments/18o85w8",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Zepbound/comments/1pwc9y3/clinical_trials_with_zepbound_and_similar/",
+    "url": "https://www.reddit.com/r/Zepbound/comments/1pwc9y3/clinical_trials_with_zepbound_and_similar/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/clinicalresearch/comments/1jrkreu",
+    "url": "https://www.reddit.com/r/clinicalresearch/comments/1jrkreu",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech/comments/1h7eyh1",
+    "url": "https://www.reddit.com/r/biotech/comments/1h7eyh1",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10172009/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10172009/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://ascopubs.org/doi/10.1200/JCO.2022.40.16_suppl.11548",
+    "url": "https://ascopubs.org/doi/10.1200/JCO.2022.40.16_suppl.11548",
+    "domain": "ascopubs.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.frontiersin.org/journals/medicine/articles/10.3389/fmed.2021.746909/full",
+    "url": "https://www.frontiersin.org/journals/medicine/articles/10.3389/fmed.2021.746909/full",
+    "domain": "www.frontiersin.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sciencedirect.com/topics/medicine-and-dentistry/retinoblastoma-protein",
+    "url": "https://www.sciencedirect.com/topics/medicine-and-dentistry/retinoblastoma-protein",
+    "domain": "www.sciencedirect.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://discovery.ucl.ac.uk/1457593/1/art_10.1007_s00428-014-1685-4.pdf",
+    "url": "https://discovery.ucl.ac.uk/1457593/1/art_10.1007_s00428-014-1685-4.pdf",
+    "domain": "discovery.ucl.ac.uk",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.pathologica.it/article/download/1368/1050/20087",
+    "url": "https://www.pathologica.it/article/download/1368/1050/20087",
+    "domain": "www.pathologica.it",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10890624/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10890624/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.mdpi.com/2072-6694/17/16/2689",
+    "url": "https://www.mdpi.com/2072-6694/17/16/2689",
+    "domain": "www.mdpi.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.researchgate.net/publication/333436807_Radiotherapy_resistance_in_chondrosarcoma_cells_a_possible_correlation_with_alterations_in_cell_cycle_related_genes",
+    "url": "https://www.researchgate.net/publication/333436807_Radiotherapy_resistance_in_chondrosarcoma_cells_a_possible_correlation_with_alterations_in_cell_cycle_related_genes",
+    "domain": "www.researchgate.net",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://citeseerx.ist.psu.edu/document?doi=68b1333af93d6dce74de18107c5d3c0bfbab2df3&repid=rep1&type=pdf",
+    "url": "https://citeseerx.ist.psu.edu/document?doi=68b1333af93d6dce74de18107c5d3c0bfbab2df3&repid=rep1&type=pdf",
+    "domain": "citeseerx.ist.psu.edu",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://aacrjournals.org/clincancerres/article/26/2/419/82764/Genomic-Profiling-Identifies-Association-of-IDH1",
+    "url": "https://aacrjournals.org/clincancerres/article/26/2/419/82764/Genomic-Profiling-Identifies-Association-of-IDH1",
+    "domain": "aacrjournals.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/cancer/comments/1p2jgvx/it_came_back/",
+    "url": "https://www.reddit.com/r/cancer/comments/1p2jgvx/it_came_back/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/Chordoma",
+    "url": "https://en.wikipedia.org/wiki/Chordoma",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://aacrjournals.org/clincancerres/article/19/14/3796/77820/Functional-Profiling-of-Receptor-Tyrosine-Kinases",
+    "url": "https://aacrjournals.org/clincancerres/article/19/14/3796/77820/Functional-Profiling-of-Receptor-Tyrosine-Kinases",
+    "domain": "aacrjournals.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.mdpi.com/1422-0067/19/1/311/html",
+    "url": "https://www.mdpi.com/1422-0067/19/1/311/html",
+    "domain": "www.mdpi.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10598203/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10598203/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13022607/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13022607/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://f1000research.com/articles/7-1826/v1",
+    "url": "https://f1000research.com/articles/7-1826/v1",
+    "domain": "f1000research.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/23922104/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/23922104/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://jitc.bmj.com/content/14/5/e014346",
+    "url": "https://jitc.bmj.com/content/14/5/e014346",
+    "domain": "jitc.bmj.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12272896/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12272896/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/27429845/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/27429845/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://aacrjournals.org/cancerres/article-abstract/69/15/6216/549925",
+    "url": "https://aacrjournals.org/cancerres/article-abstract/69/15/6216/549925",
+    "domain": "aacrjournals.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://aacrjournals.org/cancerrescommun/article/doi/10.1158/2767-9764.CRC-25-0334/770330",
+    "url": "https://aacrjournals.org/cancerrescommun/article/doi/10.1158/2767-9764.CRC-25-0334/770330",
+    "domain": "aacrjournals.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/18722108/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/18722108/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2021.772263/pdf",
+    "url": "https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2021.772263/pdf",
+    "domain": "www.frontiersin.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://mdpi-res.com/d_attachment/ijms/ijms-19-00311/article_deploy/ijms-19-00311.pdf?version=1516514419",
+    "url": "https://mdpi-res.com/d_attachment/ijms/ijms-19-00311/article_deploy/ijms-19-00311.pdf?version=1516514419",
+    "domain": "mdpi-res.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.tandfonline.com/doi/pdf/10.1080/14737140.2019.1686979",
+    "url": "https://www.tandfonline.com/doi/pdf/10.1080/14737140.2019.1686979",
+    "domain": "www.tandfonline.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://d-nb.info/1170572707/34",
+    "url": "https://d-nb.info/1170572707/34",
+    "domain": "d-nb.info",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://e-century.us/files/ajcr/13/7/ajcr0147677.pdf",
+    "url": "https://e-century.us/files/ajcr/13/7/ajcr0147677.pdf",
+    "domain": "e-century.us",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.tandfonline.com/doi/pdf/10.2217/fon-2016-0226",
+    "url": "https://www.tandfonline.com/doi/pdf/10.2217/fon-2016-0226",
+    "domain": "www.tandfonline.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2307.07427",
+    "url": "https://arxiv.org/abs/2307.07427",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1509.03642",
+    "url": "https://arxiv.org/abs/1509.03642",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/Palbociclib",
+    "url": "https://en.wikipedia.org/wiki/Palbociclib",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/CDK_inhibitor",
+    "url": "https://en.wikipedia.org/wiki/CDK_inhibitor",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2012.00566",
+    "url": "https://arxiv.org/abs/2012.00566",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/Abemaciclib",
+    "url": "https://en.wikipedia.org/wiki/Abemaciclib",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/Tegtociclib",
+    "url": "https://en.wikipedia.org/wiki/Tegtociclib",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/G1_Therapeutics",
+    "url": "https://en.wikipedia.org/wiki/G1_Therapeutics",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1308.6808",
+    "url": "https://arxiv.org/abs/1308.6808",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/1p036pf",
+    "url": "https://www.reddit.com/r/breastcancer/comments/1p036pf",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech/comments/1rwa3xy/pfizer_delivers_phase_2_win_in_2nd_line_er/",
+    "url": "https://www.reddit.com/r/biotech/comments/1rwa3xy/pfizer_delivers_phase_2_win_in_2nd_line_er/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LivingWithMBC/comments/1ru7gdd/cdk46s/",
+    "url": "https://www.reddit.com/r/LivingWithMBC/comments/1ru7gdd/cdk46s/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/BANDOFBROTHERSOFSRNE/comments/1bc72nf",
+    "url": "https://www.reddit.com/r/BANDOFBROTHERSOFSRNE/comments/1bc72nf",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/Atirmociclib",
+    "url": "https://en.wikipedia.org/wiki/Atirmociclib",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LivingWithMBC/comments/1m0mzpr/cdk_46s_side_effects/",
+    "url": "https://www.reddit.com/r/LivingWithMBC/comments/1m0mzpr/cdk_46s_side_effects/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LivingWithMBC/comments/1m4j4f6",
+    "url": "https://www.reddit.com/r/LivingWithMBC/comments/1m4j4f6",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LivingWithMBC/comments/1iu6zyv",
+    "url": "https://www.reddit.com/r/LivingWithMBC/comments/1iu6zyv",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LivingWithMBC/comments/1romazt/little_bit_of_a_vent/",
+    "url": "https://www.reddit.com/r/LivingWithMBC/comments/1romazt/little_bit_of_a_vent/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1fr0ceq",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1fr0ceq",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/sellaslifesciences/comments/1ft4bl1",
+    "url": "https://www.reddit.com/r/sellaslifesciences/comments/1ft4bl1",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/1pdkgfo/qualifying_for_cdk_46_inhibitor/",
+    "url": "https://www.reddit.com/r/breastcancer/comments/1pdkgfo/qualifying_for_cdk_46_inhibitor/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/LivingWithMBC/comments/1jggots",
+    "url": "https://www.reddit.com/r/LivingWithMBC/comments/1jggots",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-darolutamide-metastatic-castration-sensitive-prostate-cancer",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-darolutamide-metastatic-castration-sensitive-prostate-cancer",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/oncology-cancerhematologic-malignancies-approval-notifications",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/oncology-cancerhematologic-malignancies-approval-notifications",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/verified-clinical-benefit-cancer-accelerated-approvals",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/verified-clinical-benefit-cancer-accelerated-approvals",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-imlunestrant-er-positive-her2-negative-esr1-mutated-advanced-or-metastatic-breast",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-imlunestrant-er-positive-her2-negative-esr1-mutated-advanced-or-metastatic-breast",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://investors.amgen.com/static-files/4e8e58ab-1e91-441e-94ea-4c8285338ec9",
+    "url": "https://investors.amgen.com/static-files/4e8e58ab-1e91-441e-94ea-4c8285338ec9",
+    "domain": "investors.amgen.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/news-events/press-announcements/fda-approves-first-cellular-therapy-treat-patients-unresectable-or-metastatic-melanoma",
+    "url": "https://www.fda.gov/news-events/press-announcements/fda-approves-first-cellular-therapy-treat-patients-unresectable-or-metastatic-melanoma",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://investors.amgen.com/news-releases/news-release-details/c-o-r-r-e-c-t-i-o-n-amgen-0/",
+    "url": "https://investors.amgen.com/news-releases/news-release-details/c-o-r-r-e-c-t-i-o-n-amgen-0/",
+    "domain": "investors.amgen.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-cabozantinib-adults-and-pediatric-patients-12-years-age-and-older-pnet-and-epnet",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-cabozantinib-adults-and-pediatric-patients-12-years-age-and-older-pnet-and-epnet",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-belantamab-mafodotin-blmf-relapsed-or-refractory-multiple-myeloma",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-belantamab-mafodotin-blmf-relapsed-or-refractory-multiple-myeloma",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/drug-approvals-and-databases/fda-approves-dostarlimab-gxly-chemotherapy-endometrial-cancer",
+    "url": "https://www.fda.gov/drugs/drug-approvals-and-databases/fda-approves-dostarlimab-gxly-chemotherapy-endometrial-cancer",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-two-separate-indications-fam-trastuzumab-deruxtecan-nxki-her2-positive-early-stage",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-two-separate-indications-fam-trastuzumab-deruxtecan-nxki-her2-positive-early-stage",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-mirvetuximab-soravtansine-gynx-fra-positive-platinum-resistant-epithelial-ovarian",
+    "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/fda-approves-mirvetuximab-soravtansine-gynx-fra-positive-platinum-resistant-epithelial-ovarian",
+    "domain": "www.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2025/218881Orig1s000RiskR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2025/218881Orig1s000RiskR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2025/761352Orig1s000RiskR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2025/761352Orig1s000RiskR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2023/125514Orig1s065.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2023/125514Orig1s065.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2025/761404Orig2s000RiskR.pdf",
+    "url": "https://www.accessdata.fda.gov/drugsatfda_docs/nda/2025/761404Orig2s000RiskR.pdf",
+    "domain": "www.accessdata.fda.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1uhilma/as_much_as_we_want_to_continue_the_trial_the/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1uhilma/as_much_as_we_want_to_continue_the_trial_the/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech/comments/1u88crg/amgen_terminating_amg193_and_leaving_responding/",
+    "url": "https://www.reddit.com/r/biotech/comments/1u88crg/amgen_terminating_amg193_and_leaving_responding/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/clinicalresearch/comments/1u88bm3/amgen_terminating_amg193_and_leaving_responding/",
+    "url": "https://www.reddit.com/r/clinicalresearch/comments/1u88bm3/amgen_terminating_amg193_and_leaving_responding/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/POTS/comments/1skzezn/amgen_has_discontinued_corlanor_what_now/",
+    "url": "https://www.reddit.com/r/POTS/comments/1skzezn/amgen_has_discontinued_corlanor_what_now/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Vitiligo/comments/1sy3i2f/povorcitinib_achieves_primary_endpoint_in_phase_3/",
+    "url": "https://www.reddit.com/r/Vitiligo/comments/1sy3i2f/povorcitinib_achieves_primary_endpoint_in_phase_3/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Vitiligo/comments/1t3hdux/amg_714_is_failed_in_trial_phase_2_pharma_amgen/",
+    "url": "https://www.reddit.com/r/Vitiligo/comments/1t3hdux/amg_714_is_failed_in_trial_phase_2_pharma_amgen/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/RegulatoryClinWriting/comments/1qvh4b8/fda_has_requested_amgen_to_voluntarily_withdraw/",
+    "url": "https://www.reddit.com/r/RegulatoryClinWriting/comments/1qvh4b8/fda_has_requested_amgen_to_voluntarily_withdraw/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/edgar_news/comments/1qr5l91/amgen_inc/",
+    "url": "https://www.reddit.com/r/edgar_news/comments/1qr5l91/amgen_inc/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/EU_Economics/comments/1uguqfp/eu_regulator_backs_revoking_amgens_right_to_sell/",
+    "url": "https://www.reddit.com/r/EU_Economics/comments/1uguqfp/eu_regulator_backs_revoking_amgens_right_to_sell/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech/comments/1s4odac/removed/",
+    "url": "https://www.reddit.com/r/biotech/comments/1s4odac/removed/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/biotech_stocks/comments/1toifcn/weekly_biotech_catalyst_rundown_may_26_to_june_15/",
+    "url": "https://www.reddit.com/r/biotech_stocks/comments/1toifcn/weekly_biotech_catalyst_rundown_may_26_to_june_15/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1106.1381",
+    "url": "https://arxiv.org/abs/1106.1381",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2310.15456",
+    "url": "https://arxiv.org/abs/2310.15456",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1102.0448",
+    "url": "https://arxiv.org/abs/1102.0448",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT00107419?aggFilters=studyType%3Aint&intr=PEMETREXED+DISODIUM&rank=4&viewType=Table",
+    "url": "https://clinicaltrials.gov/study/NCT00107419?aggFilters=studyType%3Aint&intr=PEMETREXED+DISODIUM&rank=4&viewType=Table",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT03420014",
+    "url": "https://clinicaltrials.gov/study/NCT03420014",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT06422806",
+    "url": "https://clinicaltrials.gov/study/NCT06422806",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT06156410",
+    "url": "https://clinicaltrials.gov/study/NCT06156410",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT06474676",
+    "url": "https://clinicaltrials.gov/study/NCT06474676",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT06156410?aggFilters=status%3Anot+rec+ava&cond=Ewing&rank=9&viewType=Table",
+    "url": "https://clinicaltrials.gov/study/NCT06156410?aggFilters=status%3Anot+rec+ava&cond=Ewing&rank=9&viewType=Table",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT06422806?a=23&tab=history",
+    "url": "https://clinicaltrials.gov/study/NCT06422806?a=23&tab=history",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT06277154?rank=8&term=AREA%5BBasicSearch%5D%28AREA%5BBasicSearch%5D%28AREA%5BConditionSearch%5D%28Desmoplastic+small+round+cell+tumor+OR+%22Desmoplas.+small+round+cell+tumor%22+OR+%22+Desmoplas.+small+round+cell+tumour%22+OR+%22+Desmoplastic+small+round+cell+tumour%22+OR+%22+Desmoplastic+small+round-cell+neoplasm%22+OR+%22+Desmoplastic+small+round-cell+tumor%22+OR+%22+Desmoplastic+small+round-cell+tumour%22+OR+%22+DSRCT%22+OR+%22+Polyphenotypic+small+round+cell+tumor%22+OR+%22+Polyphenotypic+small+round+cell+tumour%22%29+AND+AREA%5BOverallStatus%5D%28NOT_YET_RECRUITING+OR+RECRUITING%29%29%29",
+    "url": "https://clinicaltrials.gov/study/NCT06277154?rank=8&term=AREA%5BBasicSearch%5D%28AREA%5BBasicSearch%5D%28AREA%5BConditionSearch%5D%28Desmoplastic+small+round+cell+tumor+OR+%22Desmoplas.+small+round+cell+tumor%22+OR+%22+Desmoplas.+small+round+cell+tumour%22+OR+%22+Desmoplastic+small+round+cell+tumour%22+OR+%22+Desmoplastic+small+round-cell+neoplasm%22+OR+%22+Desmoplastic+small+round-cell+tumor%22+OR+%22+Desmoplastic+small+round-cell+tumour%22+OR+%22+DSRCT%22+OR+%22+Polyphenotypic+small+round+cell+tumor%22+OR+%22+Polyphenotypic+small+round+cell+tumour%22%29+AND+AREA%5BOverallStatus%5D%28NOT_YET_RECRUITING+OR+RECRUITING%29%29%29",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT04995003",
+    "url": "https://clinicaltrials.gov/study/NCT04995003",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/99/NCT05993299/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/99/NCT05993299/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/66/NCT04118166/Prot_SAP_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/66/NCT04118166/Prot_SAP_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/81/NCT02406781/Prot_000.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/81/NCT02406781/Prot_000.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/documents/FinalRuleChanges-12Dec2016.pdf",
+    "url": "https://cdn.clinicaltrials.gov/documents/FinalRuleChanges-12Dec2016.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://cdn.clinicaltrials.gov/large-docs/29/NCT04220229/Prot_SAP_001.pdf",
+    "url": "https://cdn.clinicaltrials.gov/large-docs/29/NCT04220229/Prot_SAP_001.pdf",
+    "domain": "cdn.clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.nature.com/articles/s41586-026-10197-0",
+    "url": "https://www.nature.com/articles/s41586-026-10197-0",
+    "domain": "www.nature.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11216722/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11216722/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7066089/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7066089/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://aacrjournals.org/clincancerres/article/28/7/1412/682202/Pan-cancer-Analysis-of-Homologous-Recombination",
+    "url": "https://aacrjournals.org/clincancerres/article/28/7/1412/682202/Pan-cancer-Analysis-of-Homologous-Recombination",
+    "domain": "aacrjournals.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9905963/",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9905963/",
+    "domain": "pmc.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubs.acs.org/doi/10.1021/jm500415t",
+    "url": "https://pubs.acs.org/doi/10.1021/jm500415t",
+    "domain": "pubs.acs.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/37932012/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37932012/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.nature.com/articles/s41467-017-00921-w",
+    "url": "https://www.nature.com/articles/s41467-017-00921-w",
+    "domain": "www.nature.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.ncbi.nlm.nih.gov/sites/books/NBK615090/",
+    "url": "https://www.ncbi.nlm.nih.gov/sites/books/NBK615090/",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://doi.org/10.1002/ctm2.70586",
+    "url": "https://doi.org/10.1002/ctm2.70586",
+    "domain": "doi.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.sciencedirect.com/science/article/pii/S1098360024000340",
+    "url": "https://www.sciencedirect.com/science/article/pii/S1098360024000340",
+    "domain": "www.sciencedirect.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://pubmed.ncbi.nlm.nih.gov/38091153/",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/38091153/",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.nature.com/articles/s41586-026-10197-0.pdf",
+    "url": "https://www.nature.com/articles/s41586-026-10197-0.pdf",
+    "domain": "www.nature.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.annualreviews.org/docserver/fulltext/med/76/1/annurev-med-082523-083843.pdf?accname=guest&checksum=B02C731A3A25F58B58C71E293524E2B9&expires=1781707269&id=id",
+    "url": "https://www.annualreviews.org/docserver/fulltext/med/76/1/annurev-med-082523-083843.pdf?accname=guest&checksum=B02C731A3A25F58B58C71E293524E2B9&expires=1781707269&id=id",
+    "domain": "www.annualreviews.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://minerva-access.unimelb.edu.au/rest/bitstreams/95b16e4c-b83e-4855-a866-506ea50e71d9/retrieve",
+    "url": "https://minerva-access.unimelb.edu.au/rest/bitstreams/95b16e4c-b83e-4855-a866-506ea50e71d9/retrieve",
+    "domain": "minerva-access.unimelb.edu.au",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.annualreviews.org/docserver/fulltext/med/76/1/annurev-med-082523-083843.pdf?accname=guest&checksum=A6C8BB393593827FD3828092F2427DE4&expires=1776305109&id=id",
+    "url": "https://www.annualreviews.org/docserver/fulltext/med/76/1/annurev-med-082523-083843.pdf?accname=guest&checksum=A6C8BB393593827FD3828092F2427DE4&expires=1776305109&id=id",
+    "domain": "www.annualreviews.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://eprints.gla.ac.uk/241726/1/241726.pdf",
+    "url": "https://eprints.gla.ac.uk/241726/1/241726.pdf",
+    "domain": "eprints.gla.ac.uk",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.ncbi.nlm.nih.gov/books/NBK615090/pdf/Bookshelf_NBK615090.pdf",
+    "url": "https://www.ncbi.nlm.nih.gov/books/NBK615090/pdf/Bookshelf_NBK615090.pdf",
+    "domain": "www.ncbi.nlm.nih.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://en.wikipedia.org/wiki/Synthetic_lethality",
+    "url": "https://en.wikipedia.org/wiki/Synthetic_lethality",
+    "domain": "en.wikipedia.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/2602.00151",
+    "url": "https://arxiv.org/abs/2602.00151",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1602.00096",
+    "url": "https://arxiv.org/abs/1602.00096",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1510.00815",
+    "url": "https://arxiv.org/abs/1510.00815",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1rfzlul/thoughts_on_kras_g12d_parp_synthetic_lethality/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1rfzlul/thoughts_on_kras_g12d_parp_synthetic_lethality/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://arxiv.org/abs/1406.6557",
+    "url": "https://arxiv.org/abs/1406.6557",
+    "domain": "arxiv.org",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/y1jmz0",
+    "url": "https://www.reddit.com/r/breastcancer/comments/y1jmz0",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/13fmqqx",
+    "url": "https://www.reddit.com/r/breastcancer/comments/13fmqqx",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/breastcancer/comments/1ifsvpv",
+    "url": "https://www.reddit.com/r/breastcancer/comments/1ifsvpv",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/BRCA/comments/1u0g6cp/olaparib/",
+    "url": "https://www.reddit.com/r/BRCA/comments/1u0g6cp/olaparib/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Ovariancancer/comments/1s4ehzp/forgoing_parps_in_stage_3_hgsoc/",
+    "url": "https://www.reddit.com/r/Ovariancancer/comments/1s4ehzp/forgoing_parps_in_stage_3_hgsoc/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/183iep2",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/183iep2",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Ovariancancer/comments/1usuubv/no_maintenance_therapy_suggested_brcanegative/",
+    "url": "https://www.reddit.com/r/Ovariancancer/comments/1usuubv/no_maintenance_therapy_suggested_brcanegative/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/Biotechplays/comments/l0a8yu",
+    "url": "https://www.reddit.com/r/Biotechplays/comments/l0a8yu",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/pancreaticcancer/comments/1r9fftw/highrisk_pathology_ned_on_ct_folfirinox_extension/",
+    "url": "https://www.reddit.com/r/pancreaticcancer/comments/1r9fftw/highrisk_pathology_ned_on_ct_folfirinox_extension/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/lungcancer/comments/1swmse1/target_therapy_treatment_options_brca2_or_met_amp/",
+    "url": "https://www.reddit.com/r/lungcancer/comments/1swmse1/target_therapy_treatment_options_brca2_or_met_amp/",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://www.reddit.com/r/BRCA/comments/1esjsa5",
+    "url": "https://www.reddit.com/r/BRCA/comments/1esjsa5",
+    "domain": "www.reddit.com",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?utm_source=openai",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?utm_source=openai",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  },
+  {
+    "pathway_id": "batched_priority_pathways",
+    "discovery_lane": "open_web",
+    "title": "https://clinicaltrials.gov/study/NCT05094336?a=53&tab=history&utm_source=openai",
+    "url": "https://clinicaltrials.gov/study/NCT05094336?a=53&tab=history&utm_source=openai",
+    "domain": "clinicaltrials.gov",
+    "source_type": "url"
+  }
+]

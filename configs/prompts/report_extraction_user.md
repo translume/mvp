@@ -1,11 +1,12 @@
-Generate ReportExtractionOutput from the retrieved source chunks.
+Generate ReportExtractionOutput from this page-ordered retrieved source batch.
 
 The artifact_id must be exactly:
 {planned_artifact_id}
 
 Rules:
-- Extract only what the retrieved chunks explicitly say.
-- Preserve disease, specimen, tumor percentage, molecular findings, negative findings, assay limitations, VUS/negative molecular sections, and research-use-only signals when present.
+- Extract only what this batch explicitly says.
+- The full report is processed across multiple batches; do not treat omitted pages as absent evidence.
+- Preserve disease, specimen, tumor percentage, molecular findings, negative findings, assay limitations, VUS/negative molecular sections, clinical-trial/treatment implication text, xR/RNA negative findings, RNA expression findings, and research-use-only signals when present.
 - Do not infer biological mechanism, graph context, literature context, clinical action, treatment, prognosis, or tumor behavior.
 - Use source_chunk_id, source_page, and source_text when the source is identifiable.
 - source_text must quote or excerpt the retrieved source text.

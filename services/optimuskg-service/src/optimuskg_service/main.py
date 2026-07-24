@@ -12,12 +12,14 @@ from translume_adapters.graph_providers.optimuskg_runtime import (
     retrieve_optimuskg_graph_context,
 )
 from translume_schemas.entities import NormalizedEntitySet
+from translume_schemas.graph import GraphRetrievalMode
 
 app = FastAPI(title="optimuskg_service")
 
 
 class ContextRequest(BaseModel):
     entities: dict[str, object]
+    retrieval_modes: list[GraphRetrievalMode] | None = None
 
 
 @app.get("/health")
@@ -65,7 +67,11 @@ async def context(request: ContextRequest) -> dict[str, object]:
     """
     try:
         entities = NormalizedEntitySet.model_validate(request.entities)
-        artifact = retrieve_optimuskg_graph_context(entities, _graph_config())
+        artifact = retrieve_optimuskg_graph_context(
+            entities,
+            _graph_config(),
+            retrieval_modes=request.retrieval_modes,
+        )
     except (ValueError, OptimusKGRuntimeError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return artifact.model_dump(mode="json")

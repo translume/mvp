@@ -4,29 +4,44 @@
     "pathway_context",
     "target_context",
     "variant_context",
-    "trial_context_review"
+    "trial_context_review",
+    "therapy_context",
+    "resistance_mechanism_context",
+    "biomarker_retesting_context",
+    "guideline_context",
+    "clinical_trial_context",
+    "lineage_transformation_context",
+    "recent_therapy_agent_backfill_context"
   ],
   "workflows": {
     "literature_validation": {
       "description": "Retrieve source literature candidates for report-derived disease, gene, and alteration terms.",
-      "required_context": ["literature_query"],
+      "required_context": [
+        "literature_queries"
+      ],
       "steps": [
         {
           "tool_name": "PubMed_search_articles",
-          "required_context": ["literature_query"],
+          "required_context": [
+            "literature_queries"
+          ],
+          "foreach_context": "literature_queries",
           "use_cache": true,
           "arguments": {
-            "query": "$literature_query",
+            "query": "$foreach_value",
             "limit": 5,
             "include_abstract": true
           }
         },
         {
           "tool_name": "EuropePMC_search_articles",
-          "required_context": ["literature_query"],
+          "required_context": [
+            "literature_queries"
+          ],
+          "foreach_context": "literature_queries",
           "use_cache": true,
           "arguments": {
-            "query": "$literature_query",
+            "query": "$foreach_value",
             "limit": 5,
             "enrich_missing_abstract": false
           }
@@ -35,11 +50,17 @@
     },
     "pathway_context": {
       "description": "Retrieve pathway and biological-process context for report-derived gene or graph terms.",
-      "required_context": ["pathway_query"],
+      "minimum_successful_steps": 1,
+      "required_context": [
+        "pathway_query"
+      ],
       "steps": [
         {
           "tool_name": "ReactomeContent_search",
-          "required_context": ["pathway_query"],
+          "required_context": [
+            "pathway_query"
+          ],
+          "failure_policy": "record_unavailable",
           "use_cache": true,
           "arguments": {
             "query": "$pathway_query",
@@ -49,7 +70,10 @@
         },
         {
           "tool_name": "PathwayCommons_search",
-          "required_context": ["pathway_query"],
+          "required_context": [
+            "pathway_query"
+          ],
+          "failure_policy": "record_unavailable",
           "use_cache": true,
           "arguments": {
             "query": "$pathway_query",
@@ -59,7 +83,10 @@
         },
         {
           "tool_name": "kegg_search_pathway",
-          "required_context": ["pathway_query"],
+          "required_context": [
+            "pathway_query"
+          ],
+          "failure_policy": "record_unavailable",
           "use_cache": true,
           "arguments": {
             "keyword": "$pathway_query"
@@ -69,11 +96,16 @@
     },
     "target_context": {
       "description": "Retrieve target/disease evidence context for the first source-derived gene and disease pair.",
-      "required_context": ["first_gene", "first_disease"],
+      "required_context": [
+        "first_gene",
+        "first_disease"
+      ],
       "steps": [
         {
           "tool_name": "OpenTargets_search_category_counts_by_query_string",
-          "required_context": ["target_query"],
+          "required_context": [
+            "target_query"
+          ],
           "use_cache": true,
           "arguments": {
             "queryString": "$target_query"
@@ -81,7 +113,10 @@
         },
         {
           "tool_name": "OpenTargets_get_evidence_by_datasource",
-          "required_context": ["first_gene", "first_disease"],
+          "required_context": [
+            "first_gene",
+            "first_disease"
+          ],
           "use_cache": true,
           "arguments": {
             "gene_symbol": "$first_gene",
@@ -93,11 +128,15 @@
     },
     "variant_context": {
       "description": "Retrieve variant and gene-level clinical-variant context for source-derived genes and alterations.",
-      "required_context": ["first_gene"],
+      "required_context": [
+        "first_gene"
+      ],
       "steps": [
         {
           "tool_name": "ClinVar_search_variants",
-          "required_context": ["first_gene"],
+          "required_context": [
+            "first_gene"
+          ],
           "use_cache": true,
           "arguments": {
             "gene": "$first_gene",
@@ -107,7 +146,9 @@
         },
         {
           "tool_name": "civic_search_genes",
-          "required_context": ["first_gene"],
+          "required_context": [
+            "first_gene"
+          ],
           "use_cache": true,
           "arguments": {
             "query": "$first_gene",
@@ -116,7 +157,9 @@
         },
         {
           "tool_name": "annotate_variant_multi_source",
-          "required_context": ["first_variant"],
+          "required_context": [
+            "first_variant"
+          ],
           "use_cache": true,
           "omit_empty": true,
           "arguments": {
@@ -127,18 +170,234 @@
       ]
     },
     "trial_context_review": {
-      "description": "Retrieve clinical-trial context for the source-derived disease and molecular terms without generating treatment recommendations.",
-      "required_context": ["first_disease"],
+      "description": "Retrieve clinical-trial context for source-derived disease and molecular terms.",
+      "required_context": [
+        "first_disease"
+      ],
       "steps": [
         {
           "tool_name": "search_clinical_trials",
-          "required_context": ["first_disease"],
+          "required_context": [
+            "first_disease"
+          ],
           "use_cache": true,
           "arguments": {
             "condition": "$first_disease",
             "query_term": "$clinical_trial_query",
             "limit": 10,
-            "status": ["RECRUITING", "NOT_YET_RECRUITING", "ACTIVE_NOT_RECRUITING"]
+            "status": [
+              "RECRUITING",
+              "NOT_YET_RECRUITING",
+              "ACTIVE_NOT_RECRUITING"
+            ]
+          }
+        }
+      ]
+    },
+    "therapy_context": {
+      "description": "Retrieve targeted therapy-pressure and drug-target-biomarker context for decision-brief treatment options.",
+      "required_context": [
+        "therapy_pressure_query"
+      ],
+      "steps": [
+        {
+          "tool_name": "OpenTargets_search_category_counts_by_query_string",
+          "required_context": [
+            "drug_target_biomarker_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "queryString": "$drug_target_biomarker_query"
+          }
+        },
+        {
+          "tool_name": "PubMed_search_articles",
+          "required_context": [
+            "therapy_pressure_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$therapy_pressure_query",
+            "limit": 5,
+            "include_abstract": true
+          }
+        }
+      ]
+    },
+    "resistance_mechanism_context": {
+      "description": "Retrieve targeted resistance-path and tumor escape mechanism context from graph-guided disease and alteration terms.",
+      "required_context": [
+        "resistance_path_query"
+      ],
+      "steps": [
+        {
+          "tool_name": "PubMed_search_articles",
+          "required_context": [
+            "resistance_path_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$resistance_path_query",
+            "limit": 5,
+            "include_abstract": true
+          }
+        },
+        {
+          "tool_name": "EuropePMC_search_articles",
+          "required_context": [
+            "resistance_path_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$resistance_path_query",
+            "limit": 5,
+            "enrich_missing_abstract": false
+          }
+        }
+      ]
+    },
+    "biomarker_retesting_context": {
+      "description": "Retrieve graph-guided biomarker monitoring and repeat-testing context for decision-brief watch lists.",
+      "required_context": [
+        "biomarker_monitoring_query"
+      ],
+      "steps": [
+        {
+          "tool_name": "PubMed_search_articles",
+          "required_context": [
+            "biomarker_monitoring_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$biomarker_monitoring_query",
+            "limit": 5,
+            "include_abstract": true
+          }
+        },
+        {
+          "tool_name": "EuropePMC_search_articles",
+          "required_context": [
+            "biomarker_monitoring_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$biomarker_monitoring_query",
+            "limit": 5,
+            "enrich_missing_abstract": false
+          }
+        }
+      ]
+    },
+    "guideline_context": {
+      "description": "Retrieve guideline-oriented literature context for source-derived disease and biomarkers.",
+      "required_context": [
+        "guideline_query"
+      ],
+      "steps": [
+        {
+          "tool_name": "PubMed_search_articles",
+          "required_context": [
+            "guideline_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$guideline_query",
+            "limit": 5,
+            "include_abstract": true
+          }
+        }
+      ]
+    },
+    "clinical_trial_context": {
+      "description": "Retrieve clinical trials for treatment-option and biomarker-matched review.",
+      "required_context": [
+        "first_disease"
+      ],
+      "steps": [
+        {
+          "tool_name": "search_clinical_trials",
+          "required_context": [
+            "first_disease"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "condition": "$first_disease",
+            "query_term": "$clinical_trial_query",
+            "limit": 10,
+            "status": [
+              "RECRUITING",
+              "NOT_YET_RECRUITING",
+              "ACTIVE_NOT_RECRUITING"
+            ]
+          }
+        }
+      ]
+    },
+    "lineage_transformation_context": {
+      "description": "Retrieve graph-guided histologic transformation and lineage-plasticity context for resistance forecasting.",
+      "required_context": [
+        "lineage_transformation_query"
+      ],
+      "steps": [
+        {
+          "tool_name": "PubMed_search_articles",
+          "required_context": [
+            "lineage_transformation_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$lineage_transformation_query",
+            "limit": 5,
+            "include_abstract": true
+          }
+        },
+        {
+          "tool_name": "EuropePMC_search_articles",
+          "required_context": [
+            "lineage_transformation_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$lineage_transformation_query",
+            "limit": 5,
+            "enrich_missing_abstract": false
+          }
+        }
+      ]
+    },
+    "recent_therapy_agent_backfill_context": {
+      "description": "Backfill actual drugs or trial agents for therapy-pressure and Sankey nodes using recent literature/trial search scoped to the last 18 months where supported by tool query syntax.",
+      "required_context": [
+        "recent_therapy_agent_backfill_query"
+      ],
+      "steps": [
+        {
+          "tool_name": "PubMed_search_articles",
+          "required_context": [
+            "recent_therapy_agent_backfill_query"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "query": "$recent_therapy_agent_backfill_query",
+            "limit": 8,
+            "include_abstract": true
+          }
+        },
+        {
+          "tool_name": "search_clinical_trials",
+          "required_context": [
+            "first_disease"
+          ],
+          "use_cache": true,
+          "arguments": {
+            "condition": "$first_disease",
+            "query_term": "$recent_therapy_agent_trial_query",
+            "limit": 10,
+            "status": [
+              "RECRUITING",
+              "NOT_YET_RECRUITING",
+              "ACTIVE_NOT_RECRUITING"
+            ]
           }
         }
       ]

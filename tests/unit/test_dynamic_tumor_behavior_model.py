@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 import pytest
 
 from translume_core.compiler.structured_model_artifacts import (
     StructuredArtifactGenerationError,
+    compact_tumor_behavior_inputs_for_prompt,
     generate_claim_evidence_with_model,
     generate_mechanism_sankey_with_model,
     generate_tumor_behavior_model_with_model,
@@ -46,6 +48,43 @@ class TumorBehaviorModelProvider:
     ) -> dict[str, object]:
         self.schema_names.append(schema_name)
         payload = dict(self.output)
+        payload["artifact_id"] = _planned_artifact_id(user_prompt)
+        return payload
+
+
+class TokenCountingTumorBehaviorModelProvider(TumorBehaviorModelProvider):
+    """Return a fixed tokenizer count while recording generation calls."""
+
+    def __init__(self, output: dict[str, object], token_count: int) -> None:
+        super().__init__(output)
+        self.token_count = token_count
+
+    async def count_tokens(self, *, model_name: str, text: str) -> int:
+        """Return the configured complete-prompt token count."""
+        return self.token_count
+
+
+class SequencedTumorBehaviorModelProvider:
+    """Test provider that returns a configured output per model call."""
+
+    def __init__(self, outputs: list[dict[str, object]]) -> None:
+        self.outputs = outputs
+        self.schema_names: list[str] = []
+        self.user_prompts: list[str] = []
+
+    async def structured_completion(
+        self,
+        *,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema_name: str,
+        json_schema: dict[str, object],
+    ) -> dict[str, object]:
+        self.schema_names.append(schema_name)
+        self.user_prompts.append(user_prompt)
+        output_index = min(len(self.schema_names), len(self.outputs)) - 1
+        payload = deepcopy(self.outputs[output_index])
         payload["artifact_id"] = _planned_artifact_id(user_prompt)
         return payload
 
@@ -195,7 +234,13 @@ def _matrix() -> TherapyEvidenceMatrixOutput:
                 evidence_basis="source finding with OptimusKG ToolUniverse Medea support",
                 limitations="Requires human validation.",
                 required_validation="Confirm MTAP locus or protein status.",
-                not_a_recommendation=True,
+                clinical_use="insufficient_evidence",
+                therapy_class="PRMT5 pathway context",
+                matched_biomarkers=["MTAP"],
+                resistance_risks=["Bypass methylation context requires review."],
+                required_before_use_tests=["Confirm MTAP locus or protein status."],
+                confidence="needs_review",
+                evidence_level="source-backed hypothesis requiring review",
             )
         ],
     )
@@ -264,7 +309,7 @@ def _valid_output() -> dict[str, object]:
                 "hypothesis_generating": True,
             }
         ],
-        "limitations": ["No transition probability, treatment recommendation, or outcome prediction is generated."],
+        "limitations": ["No transition probability or deterministic outcome prediction is generated."],
     }
 
 
@@ -373,7 +418,7 @@ async def test_mechanism_sankey_deduplicates_identical_nodes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mechanism_sankey_rejects_conflicting_duplicate_node_id() -> None:
+async def test_mechanism_sankey_repairs_conflicting_duplicate_node_id() -> None:
     output = _valid_sankey_output()
     output["nodes"].append(
         {
@@ -384,39 +429,84 @@ async def test_mechanism_sankey_rejects_conflicting_duplicate_node_id() -> None:
         }
     )
 
-    with pytest.raises(
-        StructuredArtifactGenerationError,
-        match="duplicate node_id has conflicting content",
-    ):
-        await generate_mechanism_sankey_with_model(
-            context=_context(),
-            phenotype=_phenotype(),
-            matrix=_matrix(),
-            model_provider=SankeyModelProvider(output),
-            model_name="local-test-model",
-            prompts_root=Path("configs/prompts"),
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        )
+    provider = SequencedTumorBehaviorModelProvider(
+        [output, _valid_sankey_output()]
+    )
+
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert provider.schema_names == [
+        "MechanismSankeyOutput",
+        "MechanismSankeyOutput",
+    ]
+    assert "duplicate node_id has conflicting content" in provider.user_prompts[1]
+    assert result.provenance.generation_status == (
+        "generated_after_structured_output_repair"
+    )
+    assert len(result.artifact.nodes) == 2
 
 
 @pytest.mark.asyncio
-async def test_mechanism_sankey_still_rejects_missing_link_node() -> None:
+async def test_mechanism_sankey_repeated_conflict_uses_fallback() -> None:
+    output = _valid_sankey_output()
+    output["nodes"].append(
+        {
+            "node_id": "node_finding",
+            "label": "Conflicting label",
+            "kind": "finding",
+            "evidence_class": "patient_specific_finding",
+        }
+    )
+    provider = SequencedTumorBehaviorModelProvider([output, output])
+
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert len(provider.schema_names) == 2
+    assert result.provenance.generation_status == "deterministic_fallback"
+    node_ids = {node.node_id for node in result.artifact.nodes}
+    assert all(
+        link.source_node_id in node_ids and link.target_node_id in node_ids
+        for link in result.artifact.links
+    )
+
+
+@pytest.mark.asyncio
+async def test_mechanism_sankey_repeated_missing_link_node_uses_fallback() -> None:
     output = _valid_sankey_output()
     output["links"][0]["target_node_id"] = "node_missing"
 
-    with pytest.raises(
-        StructuredArtifactGenerationError,
-        match="link references a missing node",
-    ):
-        await generate_mechanism_sankey_with_model(
-            context=_context(),
-            phenotype=_phenotype(),
-            matrix=_matrix(),
-            model_provider=SankeyModelProvider(output),
-            model_name="local-test-model",
-            prompts_root=Path("configs/prompts"),
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        )
+    result = await generate_mechanism_sankey_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        model_provider=SankeyModelProvider(output),
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.provenance.generation_status == "deterministic_fallback"
+    node_ids = {node.node_id for node in result.artifact.nodes}
+    assert all(
+        link.source_node_id in node_ids and link.target_node_id in node_ids
+        for link in result.artifact.links
+    )
 
 
 @pytest.mark.asyncio
@@ -437,6 +527,58 @@ async def test_tumor_behavior_accepts_case_derived_model(tmp_path: Path) -> None
     assert result.artifact.state_evidence[0].evidence_class == (
         "model_derived_hypothesis"
     )
+    assert provider.schema_names == ["TumorBehaviorModelOutput"]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_rejects_one_token_over_budget_before_model() -> None:
+    """Reject the observed context boundary before structured generation."""
+    provider = TokenCountingTumorBehaviorModelProvider(
+        _valid_output(),
+        token_count=29769,
+    )
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="29769 > 29768",
+    ):
+        await generate_tumor_behavior_model_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            sankey=_sankey(),
+            confirmatory=_confirmatory(),
+            model_provider=provider,
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            input_token_budget=29768,
+        )
+
+    assert provider.schema_names == []
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_accepts_prompt_equal_to_budget() -> None:
+    """Permit a complete rendered prompt exactly at its configured bound."""
+    provider = TokenCountingTumorBehaviorModelProvider(
+        _valid_output(),
+        token_count=29768,
+    )
+
+    await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        input_token_budget=29768,
+    )
+
     assert provider.schema_names == ["TumorBehaviorModelOutput"]
 
 
@@ -763,6 +905,200 @@ async def test_tumor_behavior_rejects_unsupported_support_artifact() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tumor_behavior_repairs_unsupported_support_artifacts() -> None:
+    first_output = _valid_output()
+    first_output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_fake_a",
+        "artifact_fake_b",
+    ]
+    repaired_output = _valid_output()
+    repaired_output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+    ]
+    provider = SequencedTumorBehaviorModelProvider(
+        [first_output, repaired_output]
+    )
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.transition_hypotheses[0].supporting_artifacts == [
+        "artifact_graph",
+        "artifact_tool_literature_validation",
+        "artifact_medea",
+    ]
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+    assert "allowed_supporting_artifact_ids" in provider.user_prompts[1]
+    assert "artifact_graph" in provider.user_prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_repairs_missing_required_mims_support() -> None:
+    first_output = _valid_output()
+    first_output["state_evidence"][0]["graph_support"] = []
+    first_output["state_evidence"][0]["tool_support"] = []
+    first_output["state_evidence"][0]["medea_support"] = []
+    first_output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "finding_mtap"
+    ]
+    repaired_output = _valid_output()
+    provider = SequencedTumorBehaviorModelProvider(
+        [first_output, repaired_output]
+    )
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.state_evidence[0].graph_support == [
+        "edge_mtap_prmt5"
+    ]
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+    assert '"required":true' in provider.user_prompts[0]
+    assert "required_mims_support_ids" in provider.user_prompts[1]
+    assert "edge_mtap_prmt5" in provider.user_prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_rejects_repeated_missing_mims_support() -> None:
+    output = _valid_output()
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "finding_mtap"
+    ]
+    provider = SequencedTumorBehaviorModelProvider([output, output])
+
+    with pytest.raises(
+        StructuredArtifactGenerationError,
+        match="ignored available MIMS evidence support",
+    ):
+        await generate_tumor_behavior_model_with_model(
+            context=_context(),
+            phenotype=_phenotype(),
+            matrix=_matrix(),
+            sankey=_sankey(),
+            confirmatory=_confirmatory(),
+            model_provider=provider,
+            model_name="local-test-model",
+            prompts_root=Path("configs/prompts"),
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_does_not_require_mims_when_none_is_available() -> None:
+    context = _context().model_copy(
+        update={
+            "graph_evidence": GraphEvidenceArtifact(
+                artifact_id="artifact_graph",
+                source_entity_ids=[],
+                nodes=[],
+                edges=[],
+            ),
+            "tool_outputs": [],
+            "medea_reasoning": MedeaReasoningArtifact(
+                artifact_id="artifact_medea",
+                reasoning_mode="bounded_review_support",
+                summary="",
+                supported_hypotheses=[],
+                weakened_hypotheses=[],
+            ),
+        }
+    )
+    output = _valid_output()
+    output["state_evidence"][0]["graph_support"] = []
+    output["state_evidence"][0]["tool_support"] = []
+    output["state_evidence"][0]["medea_support"] = []
+    output["transition_hypotheses"][0]["supporting_artifacts"] = [
+        "finding_mtap"
+    ]
+    provider = TumorBehaviorModelProvider(output)
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=context,
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert result.artifact.transition_hypotheses[0].supporting_artifacts == [
+        "finding_mtap"
+    ]
+    assert provider.schema_names == ["TumorBehaviorModelOutput"]
+
+
+def test_tumor_behavior_payload_excludes_free_text_medea_hypotheses() -> None:
+    context = _context().model_copy(
+        update={
+            "medea_reasoning": MedeaReasoningArtifact(
+                artifact_id="artifact_medea",
+                reasoning_mode="bounded_review_support",
+                summary="Medea evidence is available for review.",
+                supported_hypotheses=["M" * 60000],
+                weakened_hypotheses=[],
+            )
+        }
+    )
+
+    payload = compact_tumor_behavior_inputs_for_prompt(
+        context=context,
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+    )
+
+    requirement = payload["mims_support_requirement"]
+    assert requirement["required"] is True
+    assert requirement["allowed_support_ids"] == [
+        "artifact_graph",
+        "artifact_medea",
+        "artifact_tool_literature_validation",
+        "edge_mtap_prmt5",
+        "node_mtap",
+        "node_prmt5",
+    ]
+    assert len(json.dumps(payload, sort_keys=True)) < 40000
+
+
+@pytest.mark.asyncio
 async def test_tumor_behavior_rejects_generic_template_rationale() -> None:
     output = _valid_output()
     output["transition_hypotheses"][0]["rationale"] = "Structured findings and enrichment context suggest a reviewable adaptive hypothesis."
@@ -778,6 +1114,46 @@ async def test_tumor_behavior_rejects_generic_template_rationale() -> None:
             prompts_root=Path("configs/prompts"),
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         )
+
+
+@pytest.mark.asyncio
+async def test_tumor_behavior_repairs_generic_transition_rationale() -> None:
+    first_output = _valid_output()
+    first_output["transition_hypotheses"][0]["rationale"] = (
+        "Structured findings and enrichment context suggest a reviewable "
+        "adaptive hypothesis."
+    )
+    repaired_output = _valid_output()
+    repaired_output["transition_hypotheses"][0]["rationale"] = (
+        "MTAP loss and PRMT5 graph context support only a hypothesis-generating "
+        "transition for human review."
+    )
+    provider = SequencedTumorBehaviorModelProvider(
+        [first_output, repaired_output]
+    )
+
+    result = await generate_tumor_behavior_model_with_model(
+        context=_context(),
+        phenotype=_phenotype(),
+        matrix=_matrix(),
+        sankey=_sankey(),
+        confirmatory=_confirmatory(),
+        model_provider=provider,
+        model_name="local-test-model",
+        prompts_root=Path("configs/prompts"),
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    transition = result.artifact.transition_hypotheses[0]
+    assert transition.rationale == repaired_output["transition_hypotheses"][0][
+        "rationale"
+    ]
+    assert provider.schema_names == [
+        "TumorBehaviorModelOutput",
+        "TumorBehaviorModelOutput",
+    ]
+    assert "repair_instruction" in provider.user_prompts[1]
+    assert "allowed_case_terms" in provider.user_prompts[1]
 
 
 @pytest.mark.asyncio

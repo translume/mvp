@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from translume_schemas.base import TranslumeBaseModel
+from translume_schemas.decision_brief import ClinicalUse, ConfidenceLabel
 
 
 class MolecularFitRow(TranslumeBaseModel):
@@ -11,7 +12,13 @@ class MolecularFitRow(TranslumeBaseModel):
     evidence_basis: str
     limitations: str
     required_validation: str
-    not_a_recommendation: bool = True
+    clinical_use: ClinicalUse
+    therapy_class: str
+    matched_biomarkers: list[str] = []
+    resistance_risks: list[str] = []
+    required_before_use_tests: list[str] = []
+    confidence: ConfidenceLabel = "needs_review"
+    evidence_level: str
 
 
 class TherapyEvidenceMatrixOutput(TranslumeBaseModel):

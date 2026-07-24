@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-
 TRANSLUME_CSS = """
 :root {
   --translume-violet: #6d28d9;
@@ -11,12 +10,16 @@ TRANSLUME_CSS = """
   --translume-blue: #2563eb;
   --translume-cyan: #0891b2;
   --translume-teal: #0d9488;
-  --translume-ink: #172033;
+  --translume-ink: #000;
   --translume-muted: #5f6b7a;
-  --translume-line: #dbe4ef;
-  --translume-soft: #f7f9fc;
+  --translume-line: #333;
+  --translume-soft: #333;
   --translume-warning: #9a6700;
   --translume-danger: #b42318;
+}
+
+pre {
+  background: #ccc !important;
 }
 
 .gradio-container {
@@ -63,22 +66,6 @@ h1, h2, h3, h4, .prose h1, .prose h2, .prose h3 {
   line-height: 1.55;
 }
 
-.translume-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.translume-badge {
-  border: 1px solid var(--translume-line);
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 0.78rem;
-  color: var(--translume-indigo);
-  background: #ffffff;
-}
-
 .translume-panel {
   border: 1px solid var(--translume-line) !important;
   border-radius: 14px !important;
@@ -91,6 +78,45 @@ h1, h2, h3, h4, .prose h1, .prose h2, .prose h3 {
   padding: 10px 14px;
   background: var(--translume-soft);
   border-radius: 0 10px 10px 0;
+}
+
+#session-import-status .translume-status,
+#session-import-status .translume-status * {
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+
+.translume-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px 0;
+}
+
+.translume-decision-card {
+  border: 1px solid var(--translume-line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #ffffff, var(--translume-soft));
+}
+
+.translume-decision-label {
+  display: block;
+  color: var(--translume-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.translume-decision-value {
+  display: block;
+  color: var(--translume-ink);
+  font-size: 0.94rem;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 .translume-summary-grid {
@@ -148,6 +174,12 @@ h1, h2, h3, h4, .prose h1, .prose h2, .prose h3 {
   border-radius: 0 10px 10px 0;
 }
 
+#workflow-error .translume-error,
+#workflow-error .translume-error * {
+  color: var(--translume-danger) !important;
+  opacity: 1 !important;
+}
+
 button.primary, .primary {
   background: linear-gradient(90deg, var(--translume-violet), var(--translume-blue), var(--translume-teal)) !important;
   border: none !important;
@@ -166,12 +198,115 @@ button.secondary, .secondary {
   box-shadow: none !important;
 }
 
-a, .prose a {
+.tab-nav button:not([role="tab"]):not(:hover) {
   color: var(--translume-indigo) !important;
 }
 
-a:hover, .prose a:hover {
+.tab-nav button:not([role="tab"]):not(:hover) svg {
+  color: var(--translume-indigo) !important;
+  fill: currentColor !important;
+}
+
+button[role="tab"] {
+  background: #ffffff !important;
+  color: #111827 !important;
+  opacity: 1 !important;
+}
+
+button[role="tab"]:hover,
+button[role="tab"]:focus,
+button[role="tab"]:focus-visible {
+  background: #e5e7eb !important;
+  color: #000000 !important;
+  opacity: 1 !important;
+}
+
+button[role="tab"][aria-selected="true"] {
+  background: #1f2937 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+button[role="tab"][aria-selected="true"]:hover,
+button[role="tab"][aria-selected="true"]:focus,
+button[role="tab"][aria-selected="true"]:focus-visible {
+  background: #111827 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.gradio-container .prose,
+.gradio-container .prose * {
+  color: #111827 !important;
+  opacity: 1 !important;
+}
+
+#clinical-review-tab .prose,
+#clinical-review-tab .prose * {
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+#clinical-review-tab .translume-decision-card {
+  background: linear-gradient(180deg, #374151, #1f2937) !important;
+}
+
+#clinical-review-tab .md :not(pre) > code,
+#clinical-review-tab .prose :not(pre) > code {
+  background: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+#medea-reasoning-content .prose,
+#medea-reasoning-content .prose :not(code),
+#evidence-gaps-content .prose,
+#evidence-gaps-content .prose :not(code) {
+  color: #f9fafb !important;
+  opacity: 1 !important;
+}
+
+#technical-validation-table:is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-validation-table :is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-provenance-table:is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-provenance-table :is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-ledger-table:is(.block-info, .label-wrap, [data-testid="block-info"]),
+#technical-ledger-table :is(.block-info, .label-wrap, [data-testid="block-info"]) {
+  color: #111827 !important;
+  opacity: 1 !important;
+}
+
+.gradio-container .md :not(pre) > code,
+.gradio-container .prose :not(pre) > code {
+  background: #d9e0ff !important;
+  color: #111827 !important;
+  border: 1px solid #c7d2fe !important;
+  opacity: 1 !important;
+}
+
+a,
+.gradio-container .prose a {
+  color: var(--translume-indigo) !important;
+}
+
+a:hover,
+.gradio-container .prose a:hover,
+.gradio-container .prose a:focus-visible {
   color: var(--translume-teal) !important;
+}
+
+#pathway-processing-status {
+  min-height: 4.5rem;
+}
+
+.translume-pathway-processing {
+  padding: 1rem 1.25rem;
+  border-left: 5px solid var(--translume-blue);
+  border-radius: 0 1rem 1rem 0;
+  background: var(--translume-soft);
+  color: #111827;
+  font-weight: 600;
 }
 
 @media (max-width: 800px) {
@@ -194,15 +329,10 @@ def header_html() -> str:
       <div class="translume-header-copy">
         <h1>Oncologist Cockpit</h1>
         <p>
-          Convert one oncology report into source-backed molecular findings,
-          evidence context, reviewable mechanism paths, confirmatory tests,
-          and case-derived tumor-behavior hypotheses.
+          Convert one oncology report into a source-backed tumor behavior
+          intelligence brief with treatment logic, escape risks, biomarker
+          monitoring, re-testing triggers, and next-test guidance.
         </p>
-        <div class="translume-badges">
-          <span class="translume-badge">Private local models</span>
-          <span class="translume-badge">Research support only</span>
-          <span class="translume-badge">Human validation required</span>
-        </div>
       </div>
     </section>
     """

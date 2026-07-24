@@ -1,0 +1,437 @@
+# Precision-oncology pathway report: dedifferentiated chondrosarcoma
+
+## Case summary
+
+Authoritative diagnosis: dedifferentiated chondrosarcoma. The analyzed chest-wall soft-tissue tumor specimen contained an estimated 80% tumor; molecular report date was June 5, 2024. Principal findings are MTAP copy-number loss with RNA underexpression, CDKN2A RNA underexpression, CHEK2 c.846+4_846+7del reported as loss of function, and AKT2 RNA overexpression. CDKN2B expression is discordant; CDKN2B loss, LYN gain, and an unspecified TP53 splice-region variant are low-confidence or undocumented. No matched normal was available. Stage, localized versus recurrent/metastatic setting, prior therapy, line of therapy, performance status, measurable disease, biopsy feasibility, and resectability are not reported in the supplied data.
+
+## Overall interpretation
+
+The strongest investigational hypothesis is an MTAP–MTA–PRMT5 dependency, but the current result does not establish homozygous deletion, complete tumor-cell protein loss, or a functionally MTAP-null state. The 9p21 findings are biologically compatible with dedifferentiated chondrosarcoma but require independent resolution of MTAP, CDKN2A, CDKN2B, and RB1. The CHEK2 variant has credible splice-disrupting evidence, yet tumor biallelic inactivation, germline origin, and homologous-recombination deficiency are unproven. AKT2 and LYN findings remain exploratory. None of these findings establishes a standard biomarker-directed treatment for dedifferentiated chondrosarcoma.
+
+## 1. MTAP-associated methionine-salvage and PRMT5 vulnerability
+
+MTAP loss occurs in a minority of dedifferentiated chondrosarcomas and provides the most developed investigational pathway in this case. Nevertheless, DNA copy-number loss plus RNA underexpression is not interchangeable with biallelic deletion, absent MTAP protein, or functional MTAP-null biochemistry.
+
+### Simplified pathway
+
+```text
+MTAP normally metabolizes methylthioadenosine, or MTA, in the methionine-salvage pathway.
+   ↓
+Complete MTAP loss can allow MTA to accumulate.
+   ↓
+MTA partially suppresses PRMT5 activity, creating increased dependence on residual PRMT5–WDR77 methylation function in some, but not all, MTAP-null models.
+   ↓
+MTA-cooperative PRMT5 inhibitors are designed to exploit this biochemical context.
+   ↓
+This dependency cannot be assigned to this tumor until complete and functionally relevant MTAP loss is confirmed.
+```
+
+### Biological significance
+
+In an exact-diagnosis genomic series, MTAP alterations occurred in 6 of 31 dedifferentiated chondrosarcomas. This supports disease relevance but not individual functional loss or treatment response. The patient’s result is supportive of a possible 9p21 event, although heterozygous, subclonal, or partial loss remains possible.
+
+### Therapeutic strategies to investigate
+
+- No MTAP-directed therapy is established as standard care for dedifferentiated chondrosarcoma; any PRMT5–MTA-directed approach remains investigational (https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/; https://pubmed.ncbi.nlm.nih.gov/39282709/).
+- Biomarker-matched trial assessment could be considered only after confirming trial-defined MTAP-null status. Historically, NCT05275478 accepted homozygous MTAP deletion and included a sarcoma cohort, but the registry now lists it as terminated (https://clinicaltrials.gov/study/NCT05275478).
+- NCT05094336 accepted specified evidence of homozygous CDKN2A loss, MTAP-null status, or lost MTAP expression depending on study part, but is listed as active, not recruiting; the sponsor also announced discontinuation of further AMG 193 development (https://clinicaltrials.gov/study/NCT05094336; https://investors.amgen.com/static-files/4e8e58ab-1e91-441e-94ea-4c8285338ec9).
+
+### Potential combination or recombination pathways
+
+- Combination hypothesis: MTAP-directed treatment combined with cell-cycle, DNA-damage, or survival-pathway inhibition remains preclinical or otherwise insufficiently supported in this diagnosis and should not be inferred from genomic proximity alone.
+- Regional-biology distinction: MTAP metabolism and CDKN2A/CDKN2B cell-cycle regulation may be parallel consequences of a 9p21 event; alteration of one gene does not validate functional loss of another.
+
+### Potential bypass or resistance pathways
+
+- Residual MTAP activity from heterozygous, partial, or subclonal loss.
+- Intratumoral heterogeneity, including different MTAP status in cartilaginous and dedifferentiated components.
+- Metabolic compensation that limits MTA accumulation.
+- Variable dependence on residual PRMT5–WDR77 function among MTAP-null tumors.
+
+### Required confirmation
+
+- Purity- and ploidy-adjusted, allele-specific MTAP copy number and deletion boundaries.
+- Orthogonal confirmation distinguishing homozygous, heterozygous, and subclonal loss.
+- MTAP immunohistochemistry with retained internal positive controls.
+- Separate assessment of the dedifferentiated component where morphology and tissue permit.
+- Current trial-specific central-screening requirements, if a different recruiting MTAP trial is identified.
+
+### Companion markers not reported
+
+- MTAP absolute copy number and biallelic-deletion status: not reported in the supplied data.
+- MTAP protein expression: not reported in the supplied data.
+- Tumor MTA, MTA:SAM, or SDMA pharmacodynamic measurements: not reported in the supplied data.
+- Deletion boundaries across MTAP, CDKN2A, and CDKN2B: not reported in the supplied data.
+
+### Evidence
+
+**Genomic Characterization of Chondrosarcoma Reveals Potential Therapeutic Targets** — `disease_specific_clinical`
+
+MTAP alterations occur in dedifferentiated chondrosarcoma, reported in 6 of 31 tumors in one clinical-genomic series.
+
+- Population fit: Exact diagnosis match: the source includes dedifferentiated chondrosarcoma, which is the authoritative diagnosis in this case.
+- Supports: Disease prevalence and biological plausibility of MTAP alteration.
+- Does not establish: Homozygous deletion, absent protein, functional MTAP loss, or therapeutic response in this patient.
+- Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/
+
+**MTAP deletion confers enhanced dependency on the arginine methyltransferase PRMT5 in human cancer cells** — `preclinical`
+
+MTAP deletion can produce MTA accumulation, partial PRMT5 suppression, and enriched dependency on residual PRMT5 function.
+
+- Population fit: Pan-cancer laboratory models rather than an exact-diagnosis dedifferentiated chondrosarcoma clinical cohort.
+- Supports: Mechanism and potential pharmacodynamic markers such as altered symmetric dimethylarginine.
+- Does not establish: Universal sensitivity or clinical efficacy in dedifferentiated chondrosarcoma.
+- Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC4997612/
+
+**Translational and early clinical study of AMG 193/anvumetostat** — `early_clinical`
+
+MTA-cooperative PRMT5 inhibition has entered early pan-cancer clinical development.
+
+- Population fit: Pan-cancer early clinical evidence; no dedicated dedifferentiated chondrosarcoma efficacy cohort is established.
+- Supports: Drug mechanism and early clinical feasibility.
+- Does not establish: Efficacy in dedifferentiated chondrosarcoma or eligibility based on this patient’s unconfirmed MTAP result.
+- Source: https://pubmed.ncbi.nlm.nih.gov/39282709/
+
+**ClinicalTrials.gov records for NCT05275478 and NCT05094336** — `early_clinical`
+
+The two specifically referenced MTAP trials are not current enrollment routes: NCT05275478 is terminated and NCT05094336 is active, not recruiting.
+
+- Population fit: NCT05275478 included bone and soft-tissue sarcomas rather than a dedicated dedifferentiated chondrosarcoma cohort; NCT05094336 was a solid-tumor study.
+- Supports: Historical biomarker requirements, sarcoma inclusion for NCT05275478, and registry status.
+- Does not establish: Patient eligibility, enrollment availability elsewhere, or efficacy in dedifferentiated chondrosarcoma.
+- Source: https://clinicaltrials.gov/study/NCT05275478
+
+### Clinical actionability
+
+Investigational and confirmation-dependent. This is the highest-priority molecular pathway for clarification, but the current assay result is insufficient for a trial-defined MTAP-null biomarker, and the two named trials are not current enrollment options.
+
+### Bottom line
+
+Confirm biallelic MTAP deletion and/or complete tumor-cell MTAP protein loss before treating this as an actionable investigational dependency.
+
+## 2. Unresolved 9p21 cell-cycle suppressor dysregulation
+
+CDKN2A RNA underexpression is biologically plausible in dedifferentiated chondrosarcoma but does not establish CDKN2A deletion, p16 loss, or CDK4/6 dependence. CDKN2B evidence is discordant and cannot be used as a definitive biomarker. RB1 competence is unknown.
+
+### Simplified pathway
+
+```text
+p16INK4A and p15INK4B normally restrain CDK4/6.
+   ↓
+Reduced CDK4/6 activity limits RB phosphorylation and E2F-driven cell-cycle entry.
+   ↓
+Loss of p16 or p15 can permit increased cell-cycle progression if the downstream RB machinery remains functional.
+   ↓
+RNA underexpression does not by itself prove protein loss or functional pathway dependence.
+   ↓
+If RB1 is lost or dysfunctional, canonical CDK4/6 dependence cannot be assumed.
+```
+
+### Biological significance
+
+CDKN2A loss and broader 9p21/RB dysregulation are recurrent in exact-diagnosis dedifferentiated chondrosarcoma cohorts. The current tumor may have regional 9p21 disruption, but MTAP, CDKN2A, and CDKN2B must be tested independently. Tumor-suppressor loss cannot be reversed in routine care.
+
+### Therapeutic strategies to investigate
+
+- No disease-specific clinical evidence in the supplied research establishes CDK4/6 inhibition as effective in dedifferentiated chondrosarcoma (https://pmc.ncbi.nlm.nih.gov/articles/PMC4325180/; https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/).
+- A cell-cycle-directed clinical-trial hypothesis would require confirmed p16/CDKN2A loss and retained functional RB1; this is investigational rather than a treatment recommendation.
+
+### Potential combination or recombination pathways
+
+- Combination hypothesis: independently confirmed AKT activation and retained RB function could motivate research into parallel survival and cell-cycle dependencies, but no efficacy or safety evidence supports such a combination in this patient.
+- Combination hypothesis: MTAP-directed and cell-cycle-directed approaches should be studied as separate dependencies; a regional 9p21 event does not establish combination sensitivity.
+- Recombination biology is not implicated by the CDKN2A/CDKN2B findings themselves.
+
+### Potential bypass or resistance pathways
+
+- RB1 loss or functional RB deficiency.
+- Cyclin E–CDK2 activation or broader E2F deregulation.
+- Parallel proliferative signaling through PI3K–AKT or MAPK pathways.
+- Preserved p16 or p15 protein despite altered RNA expression.
+- Subclonal or component-specific 9p21 loss.
+
+### Required confirmation
+
+- Recover the original CDKN2B report page and resolve whether expression was increased or decreased.
+- Allele-specific copy-number assessment of CDKN2A, CDKN2B, and MTAP separately.
+- p16INK4A and p15INK4B protein assessment with internal controls.
+- RB1 sequence, copy-number, RB protein, and—if clinically relevant—pRB or another validated functional readout.
+- Contextual review of CCND1, CDK4, CDK6, and cyclin E/CDK2.
+
+### Companion markers not reported
+
+- Definitive CDKN2A DNA deletion status: not reported in the supplied data.
+- p16INK4A protein status: not reported in the supplied data.
+- Resolved CDKN2B expression direction and validated DNA status: not reported in the supplied data.
+- RB1 genomic and protein status: not reported in the supplied data.
+- RB phosphorylation or E2F functional activity: not reported in the supplied data.
+
+### Evidence
+
+**CDKN2A copy-number evolution in dedifferentiated chondrosarcoma** — `disease_specific_clinical`
+
+CDKN2A loss is frequent and can be acquired preferentially in the dedifferentiated component.
+
+- Population fit: Exact diagnosis match: dedifferentiated chondrosarcoma, the authoritative diagnosis in this case.
+- Supports: Disease-specific frequency and component-specific biological relevance of CDKN2A loss.
+- Does not establish: CDKN2A deletion in this patient or clinical efficacy of CDK4/6 inhibition.
+- Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC4325180/
+
+**Genomic Characterization of Chondrosarcoma Reveals Potential Therapeutic Targets** — `disease_specific_clinical`
+
+CDKN2A and CDKN2B alterations each occurred in approximately 35% of one dedifferentiated chondrosarcoma cohort.
+
+- Population fit: Exact diagnosis match: the cohort includes dedifferentiated chondrosarcoma.
+- Supports: Recurrent 9p21-region dysregulation in this histology.
+- Does not establish: Co-deletion of MTAP, CDKN2A, and CDKN2B in this tumor or a predictive drug biomarker.
+- Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC11949235/
+
+**Integrated molecular profiling of dedifferentiated chondrosarcoma** — `disease_specific_clinical`
+
+Dedifferentiated chondrosarcoma shows enrichment of CDKN2A/B loss and cell-cycle transcriptional programs.
+
+- Population fit: Exact diagnosis match: dedifferentiated chondrosarcoma.
+- Supports: Cell-cycle dysregulation as disease biology.
+- Does not establish: A clinically validated CDK4/6 treatment strategy.
+- Source: https://pubmed.ncbi.nlm.nih.gov/36926116/
+
+### Clinical actionability
+
+Low at present. RNA underexpression and discordant low-confidence findings do not meet a validated treatment-selection standard. Any cell-cycle-directed use would be investigational and contingent on CDKN2A/p16 and RB1 confirmation.
+
+### Bottom line
+
+The pathway is biologically relevant to dedifferentiated chondrosarcoma, but this individual tumor’s p16/p15/RB state remains unresolved.
+
+## 3. Possible CHEK2-associated checkpoint and genome-surveillance impairment
+
+CHEK2 c.846+4_846+7del has credible evidence for abnormal splicing and reduced function in the germline predisposition context. Tumor-only detection does not determine germline origin, clonality, monoallelic versus biallelic status, or homologous-recombination deficiency. The TP53 finding is currently too poorly documented to incorporate as established biology.
+
+### Simplified pathway
+
+```text
+CHEK2 helps transmit DNA-damage signals that can promote repair, cell-cycle arrest, or apoptosis.
+   ↓
+The reported splice-region variant can generate abnormal transcripts and impaired kinase function.
+   ↓
+A retained wild-type CHEK2 allele could preserve substantial checkpoint function.
+   ↓
+Additional TP53 dysfunction could worsen checkpoint failure, but TP53 loss is not established in this tumor.
+   ↓
+CHEK2 alteration alone does not prove BRCA-like homologous-recombination deficiency.
+```
+
+### Biological significance
+
+The variant-level loss-of-function interpretation is credible, but tumor-state significance is unresolved. CHEK2 is not a recurrent defining alteration in the retrieved dedifferentiated chondrosarcoma series. The finding is particularly important for possible germline cancer predisposition because no matched normal was tested.
+
+### Therapeutic strategies to investigate
+
+- No DNA-repair-directed therapy is supported by CHEK2 alone in dedifferentiated chondrosarcoma. PARP, ATR, WEE1, CHK1, or DNA-damaging approaches remain investigational hypotheses requiring additional functional context; this is not a regimen recommendation.
+- Off-disease prostate-cancer evidence found no clear PARP-inhibitor benefit in the CHEK2-mutated subgroup and therefore supports caution rather than therapeutic promotion in dedifferentiated chondrosarcoma (https://pubmed.ncbi.nlm.nih.gov/38484203/).
+- Genetic counseling and dedicated germline testing are appropriate confirmation considerations because ClinVar supports a pathogenic/likely pathogenic classification in the germline cancer-predisposition context (https://www.ncbi.nlm.nih.gov/clinvar/variation/216652/).
+
+### Potential combination or recombination pathways
+
+- Combination hypothesis: checkpoint-directed or DNA-damaging combinations would require a suitable clinical study and evidence that CHEK2 is functionally and preferably biallelically inactivated.
+- Recombination biology: assess BRCA1, BRCA2, PALB2, RAD51-pathway function, and validated genomic HRD measures before proposing any homologous-recombination interaction.
+- The low-confidence TP53 call must not be used to construct a combined CHEK2–TP53 treatment hypothesis until independently confirmed.
+
+### Potential bypass or resistance pathways
+
+- Retention of a functional CHEK2 allele.
+- Alternative signaling through ATM, ATR, TP53, or related checkpoint effectors.
+- Splice rescue or expression of a partially functional transcript.
+- Absence of a broader homologous-recombination-deficient phenotype.
+- Intratumoral heterogeneity or low clonality of the CHEK2 alteration.
+
+### Required confirmation
+
+- Orthogonal confirmation of CHEK2 c.846+4_846+7del and its applicable transcript.
+- Tumor CHEK2 variant allele fraction, local copy number, loss of heterozygosity, and second-hit status.
+- Blood or another non-neoplastic specimen for germline testing, with genetic counseling when appropriate.
+- Tumor RNA or RT-PCR confirmation of aberrant splicing if feasible.
+- Exact TP53 HGVS variant, transcript, read evidence, allele context, and orthogonal confirmation.
+- BRCA1, BRCA2, PALB2, RAD51C/D, BARD1, ATM, and other relevant DNA-repair findings.
+- Validated genomic HRD assessment and/or functional RAD51 foci where clinically appropriate.
+
+### Companion markers not reported
+
+- CHEK2 germline versus somatic origin: not reported in the supplied data.
+- CHEK2 VAF, zygosity, second hit, and loss of heterozygosity: not reported in the supplied data.
+- BRCA1/2 and PALB2 status: not reported in the supplied data.
+- Validated genomic HRD score or signature: not reported in the supplied data.
+- RAD51 functional status: not reported in the supplied data.
+- Exact TP53 variant and supporting source evidence: not reported in the supplied data.
+
+### Evidence
+
+**ClinVar record for CHEK2 c.846+4_846+7del** — `disease_specific_clinical`
+
+CHEK2 c.846+4_846+7del is classified as pathogenic/likely pathogenic in the germline predisposition context and has reported abnormal-splicing and reduced-kinase-function evidence.
+
+- Population fit: Variant-specific evidence, but not specific to dedifferentiated chondrosarcoma. The authoritative diagnosis remains dedifferentiated chondrosarcoma.
+- Supports: Variant pathogenicity and functional splice disruption in the germline context.
+- Does not establish: Germline origin in this patient, somatic oncogenicity, tumor biallelic loss, HRD, or treatment sensitivity.
+- Source: https://www.ncbi.nlm.nih.gov/clinvar/variation/216652/
+
+**Disease-specific molecular study of dedifferentiated chondrosarcoma** — `disease_specific_clinical`
+
+TP53 alterations are common in dedifferentiated chondrosarcoma, whereas CHEK2 is not established as a recurrent defining alteration.
+
+- Population fit: Exact diagnosis match: dedifferentiated chondrosarcoma.
+- Supports: Importance of verifying the separate TP53 call for disease biology.
+- Does not establish: That this patient has a pathogenic TP53 alteration.
+- Source: https://pubmed.ncbi.nlm.nih.gov/33147331/
+
+**FDA pooled analysis of PARP inhibitors by homologous-recombination repair gene subgroup** — `disease_specific_clinical`
+
+An FDA pooled analysis in metastatic prostate cancer found no clear PARP-inhibitor benefit in the CHEK2-mutated subgroup.
+
+- Population fit: Off-disease evidence from metastatic prostate cancer, not dedifferentiated chondrosarcoma.
+- Supports: Caution against assuming PARP sensitivity from CHEK2 alone.
+- Does not establish: PARP-inhibitor activity or inactivity in dedifferentiated chondrosarcoma.
+- Source: https://pubmed.ncbi.nlm.nih.gov/38484203/
+
+### Clinical actionability
+
+Low for anticancer treatment selection. The immediate actionable implication is confirmatory germline assessment and clarification of tumor biallelic status—not assignment of a PARP or checkpoint-directed therapy.
+
+### Bottom line
+
+CHEK2 loss of function is plausible at the variant level, but tumor biallelic inactivation and HRD are not established.
+
+## 4. Exploratory AKT2 and LYN signaling observations
+
+AKT2 RNA overexpression does not establish active AKT2 signaling, and the LYN copy-number gain lacks adequate source documentation. Neither finding currently defines a therapeutic subgroup in dedifferentiated chondrosarcoma.
+
+### Simplified pathway
+
+```text
+AKT2 can promote growth, metabolism, and survival when activated at the protein level.
+   ↓
+LYN is a Src-family kinase that can participate in receptor and non-receptor signaling.
+   ↓
+RNA abundance or DNA copy-number gain may not produce increased active protein.
+   ↓
+Phosphorylation and coherent downstream signaling are needed to support functional activation.
+   ↓
+Neither functional activation nor drug dependence is established in this specimen.
+```
+
+### Biological significance
+
+PI3K–AKT–mTOR and Src-family signaling are plausible in chondrosarcoma, and phospho-S6 has been reported in some dedifferentiated tumors. These population and model observations do not identify AKT2 or LYN as the active driver in this patient.
+
+### Therapeutic strategies to investigate
+
+- No AKT2- or LYN-directed strategy is supported by the supplied patient data. Chondrosarcoma pathway studies support biological plausibility but not biomarker-selected clinical efficacy (https://pmc.ncbi.nlm.nih.gov/articles/PMC6248264/; https://pmc.ncbi.nlm.nih.gov/articles/PMC6889735/).
+- AKT- or Src-family-directed therapy should not be inferred from RNA overexpression or an undocumented copy-number gain; no regimen is recommended.
+
+### Potential combination or recombination pathways
+
+- Combination hypothesis: if AKT signaling and an intact RB axis are independently demonstrated, parallel survival and cell-cycle dependencies could be investigated in a research setting.
+- No LYN combination hypothesis is supportable until the gain and active kinase state are validated.
+- No homologous-recombination implication follows from AKT2 RNA overexpression or LYN gain.
+
+### Potential bypass or resistance pathways
+
+- Signaling through AKT1 or AKT3 rather than AKT2.
+- MAPK or other parallel survival pathways.
+- Redundant upstream receptor-tyrosine-kinase signaling.
+- Failure of RNA overexpression to produce active AKT2 protein.
+- Nonfocal, low-level, subclonal, or passenger LYN copy-number gain.
+
+### Required confirmation
+
+- AKT2 protein abundance and activating phosphorylation.
+- Phospho-AKT, phospho-PRAS40, phospho-S6, and phospho-4EBP1 or another validated downstream panel.
+- PTEN expression and PIK3CA, PIK3R1, TSC1, TSC2, MTOR, receptor, and RAS-pathway context.
+- Recovery of the original LYN source-page evidence and raw copy-number data.
+- LYN absolute copy number, focality, protein abundance, and activating phosphorylation.
+- Confirmation that any signaling activation is present in the dedifferentiated tumor component.
+
+### Companion markers not reported
+
+- AKT2 protein and phosphorylation: not reported in the supplied data.
+- Downstream AKT/mTOR phosphoprotein activity: not reported in the supplied data.
+- PTEN and upstream PI3K-pathway functional context: not reported in the supplied data.
+- Validated LYN copy number, focality, protein, and phosphorylation: not reported in the supplied data.
+
+### Evidence
+
+**PI3K–AKT–mTOR pathway review and tissue evidence in chondrosarcoma** — `disease_specific_clinical`
+
+Phospho-S6 pathway activity has been observed in a subset of dedifferentiated chondrosarcomas.
+
+- Population fit: Includes exact-diagnosis dedifferentiated chondrosarcoma tissue observations, matching the authoritative diagnosis.
+- Supports: General pathway plausibility.
+- Does not establish: AKT2-specific activation, LYN activation, or treatment sensitivity in this patient.
+- Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC6248264/
+
+**Functional profiling of kinase dependencies in chondrosarcoma** — `preclinical`
+
+Chondrosarcoma models show heterogeneous AKT, Src, MAPK, and receptor-kinase activity.
+
+- Population fit: Chondrosarcoma translational and model-system evidence, not a dedicated biomarker-selected dedifferentiated chondrosarcoma clinical trial.
+- Supports: Biological plausibility and the need for phosphoprotein confirmation.
+- Does not establish: That AKT2 or LYN is the driver in this specimen or that kinase inhibition is clinically effective.
+- Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC6889735/
+
+### Clinical actionability
+
+Exploratory to non-actionable. Protein-level and phosphoprotein confirmation would be required even for a research hypothesis, and no disease-matched clinical efficacy signal was identified.
+
+### Bottom line
+
+Do not use AKT2 RNA overexpression or the low-confidence LYN gain for drug selection.
+
+## Cross-pathway interactions
+
+- MTAP, CDKN2A, and CDKN2B are neighboring 9p21 genes, but regional proximity does not prove that all are deleted or functionally lost in this tumor.
+- MTAP-associated metabolism and p16/p15–RB cell-cycle control should be evaluated as separate dependencies.
+- AKT signaling could provide a parallel survival route if independently confirmed, but RNA overexpression alone is insufficient.
+- CHEK2 checkpoint biology does not establish homologous-recombination deficiency and should not be combined with the low-confidence TP53 call without validation.
+- Component-specific heterogeneity is important: dedifferentiated and cartilaginous regions may not share the same 9p21 or TP53 state.
+
+## Missing information that limits clinical use
+
+- Stage and whether disease is localized, resectable, unresectable, recurrent, or metastatic.
+- Prior therapies, line of therapy, performance status, organ function, measurable disease, and biopsy feasibility.
+- Matched-normal testing to distinguish germline from somatic CHEK2 status.
+- Purity-adjusted absolute copy number, deletion boundaries, clonality, and protein status for MTAP/CDKN2A/CDKN2B.
+- RB1 genomic, protein, and functional status.
+- Exact TP53 and LYN source documentation.
+- AKT2 and LYN protein/phosphoprotein activity.
+- Complete HLA-A, HLA-B, and HLA-C allele calls if an HLA-restricted study is considered.
+- Current trial-site availability and protocol-specific eligibility.
+
+## Must not assume
+
+- Intact RB1 is not inferred.
+- TP53 loss is not inferred.
+- Homologous-recombination deficiency is not inferred from CHEK2.
+- MTAP homozygous deletion or complete protein loss is not inferred from copy-number loss plus RNA underexpression.
+- CDKN2A deletion or p16 protein loss is not inferred from RNA underexpression.
+- CDKN2B loss is not inferred because the RNA annotation is discordant and the DNA call lacks supporting source documentation.
+- AKT2 or LYN kinase activation is not inferred.
+- Tumor-suppressor loss is not considered reversible in routine care.
+- The RPS15 p.Y44C variant of uncertain significance is not used for treatment selection.
+- Tumor-only findings are not assumed to be somatic or germline.
+- Trial eligibility is not inferred from a trial identifier or molecular finding alone.
+
+## Biological significance
+
+The tumor may contain a biologically meaningful 9p21 alteration involving MTAP and possibly cell-cycle suppressors, with MTAP representing the most developed investigational dependency. CHEK2 c.846+4_846+7del is plausibly loss of function, but its germline origin and tumor biallelic state are unresolved. AKT2 and LYN do not presently establish active kinase dependencies.
+
+## Clinical actionability
+
+No reported finding establishes a standard biomarker-directed therapy for dedifferentiated chondrosarcoma. MTAP is the highest-priority investigational pathway after orthogonal confirmation, but the two named trials are not current enrollment routes. Cell-cycle, DNA-repair, AKT2, and LYN strategies remain unvalidated hypotheses and should not be used to select an off-label regimen.
+
+## Required confirmation
+
+First establish MTAP homozygous deletion and/or complete tumor-cell protein loss; independently map CDKN2A/CDKN2B and confirm p16/RB status; perform matched-normal CHEK2 testing with tumor allele/second-hit and splice analysis; recover and validate the TP53 and LYN calls; confirm AKT signaling at the phosphoprotein level; and document stage, disease setting, prior treatment, performance status, measurable disease, organ function, and biopsy feasibility before reassessing clinical trials.
+
+## Clinical-use notice
+
+This report is a molecular tumor-board synthesis, not a treatment recommendation. Investigational mechanisms and historical trial criteria do not establish benefit, safety, access, or individual eligibility. Clinical decisions require multidisciplinary review, pathology confirmation, current protocol verification, and consideration of the complete clinical context.

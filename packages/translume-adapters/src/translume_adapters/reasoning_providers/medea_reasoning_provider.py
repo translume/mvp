@@ -46,6 +46,18 @@ class MedeaReasoningProvider:
             )
         payload = json.loads(self._reasoning_json_path.read_text(encoding="utf-8"))
         artifact_id = f"artifact_{uuid5(NAMESPACE_URL, context.artifact_id + ':medea').hex[:16]}"
+        downstream_uses = [
+            str(item)
+            for item in payload.get(
+                "downstream_uses",
+                [
+                    "resistance_escape_forecast",
+                    "treatment_pressure_map",
+                    "biomarker_watch_list",
+                    "evidence_limitations",
+                ],
+            )
+        ]
         return MedeaReasoningArtifact(
             artifact_id=artifact_id,
             reasoning_mode=str(payload.get("reasoning_mode", "bounded_review_support")),
@@ -54,4 +66,8 @@ class MedeaReasoningProvider:
             weakened_hypotheses=[str(item) for item in payload.get("weakened_hypotheses", [])],
             warnings=[str(item) for item in payload.get("warnings", [])],
             requires_human_review=True,
+            decision_support_role=str(
+                payload.get("decision_support_role", "hypothesis_support_only")
+            ),
+            downstream_uses=downstream_uses,
         )

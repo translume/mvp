@@ -18,7 +18,7 @@ def generate_confirmatory_testing_from_context(
         2. Every test links to a finding or molecular-fit row.
         3. Every test explains positive and negative interpretation.
         4. Every test has priority and evidence gap.
-        5. No treatment recommendation is generated.
+        5. Testing questions support treatment logic without unsupported certainty.
 
     Args:
         context: Combined evidence context.
@@ -35,7 +35,10 @@ def generate_confirmatory_testing_from_context(
                 test_id=test_id,
                 question=f"Does the evidence support the {row.molecular_fit} context in this tumor?",
                 why_it_matters=row.why_from_omics,
-                positive_interpretation="Would increase confidence in the review hypothesis but would not establish a treatment recommendation.",
+                positive_interpretation=(
+                    "Would increase confidence that the molecular context is "
+                    "relevant to treatment-option review."
+                ),
                 negative_interpretation="Would weaken or deprioritize the review hypothesis and should be captured in validation notes.",
                 priority="review_required",
                 evidence_gap=row.required_validation,
@@ -47,8 +50,8 @@ def generate_confirmatory_testing_from_context(
         artifact_id=artifact_id,
         tests=tests,
         must_not_assume=[
-            "Do not assume report-listed therapies are recommended for this patient.",
-            "Do not infer response, resistance, or outcome probability in the MVP.",
+            "Do not claim certain response, cure, survival benefit, or deterministic outcome.",
+            "Use treatment-pressure and monitoring language only when evidence-grounded.",
             "Do not treat research-use-only expression signals as clinically established without validation.",
         ],
     )

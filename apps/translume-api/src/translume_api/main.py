@@ -11,6 +11,11 @@ from pydantic import BaseModel
 
 from translume_api.config import Settings, get_settings
 from translume_clients.docling import DoclingClientConfig, DoclingServiceClient
+from translume_clients.downstream import (
+    DownstreamRunnerConfig,
+    DynamicPathwayRunnerClient,
+    PrecisionOncologyRunnerClient,
+)
 from translume_adapters.model_providers.local_vllm_provider import LocalVLLMProvider
 from translume_clients.local_vllm import LocalVLLMClient
 from translume_clients.mims import (
@@ -36,6 +41,10 @@ from translume_core.workflow import (
     TranslumeWorkflowConfig,
     TranslumeWorkflowProviders,
     process_report_pdf,
+)
+from translume_schemas.downstream import (
+    DownstreamAnalysisRequest,
+    DownstreamAnalysisResult,
 )
 
 
@@ -144,6 +153,76 @@ async def get_review_packet_export(session_id: str) -> dict[str, object]:
     return packet.model_dump(mode="json")
 
 
+@app.post(
+    "/api/v1/review-packets/{session_id}/downstream-analysis",
+    response_model=DownstreamAnalysisResult,
+)
+async def run_downstream_analysis(
+    session_id: str,
+    request: DownstreamAnalysisRequest,
+) -> DownstreamAnalysisResult:
+    """Run verified downstream analysis for one persisted review packet.
+
+    Acceptance criteria:
+        1. Persistence: Loads the exact review packet from Postgres.
+        2. Sequencing: Runs precision oncology before pathway analysis.
+        3. Validation: Returns schema-valid, verified Markdown artifacts only.
+        4. Isolation: Delegates filesystem and subprocess work to runner services.
+    """
+    diagnosis = request.diagnosis.strip()
+    if not diagnosis:
+        raise HTTPException(status_code=422, detail="Diagnosis is required.")
+    settings = get_settings()
+    try:
+        packet = await _postgres_store(settings).fetch_review_packet_by_session_id(
+            session_id
+        )
+        config = DownstreamRunnerConfig(
+            base_url=settings.precision_oncology_service_url,
+            timeout_seconds=settings.downstream_timeout_seconds,
+        )
+        precision_run = await PrecisionOncologyRunnerClient(config).run(
+            session_id=packet.session_id,
+            review_packet=packet.model_dump(mode="json"),
+        )
+        dynamic_config = DownstreamRunnerConfig(
+            base_url=settings.dynamic_pathway_service_url,
+            timeout_seconds=settings.downstream_timeout_seconds,
+        )
+        return await DynamicPathwayRunnerClient(dynamic_config).run(
+            session_id=packet.session_id,
+            precision_run=precision_run,
+            diagnosis=diagnosis,
+        )
+    except Exception as error:
+        raise HTTPException(status_code=422, detail=_http_error_detail(error)) from error
+
+
+
+
+@app.get("/api/v1/review-packets/{session_id}/decision-brief")
+async def get_oncologist_decision_brief(session_id: str) -> dict[str, object]:
+    """Return only the persisted oncologist decision brief for a session.
+
+    Acceptance criteria:
+        1. Loads the exact persisted review packet from Postgres.
+        2. Returns the stored decision_brief artifact only.
+        3. Does not reconstruct or fabricate decision-brief content.
+        4. Fails explicitly when the persisted packet has no decision brief.
+    """
+    store = _postgres_store(get_settings())
+    try:
+        packet = await store.fetch_review_packet_by_session_id(session_id)
+    except Exception as error:
+        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
+    if packet.bundle.decision_brief is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Persisted packet does not contain an oncologist decision brief",
+        )
+    return packet.bundle.decision_brief.model_dump(mode="json")
+
+
 @app.post("/api/v1/review-packets/{session_id}/claims/{claim_id}/validation")
 async def validate_claim(
     session_id: str,
@@ -212,7 +291,40 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         require_local_vllm=settings.require_local_vllm,
         vllm_model=settings.vllm_model,
         prompts_root=settings.prompts_root,
+        report_extraction_batch_max_chunks=(
+            settings.report_extraction_batch_max_chunks
+        ),
+        report_extraction_input_token_budget=(
+            settings.report_extraction_input_token_budget
+        ),
+        report_extraction_initial_max_tokens=settings.report_extraction_max_tokens,
+        report_extraction_retry_max_tokens=(
+            settings.report_extraction_retry_max_tokens
+        ),
+        report_extraction_max_split_depth=(
+            settings.report_extraction_max_split_depth
+        ),
+        report_extraction_min_segment_chars=(
+            settings.report_extraction_min_segment_chars
+        ),
+        confirmatory_testing_input_token_budget=(
+            settings.confirmatory_testing_input_token_budget
+        ),
+        tumor_behavior_input_token_budget=(
+            settings.tumor_behavior_input_token_budget
+        ),
         tool_workflows=settings.tool_workflows,
+        enable_provider_cache=settings.enable_provider_cache,
+        graph_cache_ttl_seconds=settings.graph_cache_ttl_seconds,
+        tool_cache_ttl_seconds=settings.tool_cache_ttl_seconds,
+        medea_cache_ttl_seconds=settings.medea_cache_ttl_seconds,
+        async_stage_latency_budget_seconds=(
+            settings.async_stage_latency_budget_seconds
+        ),
+        decision_brief_stage_latency_budget_seconds=(
+            settings.decision_brief_stage_latency_budget_seconds
+        ),
+        stage_latency_budgets_seconds=settings.stage_latency_budgets_seconds,
     )
 
 
@@ -270,7 +382,15 @@ def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:
             LocalVLLMClient(
                 base_url=settings.vllm_base_url,
                 timeout_seconds=settings.vllm_timeout_seconds,
-            )
+            ),
+            structured_output_max_tokens=(
+                settings.vllm_structured_output_max_tokens
+            ),
+            structured_output_retry_max_tokens=(
+                settings.vllm_structured_output_retry_max_tokens
+            ),
+            report_extraction_max_tokens=settings.report_extraction_max_tokens,
+            tumor_behavior_max_tokens=settings.tumor_behavior_max_tokens,
         ),
     )
 

@@ -43,14 +43,32 @@
         "status": "ok",
         "vendor_available": true,
         "workflow_config_valid": true,
+        "runtime_ready": true,
         "required_workflows_configured": true,
         "missing_required_workflows": [],
+        "reactome_local_enabled": true,
+        "reactome_graphdb_available": true,
+        "reactome_graphdb_database": "graph.db",
+        "reactome_graphdb_configured_release": "97",
+        "reactome_graphdb_actual_release": "97",
+        "reactome_graphdb_release_matches": true,
+        "remote_reactome_enabled": false,
+        "local_tool_overrides": [
+          "ReactomeContent_search"
+        ],
         "configured_workflows": [
           "literature_validation",
           "pathway_context",
           "target_context",
           "variant_context",
-          "trial_context_review"
+          "trial_context_review",
+          "therapy_context",
+          "resistance_mechanism_context",
+          "biomarker_retesting_context",
+          "guideline_context",
+          "clinical_trial_context",
+          "lineage_transformation_context",
+          "recent_therapy_agent_backfill_context"
         ]
       }
     },
@@ -174,18 +192,26 @@
     "bundle.provenance.0.schema_name",
     "bundle.provenance.0.schema_hash",
     "bundle.provenance.0.generation_status",
-    "bundle.provenance.0.source_chunk_ids"
+    "bundle.provenance.0.source_chunk_ids",
+    "bundle.decision_brief.clinical_decision_summary",
+    "bundle.decision_brief.current_tumor_state.dominant_drivers",
+    "bundle.decision_brief.ranked_treatment_options",
+    "bundle.decision_brief.treatment_pressure_map",
+    "bundle.decision_brief.resistance_forecast",
+    "bundle.decision_brief.biomarker_watch_list",
+    "bundle.decision_brief.retesting_triggers",
+    "bundle.decision_brief.next_test_recommendations",
+    "bundle.decision_brief.evidence_limitations"
   ],
   "review_packet_required_absent_phrases": [
-    "recommended treatment",
-    "should receive",
-    "best treatment",
     "will respond",
+    "will be cured",
+    "guaranteed",
+    "definitive cure",
     "will benefit",
     "will relapse",
-    "transition probability",
     "probability of relapse",
-    "outcome prediction"
+    "deterministic outcome prediction"
   ],
   "retrieval_scope": {
     "mode_env": "TRANSLUME_RETRIEVAL_MODE",

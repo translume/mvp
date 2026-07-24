@@ -1,0 +1,10 @@
+{
+  "branch": "main",
+  "commit": "a204d3bdf84f0ed3bfa8bafc326e312c524dbd87",
+  "name": "OptimusKG",
+  "remote_url": "https://github.com/mims-harvard/OptimusKG.git",
+  "target": "/home/ubuntu/mvp/third_party/upstream/OptimusKG",
+  "update_mode": "git",
+  "updateable": true,
+  "url": "https://github.com/mims-harvard/OptimusKG.git"
+}

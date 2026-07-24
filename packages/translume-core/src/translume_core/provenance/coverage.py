@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 from datetime import datetime
-
-from pydantic import BaseModel
 
 from translume_core.provenance.provenance import (
     ArtifactProvenanceError,
@@ -13,7 +10,7 @@ from translume_core.provenance.provenance import (
 from translume_schemas.claims import ClaimEvidenceOutput
 from translume_schemas.entities import NormalizedEntitySet
 from translume_schemas.evidence import EvidenceContextBundle
-from translume_schemas.export import ClinicalArtifactBundle, NarrativeContainmentReport
+from translume_schemas.export import ClinicalArtifactBundle
 from translume_schemas.extraction import ReportExtractionOutput
 from translume_schemas.graph import GraphEvidenceArtifact
 from translume_schemas.medea import MedeaReasoningArtifact
@@ -249,6 +246,8 @@ def expected_bundle_artifact_ids(bundle: ClinicalArtifactBundle) -> dict[str, st
         expected[bundle.confirmatory.artifact_id] = "ConfirmatoryTestingOutput"
     if bundle.tumor_behavior is not None:
         expected[bundle.tumor_behavior.artifact_id] = "TumorBehaviorModelOutput"
+    if bundle.decision_brief is not None:
+        expected[bundle.decision_brief.artifact_id] = "OncologistDecisionBrief"
     for claim in bundle.claims:
         expected[claim.claim_id] = "ClaimEvidenceOutput"
     if bundle.narrative is not None:

@@ -22,6 +22,7 @@ REQUIRED_BUNDLE_ARTIFACTS = (
     "sankey",
     "confirmatory",
     "tumor_behavior",
+    "decision_brief",
     "narrative",
     "narrative_containment",
 )
@@ -34,6 +35,11 @@ NODE_KIND_COLORS = {
     "molecular_fit": "#0891b2",
     "validation": "#0d9488",
     "validation_test": "#0d9488",
+    "therapy_or_drug": "#0891b2",
+    "molecular_target": "#2563eb",
+    "predicted_disease_state": "#7c3aed",
+    "escape_or_recombination_pathway": "#dc2626",
+    "when_to_watch": "#0f766e",
 }
 DEFAULT_NODE_COLOR = "#64748b"
 
@@ -42,8 +48,18 @@ DEFAULT_NODE_COLOR = "#64748b"
 class ClinicalPanelData:
     """Pure UI projection of one persisted ``ReviewPacketExport``."""
 
-    status_markdown: str
-    case_summary_html: str
+    decision_snapshot_html: str
+    decision_summary_markdown: str
+    translational_check_rows: list[list[Any]]
+    evidence_sentence_rows: list[list[Any]]
+    actionable_biology_rows: list[list[Any]]
+    ranked_treatment_option_rows: list[list[Any]]
+    treatment_pressure_rows: list[list[Any]]
+    resistance_forecast_rows: list[list[Any]]
+    biomarker_watch_rows: list[list[Any]]
+    retesting_trigger_rows: list[list[Any]]
+    next_test_rows: list[list[Any]]
+    decision_limitations_rows: list[list[Any]]
     findings_rows: list[list[Any]]
     entity_rows: list[list[Any]]
     phenotype_rows: list[list[Any]]
@@ -77,8 +93,18 @@ def build_clinical_panel_data(packet: ReviewPacketExport) -> ClinicalPanelData:
     """
     require_renderable_review_packet(packet)
     return ClinicalPanelData(
-        status_markdown=_status_markdown(packet),
-        case_summary_html=_case_summary_html(packet),
+        decision_snapshot_html=_decision_snapshot_html(packet),
+        decision_summary_markdown=_decision_summary_markdown(packet),
+        translational_check_rows=_translational_check_rows(packet),
+        evidence_sentence_rows=_evidence_sentence_rows(packet),
+        actionable_biology_rows=_actionable_biology_rows(packet),
+        ranked_treatment_option_rows=_ranked_treatment_option_rows(packet),
+        treatment_pressure_rows=_treatment_pressure_rows(packet),
+        resistance_forecast_rows=_resistance_forecast_rows(packet),
+        biomarker_watch_rows=_biomarker_watch_rows(packet),
+        retesting_trigger_rows=_retesting_trigger_rows(packet),
+        next_test_rows=_next_test_rows(packet),
+        decision_limitations_rows=_decision_limitations_rows(packet),
         findings_rows=_finding_rows(packet),
         entity_rows=_entity_rows(packet),
         phenotype_rows=_phenotype_rows(packet),
@@ -128,22 +154,226 @@ def require_renderable_review_packet(packet: ReviewPacketExport) -> None:
 
 
 def build_mechanism_sankey_figure(packet: ReviewPacketExport) -> go.Figure:
-    """Build a Plotly Sankey exclusively from the packet mechanism artifact."""
+    """Build therapy → target biology → disease state → escape pathway flow.
+
+    The old artifact-level Sankey is intentionally not rendered in the report UI.
+    This figure is derived from the persisted decision brief so it tells the
+    clinical story: which therapy class hits which target/pathway, how that
+    connects to the tumor state, and which escape/recombination paths need
+    monitoring.
+    """
     sankey = packet.bundle.sankey
-    if sankey is None:
-        raise ClinicalPanelRenderError("MechanismSankeyOutput is unavailable")
-    if not sankey.nodes:
-        return _empty_figure("No case-supported mechanism nodes were returned.")
+    brief = packet.bundle.decision_brief
+    if brief is None:
+        raise ClinicalPanelRenderError("OncologistDecisionBrief is unavailable")
+    if brief.translational_assessment is None and sankey is not None:
+        _validate_legacy_sankey_references(sankey)
+        return _legacy_mechanism_sankey_figure(sankey)
+    if brief.therapy_escape_sankey_paths:
+        return _therapy_escape_path_sankey_figure(brief.therapy_escape_sankey_paths)
+    if not brief.treatment_pressure_map and not brief.resistance_forecast:
+        return _empty_figure("No therapy-to-escape pathway flow was surfaced.")
 
-    index_by_node_id = {node.node_id: index for index, node in enumerate(sankey.nodes)}
-    duplicate_count = len(sankey.nodes) - len(index_by_node_id)
-    if duplicate_count:
-        raise ClinicalPanelRenderError("Mechanism Sankey contains duplicate node IDs")
+    labels: list[str] = []
+    kinds: list[str] = []
+    index_by_key: dict[tuple[str, str], int] = {}
 
+    def node(kind: str, label: str) -> int:
+        clean = label.strip() or "Not resolved"
+        key = (kind, clean.casefold())
+        if key not in index_by_key:
+            index_by_key[key] = len(labels)
+            labels.append(clean)
+            kinds.append(kind)
+        return index_by_key[key]
+
+    disease_state_label = _joined_or_fallback(
+        [
+            *brief.current_tumor_state.dominant_drivers,
+            *brief.current_tumor_state.active_pathways,
+        ],
+        fallback="Tumor behavior state requires review",
+    )
+    disease_state_index = node("predicted_disease_state", disease_state_label)
     source_indexes: list[int] = []
     target_indexes: list[int] = []
     values: list[float] = []
     customdata: list[list[str]] = []
+
+    for row in brief.treatment_pressure_map:
+        therapy_index = node("therapy_or_drug", row.therapy_name_or_class)
+        target_index = node("molecular_target", row.target_or_pathway)
+        width = _confidence_width(row.confidence)
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            therapy_index,
+            target_index,
+            width,
+            "therapy/drug → molecular target",
+            row.why_it_fits,
+        )
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            target_index,
+            disease_state_index,
+            width,
+            "target biology → tumor behavior",
+            row.selective_pressure,
+        )
+        for route in row.likely_escape_routes:
+            escape_index = node("escape_or_recombination_pathway", route)
+            _add_sankey_link(
+                source_indexes,
+                target_indexes,
+                values,
+                customdata,
+                disease_state_index,
+                escape_index,
+                max(width * 0.85, 0.5),
+                "tumor behavior → possible escape/recombination pathway",
+                "Monitor after treatment pressure or at progression.",
+            )
+
+    for forecast in brief.resistance_forecast:
+        escape_index = node("escape_or_recombination_pathway", forecast.escape_route)
+        timing_label = _escape_timing_label(forecast.associated_treatment_pressure)
+        timing_index = node("when_to_watch", timing_label)
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            disease_state_index,
+            escape_index,
+            _confidence_width(forecast.confidence),
+            "tumor behavior → forecast escape route",
+            forecast.description,
+        )
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            escape_index,
+            timing_index,
+            _confidence_width(forecast.confidence),
+            "escape route → when to watch",
+            _joined_or_fallback(
+                forecast.biomarkers_to_monitor,
+                fallback="biomarker watch item requires review",
+            ),
+        )
+
+    figure = go.Figure(
+        data=[
+            go.Sankey(
+                arrangement="snap",
+                node={
+                    "label": labels,
+                    "color": [
+                        NODE_KIND_COLORS.get(kind.casefold(), DEFAULT_NODE_COLOR)
+                        for kind in kinds
+                    ],
+                    "customdata": [[_humanize(kind)] for kind in kinds],
+                    "hovertemplate": "%{label}<br>%{customdata[0]}<extra></extra>",
+                    "pad": 24,
+                    "thickness": 18,
+                    "line": {"color": "#dbe4ef", "width": 1},
+                },
+                link={
+                    "source": source_indexes,
+                    "target": target_indexes,
+                    "value": values,
+                    "color": "rgba(79, 70, 229, 0.24)",
+                    "customdata": customdata,
+                    "hovertemplate": (
+                        "%{customdata[0]}<br>%{customdata[1]}"
+                        "<br>Relative evidence weight: %{value}<extra></extra>"
+                    ),
+                },
+            )
+        ]
+    )
+    figure.update_layout(
+        title={
+            "text": (
+                "Therapy → Target biology → Tumor behavior → Escape / recombination pathway"
+                "<br><sup>Widths reflect evidence confidence in the staged brief, not calibrated probability.</sup>"
+            ),
+            "x": 0.01,
+            "xanchor": "left",
+        },
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        font={"family": "Avenir Next, Segoe UI, sans-serif", "color": "#172033"},
+        margin={"l": 20, "r": 20, "t": 92, "b": 20},
+        height=max(460, 60 * len(labels)),
+    )
+    return figure
+
+
+
+
+
+
+def _legacy_mechanism_sankey_figure(sankey: Any) -> go.Figure:
+    """Render legacy Sankey packets while new packets use therapy-to-escape flow."""
+    if not sankey.nodes:
+        return _empty_figure("No case-supported mechanism nodes were returned.")
+    index_by_node_id = {node.node_id: index for index, node in enumerate(sankey.nodes)}
+    source_indexes = [index_by_node_id[link.source_node_id] for link in sankey.links]
+    target_indexes = [index_by_node_id[link.target_node_id] for link in sankey.links]
+    values = [link.value for link in sankey.links]
+    figure = go.Figure(
+        data=[
+            go.Sankey(
+                arrangement="snap",
+                node={
+                    "label": [node.label for node in sankey.nodes],
+                    "color": [
+                        NODE_KIND_COLORS.get(node.kind.casefold(), DEFAULT_NODE_COLOR)
+                        for node in sankey.nodes
+                    ],
+                    "customdata": [[_humanize(node.kind), node.evidence_class] for node in sankey.nodes],
+                    "hovertemplate": "%{label}<br>%{customdata[0]}<br>Evidence: %{customdata[1]}<extra></extra>",
+                    "pad": 22,
+                    "thickness": 18,
+                    "line": {"color": "#dbe4ef", "width": 1},
+                },
+                link={
+                    "source": source_indexes,
+                    "target": target_indexes,
+                    "value": values,
+                    "color": "rgba(79, 70, 229, 0.24)",
+                    "hovertemplate": "Legacy mechanism link<br>Relative value: %{value}<extra></extra>",
+                },
+            )
+        ]
+    )
+    figure.update_layout(
+        title={
+            "text": "Mechanism Sankey: source-backed biological interpretation",
+            "x": 0.01,
+            "xanchor": "left",
+        },
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        font={"family": "Avenir Next, Segoe UI, sans-serif", "color": "#172033"},
+        margin={"l": 20, "r": 20, "t": 82, "b": 20},
+        height=max(420, 64 * len(sankey.nodes)),
+    )
+    return figure
+
+def _validate_legacy_sankey_references(sankey: Any) -> None:
+    index_by_node_id = {node.node_id for node in sankey.nodes}
+    if len(index_by_node_id) != len(sankey.nodes):
+        raise ClinicalPanelRenderError("Mechanism Sankey contains duplicate node IDs")
     for link in sankey.links:
         if link.source_node_id not in index_by_node_id:
             raise ClinicalPanelRenderError(
@@ -157,119 +387,442 @@ def build_mechanism_sankey_figure(packet: ReviewPacketExport) -> go.Figure:
             raise ClinicalPanelRenderError(
                 "Sankey link values must be positive; zero/negative widths cannot be rendered"
             )
-        source_indexes.append(index_by_node_id[link.source_node_id])
-        target_indexes.append(index_by_node_id[link.target_node_id])
-        values.append(link.value)
-        customdata.append(
-            [
-                link.claim_class,
-                "yes" if link.validation_required else "no",
-                ", ".join(link.source_artifact_ids),
-            ]
-        )
 
-    figure = go.Figure(
+def _add_sankey_link(
+    source_indexes: list[int],
+    target_indexes: list[int],
+    values: list[float],
+    customdata: list[list[str]],
+    source: int,
+    target: int,
+    value: float,
+    link_type: str,
+    rationale: str,
+) -> None:
+    if source == target:
+        return
+    source_indexes.append(source)
+    target_indexes.append(target)
+    values.append(max(value, 0.5))
+    customdata.append([link_type, rationale.strip() or "Requires clinician review."])
+
+
+def _confidence_width(confidence: str) -> float:
+    return {
+        "high": 4.0,
+        "moderate": 3.0,
+        "low": 2.0,
+        "needs_review": 1.0,
+    }.get(confidence, 1.0)
+
+
+def _escape_timing_label(pressure: str) -> str:
+    clean = pressure.strip()
+    if not clean:
+        return "Watch at progression or therapy switch"
+    return f"Watch after {clean}"
+
+
+def _therapy_escape_path_sankey_figure(paths: Sequence[Any]) -> go.Figure:
+    """Render explicit therapy → target → behavior → escape → timing paths."""
+    labels: list[str] = []
+    kinds: list[str] = []
+    index_by_key: dict[tuple[str, str], int] = {}
+
+    def node(kind: str, label: str) -> int:
+        clean = str(label).strip() or "Not resolved"
+        key = (kind, clean.casefold())
+        if key not in index_by_key:
+            index_by_key[key] = len(labels)
+            labels.append(clean)
+            kinds.append(kind)
+        return index_by_key[key]
+
+    source_indexes: list[int] = []
+    target_indexes: list[int] = []
+    values: list[float] = []
+    customdata: list[list[str]] = []
+    for path in paths:
+        therapy_index = node("therapy_or_drug", path.therapy_display_name)
+        target_index = node("molecular_target", path.molecular_target_or_pathway)
+        state_index = node("predicted_disease_state", path.predicted_behavior_state)
+        escape_index = node("escape_or_recombination_pathway", path.escape_pathway)
+        timing_index = node("when_to_watch", path.monitoring_timing)
+        width = _confidence_width(path.confidence)
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            therapy_index,
+            target_index,
+            width,
+            "therapy/drug → molecular target",
+            path.target_driver_status,
+        )
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            target_index,
+            state_index,
+            width,
+            "target biology → predicted disease state",
+            path.target_driver_status,
+        )
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            state_index,
+            escape_index,
+            width,
+            "predicted disease state → recombination/escape pathway",
+            path.escape_pathway,
+        )
+        _add_sankey_link(
+            source_indexes,
+            target_indexes,
+            values,
+            customdata,
+            escape_index,
+            timing_index,
+            width,
+            "escape pathway → when to monitor",
+            path.monitoring_timing,
+        )
+    if not source_indexes:
+        return _empty_figure("No therapy-to-escape pathway flow was surfaced.")
+    return go.Figure(
         data=[
             go.Sankey(
                 arrangement="snap",
                 node={
-                    "label": [node.label for node in sankey.nodes],
-                    "color": [
-                        NODE_KIND_COLORS.get(node.kind.casefold(), DEFAULT_NODE_COLOR)
-                        for node in sankey.nodes
-                    ],
-                    "customdata": [
-                        [node.kind, node.evidence_class, node.node_id]
-                        for node in sankey.nodes
-                    ],
-                    "hovertemplate": (
-                        "%{label}<br>Type: %{customdata[0]}"
-                        "<br>Evidence: %{customdata[1]}"
-                        "<br>ID: %{customdata[2]}<extra></extra>"
-                    ),
-                    "pad": 22,
-                    "thickness": 18,
-                    "line": {"color": "#dbe4ef", "width": 1},
+                    "label": labels,
+                    "color": [NODE_KIND_COLORS.get(kind, DEFAULT_NODE_COLOR) for kind in kinds],
+                    "pad": 18,
+                    "thickness": 16,
                 },
                 link={
                     "source": source_indexes,
                     "target": target_indexes,
                     "value": values,
-                    "color": "rgba(79, 70, 229, 0.24)",
                     "customdata": customdata,
-                    "hovertemplate": (
-                        "Claim class: %{customdata[0]}"
-                        "<br>Validation required: %{customdata[1]}"
-                        "<br>Source artifacts: %{customdata[2]}"
-                        "<br>Artifact value: %{value}<extra></extra>"
-                    ),
+                    "hovertemplate": "%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
                 },
             )
-        ]
-    )
-    figure.update_layout(
-        title={
-            "text": (
-                "Finding → Mechanism → Molecular Fit → Validation Test"
-                "<br><sup>Link width reflects the structured artifact value; "
-                "it is not a calibrated biological probability.</sup>"
-            ),
-            "x": 0.01,
-            "xanchor": "left",
+        ],
+        layout={
+            "title": "Therapy/drug → target biology → predicted disease state → recombination/escape pathway → monitoring timing",
+            "font": {"size": 12},
+            "margin": {"l": 10, "r": 10, "t": 50, "b": 10},
         },
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#ffffff",
-        font={"family": "Avenir Next, Segoe UI, sans-serif", "color": "#172033"},
-        margin={"l": 20, "r": 20, "t": 82, "b": 20},
-        height=max(420, 64 * len(sankey.nodes)),
-    )
-    return figure
-
-
-def _status_markdown(packet: ReviewPacketExport) -> str:
-    statuses = [claim.validation_status for claim in packet.bundle.claims]
-    validated = statuses.count("validated")
-    rejected = statuses.count("rejected")
-    needs_review = statuses.count("needs_review")
-    return (
-        '<div class="translume-status">'
-        f"Persisted review packet loaded for case <strong>{html.escape(packet.case_id)}</strong>. "
-        f"Claims: {validated} validated, {rejected} rejected, {needs_review} need review."
-        "</div>"
     )
 
 
-def _case_summary_html(packet: ReviewPacketExport) -> str:
-    extraction = packet.bundle.extraction
-    summary_items = [
-        ("Case", packet.case_id),
-        ("Session", packet.session_id),
-        ("Report type", extraction.report_type),
-        ("Disease context", extraction.disease or "Not stated in report"),
-        ("Specimen", extraction.specimen or "Not stated in report"),
-        ("Tumor percentage", extraction.tumor_percentage or "Not stated in report"),
-        ("Molecular findings", str(len(extraction.molecular_findings))),
-        ("Source chunks", str(len(packet.chunks))),
+def _decision_snapshot_html(packet: ReviewPacketExport) -> str:
+    """Render the five MVP translational questions as the top report view."""
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    assessment = brief.translational_assessment
+    if assessment is not None:
+        top_treatment = _top_ranked_treatment(packet)
+        cards = [
+            _decision_card("Treat now", _treatment_snapshot_value(top_treatment)),
+            *(
+                _decision_card(
+                    _short_question_label(item.question_key),
+                    f"{item.status}: {item.answer}",
+                )
+                for item in _assessment_questions(assessment)
+            ),
+        ]
+        return '<div class="translume-decision-grid">' + "".join(cards) + "</div>"
+    top_treatment = _top_ranked_treatment(packet)
+    top_resistance = brief.resistance_forecast[0] if brief.resistance_forecast else None
+    top_biomarker = brief.biomarker_watch_list[0] if brief.biomarker_watch_list else None
+    top_trigger = brief.retesting_triggers[0] if brief.retesting_triggers else None
+    top_test = (
+        brief.next_test_recommendations[0]
+        if brief.next_test_recommendations
+        else None
+    )
+    cards = [
+        _decision_card("Treat now", _treatment_snapshot_value(top_treatment)),
+        _decision_card("Target relevance", _treatment_snapshot_value(top_treatment)),
+        _decision_card("Biomarker actionability", top_treatment.why_it_fits if top_treatment is not None else ""),
+        _decision_card("Resistance readiness", top_resistance.description if top_resistance is not None else ""),
+        _decision_card("Biomarker monitoring", _biomarker_snapshot_value(top_biomarker)),
+        _decision_card("Re-test trigger / next validation", f"{_trigger_snapshot_value(top_trigger)}; {_next_test_snapshot_value(top_test)}"),
     ]
-    grid = "".join(
-        (
-            '<div class="translume-summary-item">'
-            f'<span class="translume-summary-label">{html.escape(label)}</span>'
-            f'<span class="translume-summary-value">{html.escape(value)}</span>'
-            "</div>"
-        )
-        for label, value in summary_items
-    )
-    negatives = _html_list("Report negative findings", extraction.negative_findings)
-    limitations = _html_list("Report limitations", extraction.assay_limitations)
+    return '<div class="translume-decision-grid">' + "".join(cards) + "</div>"
+
+
+def _short_question_label(question_key: str) -> str:
+    return {
+        "target_relevance": "Target relevance",
+        "biomarker_evidence": "Biomarker evidence",
+        "resistance_mechanisms": "Resistance / escape readiness",
+        "patient_population_alignment": "Population fit",
+        "evidence_resolution": "Evidence + validation",
+    }.get(question_key, _humanize(question_key))
+
+def _top_ranked_treatment(packet: ReviewPacketExport) -> Any | None:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    if not brief.ranked_treatment_options:
+        return None
+    return sorted(brief.ranked_treatment_options, key=lambda item: item.rank)[0]
+
+
+def _treatment_snapshot_value(treatment: Any | None) -> str:
+    if treatment is None:
+        return "No treatment option was surfaced in the persisted brief."
+    return f"{treatment.therapy_name_or_class} ({treatment.clinical_use})"
+
+
+def _biomarker_snapshot_value(item: Any | None) -> str:
+    if item is None:
+        return "No biomarker watch item was surfaced in the persisted brief."
+    return f"{item.biomarker} via {item.preferred_test}"
+
+
+def _trigger_snapshot_value(item: Any | None) -> str:
+    if item is None:
+        return "No event-based re-testing trigger was surfaced."
+    return f"{item.clinical_event} → {item.recommended_test}"
+
+
+def _next_test_snapshot_value(item: Any | None) -> str:
+    if item is None:
+        return "No next-test recommendation was surfaced."
+    return f"{item.test_type}: {item.timing}"
+
+
+def _decision_card(label: str, value: str) -> str:
+    rendered_value = value.strip() or "Not surfaced in the persisted brief."
     return (
-        f'<div class="translume-summary-grid">{grid}</div>'
-        f"{negatives}{limitations}"
-        '<div class="translume-safety-note">'
-        "This output supports translational research review. It is not a diagnosis "
-        "or treatment recommendation, and every clinically meaningful claim requires human validation."
+        '<div class="translume-decision-card">'
+        f'<span class="translume-decision-label">{html.escape(label)}</span>'
+        f'<span class="translume-decision-value">{html.escape(rendered_value)}</span>'
         "</div>"
     )
+
+
+def _decision_summary_markdown(packet: ReviewPacketExport) -> str:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    state = brief.current_tumor_state
+    sections = [
+        brief.clinical_decision_summary,
+        _translational_summary_markdown(brief),
+        _markdown_list("Dominant drivers", state.dominant_drivers),
+        _markdown_list("Active pathways", state.active_pathways),
+        _markdown_list("Missing data", state.missing_data),
+        f"**Validation status:** `{brief.validation_status}`",
+    ]
+    return "\n\n".join(section for section in sections if section)
+
+
+
+
+def _translational_check_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    assessment = brief.translational_assessment
+    if assessment is None:
+        return [[
+            "Translational checks",
+            "unresolved",
+            "Five-question assessment was not generated in this packet.",
+            "unresolved",
+            "Unresolved evidence",
+            "Regenerate the report with translational checks enabled.",
+        ]]
+    return [
+        [
+            item.question,
+            item.status,
+            item.answer,
+            item.evidence_strength,
+            _joined_or_fallback(item.evidence_labels, fallback="Evidence label requires review."),
+            _joined_or_fallback(item.validation_next, fallback="Clinician review required."),
+        ]
+        for item in _assessment_questions(assessment)
+    ]
+
+
+def _assessment_questions(assessment: Any) -> list[Any]:
+    return [
+        assessment.target_relevance,
+        assessment.biomarker_evidence,
+        assessment.resistance_mechanisms,
+        assessment.patient_population_alignment,
+        assessment.evidence_resolution,
+    ]
+
+
+
+def _translational_summary_markdown(brief: Any) -> str:
+    assessment = brief.translational_assessment
+    if assessment is None:
+        return ""
+    return "**Five translational checks**\n" + "\n".join(
+        f"- **{item.question}** {item.answer} _(status: {item.status})_"
+        for item in _assessment_questions(assessment)
+    )
+
+
+
+def _evidence_sentence_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    """Return clinician-readable evidence labels without internal IDs."""
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.evidence_label,
+            item.statement,
+            item.quote,
+            item.relevance,
+        ]
+        for item in brief.evidence_sentence_map
+    ]
+
+
+def _actionable_biology_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.biology,
+            item.alteration_or_marker,
+            item.actionability,
+            item.evidence_level,
+            item.rationale,
+            item.uncertainty,
+            item.confidence,
+        ]
+        for item in brief.actionable_biology
+    ]
+
+
+def _ranked_treatment_option_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.rank,
+            item.therapy_name_or_class,
+            item.clinical_use,
+            item.therapy_class,
+            ", ".join(item.matched_biomarkers),
+            item.why_it_fits,
+            item.evidence_level,
+            "; ".join(item.resistance_risks),
+            "; ".join(item.required_before_use_tests),
+            "; ".join(item.limitations),
+            item.confidence,
+        ]
+        for item in brief.ranked_treatment_options
+    ]
+
+
+def _treatment_pressure_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.therapy_name_or_class,
+            item.target_or_pathway,
+            item.why_it_fits,
+            item.selective_pressure,
+            "; ".join(item.likely_escape_routes),
+            "; ".join(item.biomarkers_to_watch),
+            "; ".join(item.evidence_basis),
+            item.confidence,
+        ]
+        for item in brief.treatment_pressure_map
+    ]
+
+
+def _resistance_forecast_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.escape_route,
+            item.description,
+            item.associated_treatment_pressure,
+            "; ".join(item.supporting_evidence),
+            "; ".join(item.biomarkers_to_monitor),
+            item.confidence,
+        ]
+        for item in brief.resistance_forecast
+    ]
+
+
+def _biomarker_watch_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.priority,
+            item.biomarker,
+            item.alteration_type,
+            item.why_watch,
+            item.associated_treatment_pressure,
+            item.preferred_test,
+            item.trigger,
+        ]
+        for item in brief.biomarker_watch_list
+    ]
+
+
+def _retesting_trigger_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.urgency,
+            item.clinical_event,
+            item.recommended_test,
+            item.rationale,
+            item.what_result_changes,
+        ]
+        for item in brief.retesting_triggers
+    ]
+
+
+def _next_test_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.priority,
+            item.test_type,
+            item.timing,
+            item.rationale,
+            "; ".join(item.biomarkers_or_questions),
+            item.result_that_would_change_management,
+            "; ".join(item.limitations),
+        ]
+        for item in brief.next_test_recommendations
+    ]
+
+
+def _decision_limitations_rows(packet: ReviewPacketExport) -> list[list[Any]]:
+    brief = packet.bundle.decision_brief
+    assert brief is not None
+    return [
+        [
+            item.limitation,
+            item.impact,
+            item.needed_resolution,
+        ]
+        for item in brief.evidence_limitations
+    ]
 
 
 def _finding_rows(packet: ReviewPacketExport) -> list[list[Any]]:
@@ -280,10 +833,7 @@ def _finding_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             finding.alteration_type,
             finding.source_page if finding.source_page is not None else "",
             round(finding.confidence, 4),
-            finding.research_use_only,
-            finding.needs_human_review,
             finding.source_text or "",
-            finding.finding_id,
         ]
         for finding in packet.bundle.extraction.molecular_findings
     ]
@@ -297,9 +847,7 @@ def _entity_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             entity.entity_type,
             entity.original_text,
             entity.normalized_label,
-            entity.source_finding_id or "",
             entity.needs_human_review,
-            entity.entity_id,
         ]
         for entity in entities.entities
     ]
@@ -311,11 +859,10 @@ def _phenotype_rows(packet: ReviewPacketExport) -> list[list[Any]]:
     return [
         [
             axis.label,
-            ", ".join(axis.supporting_finding_ids),
+            str(len(axis.supporting_finding_ids)),
             axis.evidence_class,
             axis.uncertainty,
             axis.validation_needed,
-            axis.axis_id,
         ]
         for axis in phenotype.axes
     ]
@@ -333,7 +880,13 @@ def _matrix_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             row.evidence_basis,
             row.required_validation,
             row.limitations,
-            row.not_a_recommendation,
+            row.clinical_use,
+            row.therapy_class,
+            ", ".join(row.matched_biomarkers),
+            "; ".join(row.resistance_risks),
+            "; ".join(row.required_before_use_tests),
+            row.confidence,
+            row.evidence_level,
         ]
         for row in matrix.rows
     ]
@@ -350,8 +903,6 @@ def _confirmatory_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             test.positive_interpretation,
             test.negative_interpretation,
             test.evidence_gap,
-            ", ".join(test.source_claim_ids),
-            test.test_id,
         ]
         for test in confirmatory.tests
     ]
@@ -363,10 +914,10 @@ def _tumor_state_rows(packet: ReviewPacketExport) -> list[list[Any]]:
     return [
         [
             state.state_label,
-            ", ".join(state.supporting_findings),
-            ", ".join(state.graph_support),
-            ", ".join(state.tool_support),
-            ", ".join(state.medea_support),
+            str(len(state.supporting_findings)),
+            str(len(state.graph_support)),
+            str(len(state.tool_support)),
+            str(len(state.medea_support)),
             state.evidence_class,
             state.uncertainty,
             state.validation_needed,
@@ -383,7 +934,6 @@ def _transition_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             transition.from_state,
             transition.to_state,
             transition.rationale,
-            ", ".join(transition.supporting_artifacts),
             transition.confidence_label,
             transition.validation_status,
             transition.hypothesis_generating,
@@ -396,7 +946,7 @@ def _graph_node_rows(packet: ReviewPacketExport) -> list[list[Any]]:
     context = packet.bundle.evidence_context
     assert context is not None
     return [
-        [node.label, node.kind, node.source, node.node_id]
+        [node.label, node.kind, node.source]
         for node in context.graph_evidence.nodes
     ]
 
@@ -413,7 +963,6 @@ def _graph_edge_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             edge.relation_type,
             label_by_id.get(edge.target_node_id, edge.target_node_id),
             edge.source,
-            edge.edge_id,
         ]
         for edge in context.graph_evidence.edges
     ]
@@ -429,7 +978,6 @@ def _tool_run_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             len(tool.evidence_items),
             "; ".join(tool.warnings),
             tool.requires_human_review,
-            tool.artifact_id,
         ]
         for tool in context.tool_outputs
     ]
@@ -448,8 +996,6 @@ def _tool_evidence_rows(packet: ReviewPacketExport) -> list[list[Any]]:
                     _first_item_value(item, ("title", "name", "label")),
                     _first_item_value(item, ("pmid", "doi", "identifier", "id")),
                     _first_item_value(item, ("summary", "finding", "relevance", "text")),
-                    json.dumps(item, sort_keys=True),
-                    item_index,
                 ]
             )
     return rows
@@ -507,14 +1053,12 @@ def _containment_markdown(packet: ReviewPacketExport) -> str:
 def _claim_rows(packet: ReviewPacketExport) -> list[list[Any]]:
     return [
         [
-            claim.claim_id,
             claim.validation_status,
             claim.claim_class,
             claim.claim,
             claim.evidence_source,
             claim.relevance,
             claim.limitations,
-            ", ".join(claim.source_artifact_ids),
         ]
         for claim in packet.bundle.claims
     ]
@@ -524,11 +1068,9 @@ def _validation_rows(packet: ReviewPacketExport) -> list[list[Any]]:
     return [
         [
             decision.status,
-            decision.claim_id,
             decision.reviewer_id or "",
             decision.reviewer_note or "",
             decision.created_at.isoformat(),
-            decision.decision_id,
         ]
         for decision in packet.bundle.validation_decisions
     ]
@@ -543,10 +1085,6 @@ def _provenance_rows(packet: ReviewPacketExport) -> list[list[Any]]:
             provenance.generation_status,
             provenance.validation_status,
             len(provenance.source_chunk_ids),
-            ", ".join(provenance.source_artifact_ids),
-            provenance.prompt_hash or "",
-            provenance.schema_hash or "",
-            provenance.artifact_id,
         ]
         for provenance in packet.bundle.provenance
     ]
@@ -557,20 +1095,23 @@ def _ledger_rows(packet: ReviewPacketExport) -> list[list[Any]]:
         [
             event.created_at.isoformat(),
             event.event_type,
-            event.artifact_id or "",
             json.dumps(event.details, sort_keys=True),
-            event.event_id,
         ]
         for event in packet.bundle.ledger_events
     ]
 
 
-def _html_list(title: str, values: list[str]) -> str:
-    if not values:
-        return ""
-    items = "".join(f"<li>{html.escape(value)}</li>" for value in values)
-    return f"<strong>{html.escape(title)}</strong><ul class=\"translume-summary-list\">{items}</ul>"
 
+
+def _joined_or_fallback(values: list[str] | tuple[str, ...], *, fallback: str) -> str:
+    cleaned = [value.strip() for value in values if value.strip()]
+    if not cleaned:
+        return fallback
+    return "; ".join(cleaned)
+
+
+def _humanize(value: str) -> str:
+    return value.replace("_", " ").strip().capitalize()
 
 def _markdown_list(title: str, values: list[str]) -> str:
     if not values:

@@ -1,0 +1,79 @@
+{
+  "fixture_id": "synthetic_lung_egfr_resistance_v1",
+  "description": "Synthetic NGS fixture for an EGFR-driven lung cancer decision brief with MET resistance monitoring.",
+  "tumor_type": "non-small cell lung cancer",
+  "report_type": "NGS",
+  "expected_signals": [
+    {
+      "signal_id": "finding_egfr_l858r",
+      "term": "EGFR L858R",
+      "category": "report_finding",
+      "aliases": ["EGFR", "L858R"],
+      "sections": ["extraction", "current_tumor_state", "ranked_treatment_options"],
+      "required": true
+    },
+    {
+      "signal_id": "treatment_egfr_inhibitor",
+      "term": "EGFR inhibitor",
+      "category": "treatment_option",
+      "aliases": ["EGFR-targeted therapy"],
+      "sections": ["ranked_treatment_options"],
+      "required": true
+    },
+    {
+      "signal_id": "resistance_met_amplification",
+      "term": "MET amplification",
+      "category": "resistance_route",
+      "aliases": ["MET"],
+      "sections": ["resistance_forecast", "biomarker_watch_list"],
+      "required": true
+    },
+    {
+      "signal_id": "biomarker_met",
+      "term": "MET",
+      "category": "biomarker",
+      "aliases": ["MET amplification"],
+      "sections": ["biomarker_watch_list"],
+      "required": true
+    },
+    {
+      "signal_id": "test_ctdna",
+      "term": "ctDNA",
+      "category": "test_modality",
+      "aliases": ["liquid biopsy"],
+      "sections": ["retesting_triggers", "next_test_recommendations"],
+      "required": true
+    }
+  ],
+  "forbidden_signals": [
+    {
+      "signal_id": "forbid_alk",
+      "term": "ALK",
+      "aliases": ["ALK fusion"],
+      "reason": "ALK is not present in this fixture and should not be introduced.",
+      "severity": "error"
+    },
+    {
+      "signal_id": "forbid_ros1",
+      "term": "ROS1",
+      "aliases": ["ROS1 fusion"],
+      "reason": "ROS1 is not present in this fixture and should not be introduced.",
+      "severity": "error"
+    }
+  ],
+  "allowed_terms": [
+    "EGFR",
+    "L858R",
+    "MET",
+    "TP53",
+    "ctDNA",
+    "tissue NGS",
+    "radiographic progression"
+  ],
+  "thresholds": {
+    "minimum_expected_signal_recall": 1.0,
+    "minimum_evidence_coverage": 1.0,
+    "minimum_clinical_usefulness": 0.875,
+    "allow_forbidden_warnings": true
+  }
+}

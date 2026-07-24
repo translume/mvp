@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
 
 from translume_adapters.errors import ProviderUnavailableError
-from translume_adapters.tool_providers.tooluniverse_runtime import ToolUniverseRuntime
+from translume_adapters.tool_providers.tooluniverse_runtime import (
+    LocalToolOverride,
+    ToolUniverseRuntime,
+)
 from translume_schemas.entities import NormalizedEntitySet
 from translume_schemas.graph import GraphEvidenceArtifact
 from translume_schemas.tools import ToolRunArtifact
@@ -35,6 +39,7 @@ class ToolUniverseProvider:
         config: ToolUniverseProviderConfig | str | Path,
         workflow_config_path: Path | None = None,
         module_names: tuple[str, ...] = ("tooluniverse",),
+        local_tool_overrides: Mapping[str, LocalToolOverride] | None = None,
     ) -> None:
         self._runtime: ToolUniverseRuntime | None = None
         if workflow_config_path is not None:
@@ -43,8 +48,14 @@ class ToolUniverseProvider:
                 repo_path=Path(config),
                 workflow_config_path=workflow_config_path,
                 module_names=module_names,
+                local_tool_overrides=local_tool_overrides,
             )
             return
+        if local_tool_overrides:
+            raise ProviderUnavailableError(
+                "local overrides are valid only in direct runtime mode; "
+                "HTTP-mode overrides belong in tooluniverse-service"
+            )
         if isinstance(config, str):
             config = ToolUniverseProviderConfig(base_url=config)
         if isinstance(config, Path):
@@ -94,6 +105,11 @@ class ToolUniverseProvider:
         if not isinstance(raw_artifacts, list):
             raise ProviderUnavailableError("ToolUniverse service response missing artifacts list")
         return [ToolRunArtifact.model_validate(item) for item in raw_artifacts]
+
+    def close(self) -> None:
+        """Close direct-runtime resources; HTTP mode owns no persistent client."""
+        if self._runtime is not None:
+            self._runtime.close()
 
     def _base_url(self) -> str:
         if self._config is None:
