@@ -1,1 +1,0 @@
-ok using the codebase within this zip entitled, "[ZIP FILE NAME HERE]", build on top of and/or extend it to what is next in the plan, which is writing code for: [PHASE NAME HERE], follow your PRIME_DIRECTIVES while crafting any and all code.
