@@ -15,12 +15,12 @@ from scripts.full_stack_preflight import (
 from scripts.run_full_stack_integration import (
     assert_absent_phrases,
     assert_non_empty_paths,
-    build_vllm_structured_output_request,
+    build_openai_structured_output_request,
     get_path,
     health_field_mismatch,
     is_non_empty,
+    run_full_stack_integration,
 )
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -30,7 +30,7 @@ def test_full_stack_requirements_are_loadable() -> None:
         ROOT / "configs" / "integration" / "full_stack_requirements.json"
     )
     assert "review_packet_required_non_empty_paths" in requirements
-    assert "vllm" in requirements
+    assert "openai" in requirements
 
 
 def test_required_environment_reports_all_missing_values() -> None:
@@ -44,7 +44,10 @@ def test_required_environment_reports_all_missing_values() -> None:
 def test_validate_model_identifier_rejects_configured_placeholder_values() -> None:
     with pytest.raises(PreflightError):
         validate_model_identifier("local-clinical-model", ["local-clinical-model"])
-    assert validate_model_identifier("hf-org/model-name", ["local-clinical-model"]) == "hf-org/model-name"
+    assert (
+        validate_model_identifier("hf-org/model-name", ["local-clinical-model"])
+        == "hf-org/model-name"
+    )
 
 
 def test_validate_report_path_requires_real_pdf(tmp_path: Path) -> None:
@@ -145,35 +148,36 @@ def test_health_field_mismatch_accepts_omitted_empty_missing_workflows() -> None
     )
 
 
-def test_vllm_preflight_request_uses_single_user_message() -> None:
-    schema = {"name": "status_schema", "schema": {"type": "object"}}
-    request = build_vllm_structured_output_request(
-        model="local-model",
-        schema=schema,
-    )
-    assert request["model"] == "local-model"
-    assert request["response_format"] == {
-        "type": "json_schema",
-        "json_schema": schema,
+def test_openai_preflight_request_uses_pro_responses() -> None:
+    schema = {"name": "status_schema", "strict": True, "schema": {"type": "object"}}
+    request = build_openai_structured_output_request(model="gpt-6-astra", schema=schema)
+    assert request["model"] == "gpt-6-astra"
+    assert request["reasoning"] == {"mode": "pro", "effort": "xhigh"}
+    assert request["store"] is False
+    assert request["text"] == {"format": {"type": "json_schema", **schema}}
+    assert "temperature" not in request
+    assert schema == {
+        "name": "status_schema",
+        "strict": True,
+        "schema": {"type": "object"},
     }
-    assert request["messages"] == [
-        {
-            "role": "user",
-            "content": (
-                "Return only schema-valid JSON for this status check. "
-                "Return status ready for Translume."
-            ),
-        }
-    ]
-    assert schema == {"name": "status_schema", "schema": {"type": "object"}}
 
 
 @pytest.mark.skipif(
     os.getenv("RUN_FULL_STACK_INTEGRATION") != "true",
-    reason="set RUN_FULL_STACK_INTEGRATION=true to run real Docker/GPU/local-vLLM integration",
+    reason="set RUN_FULL_STACK_INTEGRATION=true to run real Docker/CPU/OpenAI integration",
 )
-def test_real_full_stack_integration_entrypoint_is_opt_in() -> None:
-    # The real integration is executed by scripts/run_full_stack_integration.py
-    # after Docker Compose services are running. This test intentionally avoids
-    # simulating services because the MVP rule is no mocked product path.
-    assert os.getenv("TRANSLUME_E2E_REPORT_PATH")
+@pytest.mark.asyncio
+async def test_real_full_stack_integration_entrypoint_is_opt_in() -> None:
+    """Execute the actual workflow when explicitly enabled with live credentials."""
+    result = await run_full_stack_integration(
+        requirements_path=ROOT / "configs/integration/full_stack_requirements.json",
+        environment=dict(os.environ),
+        root=ROOT,
+        wait_timeout_seconds=300,
+        wait_interval_seconds=5,
+        api_timeout_seconds=21600,
+    )
+    assert result.session_id
+    assert result.claim_id
+    assert len(result.downstream_artifact_paths) == 3

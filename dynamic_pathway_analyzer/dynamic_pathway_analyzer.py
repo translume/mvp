@@ -29,13 +29,18 @@ import json
 import os
 import re
 import sys
-import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from openai import OpenAI
 from pydantic import BaseModel, Field
+
+if __package__:
+    from . import openai_runtime as remote
+else:
+    import openai_runtime as remote
 
 
 # ---------------------------------------------------------------------------
@@ -44,11 +49,12 @@ from pydantic import BaseModel, Field
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Current high-capability default. Change through --model or OPENAI_MODEL.
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6")
-
-# A smaller/cheaper model can be supplied independently for normalization.
+OPENAI_MODEL = os.getenv(
+    "OPENAI_REASONING_MODEL", os.getenv("OPENAI_MODEL", "gpt-6-astra")
+)
 NORMALIZER_MODEL = os.getenv("OPENAI_NORMALIZER_MODEL", OPENAI_MODEL)
+OPENAI_REASONING_MODE = os.getenv("OPENAI_REASONING_MODE", "pro")
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "xhigh")
 
 MAX_JSON_CHARS = int(os.getenv("MAX_JSON_CHARS", "180000"))
 MAX_FINDINGS = int(os.getenv("MAX_FINDINGS", "40"))
@@ -66,7 +72,7 @@ AUTHORITATIVE_RESEARCH_DOMAINS = [
     "ema.europa.eu",
     "who.int",
     "panomebio.com",
-    "exactsciences.com"
+    "exactsciences.com",
 ]
 
 GENE_KEY_NAMES = {
@@ -104,6 +110,7 @@ GENE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9\-]{1,14}$")
 # ---------------------------------------------------------------------------
 # STRUCTURED MODELS
 # ---------------------------------------------------------------------------
+
 
 class SourcePointer(BaseModel):
     source_id: str | None = None
@@ -261,12 +268,15 @@ class FinalReport(BaseModel):
 # GENERIC JSON DISCOVERY
 # ---------------------------------------------------------------------------
 
+
 def stable_id(prefix: str, value: Any) -> str:
     raw = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
     return f"{prefix}_{hashlib.sha256(raw).hexdigest()[:16]}"
 
 
-def walk_json(value: Any, path: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], Any]]:
+def walk_json(
+    value: Any, path: tuple[str, ...] = ()
+) -> Iterable[tuple[tuple[str, ...], Any]]:
     yield path, value
     if isinstance(value, dict):
         for key, child in value.items():
@@ -285,18 +295,43 @@ def clean_scalar(value: Any, max_len: int = 1200) -> Any:
 
 def compact_dict(record: dict[str, Any], max_fields: int = 35) -> dict[str, Any]:
     preferred = [
-        "finding_id", "gene_or_marker", "gene", "marker", "display_label",
-        "alteration", "alteration_type", "variant", "molecular_layers",
-        "priority", "reported_category", "clinical_roles", "confidence",
-        "needs_human_review", "research_use_only", "source_pages",
-        "source_texts", "missing_validation", "contradictions",
-        "existing_drug_mentions", "existing_trial_ids",
-        "title", "hypothesis_type", "biological_theme",
-        "patient_specific_observation", "mechanism_to_validate",
-        "therapy_classes_to_research", "confirmatory_questions",
-        "critical_cautions", "clinical_question", "search_concepts",
-        "url", "source_type", "source_role", "publication_or_update_date",
-        "verification_status", "selection_score",
+        "finding_id",
+        "gene_or_marker",
+        "gene",
+        "marker",
+        "display_label",
+        "alteration",
+        "alteration_type",
+        "variant",
+        "molecular_layers",
+        "priority",
+        "reported_category",
+        "clinical_roles",
+        "confidence",
+        "needs_human_review",
+        "research_use_only",
+        "source_pages",
+        "source_texts",
+        "missing_validation",
+        "contradictions",
+        "existing_drug_mentions",
+        "existing_trial_ids",
+        "title",
+        "hypothesis_type",
+        "biological_theme",
+        "patient_specific_observation",
+        "mechanism_to_validate",
+        "therapy_classes_to_research",
+        "confirmatory_questions",
+        "critical_cautions",
+        "clinical_question",
+        "search_concepts",
+        "url",
+        "source_type",
+        "source_role",
+        "publication_or_update_date",
+        "verification_status",
+        "selection_score",
     ]
     output: dict[str, Any] = {}
     for key in preferred:
@@ -328,8 +363,13 @@ def looks_like_finding(record: dict[str, Any]) -> bool:
     keys = {str(k).lower() for k in record}
     has_gene = bool(keys & GENE_KEY_NAMES)
     has_alteration = bool(keys & ALTERATION_KEY_NAMES)
-    label = " ".join(str(record.get(k, "")) for k in record if str(k).lower() in GENE_KEY_NAMES)
-    likely_gene = any(GENE_PATTERN.match(part) for part in re.findall(r"[A-Za-z0-9\-]+", label.upper()))
+    label = " ".join(
+        str(record.get(k, "")) for k in record if str(k).lower() in GENE_KEY_NAMES
+    )
+    likely_gene = any(
+        GENE_PATTERN.match(part)
+        for part in re.findall(r"[A-Za-z0-9\-]+", label.upper())
+    )
     return (has_gene and has_alteration) or (has_gene and likely_gene)
 
 
@@ -350,7 +390,9 @@ def find_case_context(payload: dict[str, Any]) -> dict[str, Any]:
         score += 1 if "specimen" in keys else 0
         score += 1 if "missing_context" in keys else 0
         if score:
-            candidates.append({"path": ".".join(path), "score": score, "data": compact_dict(value)})
+            candidates.append(
+                {"path": ".".join(path), "score": score, "data": compact_dict(value)}
+            )
     candidates.sort(key=lambda x: x["score"], reverse=True)
     return candidates[0] if candidates else {"path": "", "score": 0, "data": {}}
 
@@ -391,27 +433,45 @@ def discover_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 fingerprint = "|".join(trial_ids) + "|" + str(compact.get("url", ""))
                 if fingerprint not in seen_trials:
                     seen_trials.add(fingerprint)
-                    trials.append({
-                        "json_path": ".".join(path),
-                        "trial_ids": trial_ids,
-                        **compact,
-                    })
+                    trials.append(
+                        {
+                            "json_path": ".".join(path),
+                            "trial_ids": trial_ids,
+                            **compact,
+                        }
+                    )
 
-            if "hypoth" in path_text or "mechanism" in path_text or "pathway" in path_text:
-                if any(k in value for k in (
-                    "title", "hypothesis_type", "biological_theme",
-                    "mechanism_to_validate", "patient_specific_observation",
-                )):
-                    hypotheses.append({"json_path": ".".join(path), **compact_dict(value)})
+            if (
+                "hypoth" in path_text
+                or "mechanism" in path_text
+                or "pathway" in path_text
+            ) and any(
+                k in value
+                for k in (
+                    "title",
+                    "hypothesis_type",
+                    "biological_theme",
+                    "mechanism_to_validate",
+                    "patient_specific_observation",
+                )
+            ):
+                hypotheses.append({"json_path": ".".join(path), **compact_dict(value)})
 
-            if "limitation" in path_text or "warning" in path_text:
-                if any(k in value for k in ("description", "clinical_effect", "limitation", "warning")):
-                    limitations.append({"json_path": ".".join(path), **compact_dict(value)})
+            if ("limitation" in path_text or "warning" in path_text) and any(
+                k in value
+                for k in ("description", "clinical_effect", "limitation", "warning")
+            ):
+                limitations.append({"json_path": ".".join(path), **compact_dict(value)})
 
     # Prefer the highest-priority and best-supported findings.
     def finding_rank(x: dict[str, Any]) -> tuple[int, float, int]:
         priority = str(x.get("priority", "")).upper()
-        priority_score = {"PRIMARY": 3, "ACTIONABLE": 3, "SECONDARY": 2, "CONTEXT": 1}.get(priority, 0)
+        priority_score = {
+            "PRIMARY": 3,
+            "ACTIONABLE": 3,
+            "SECONDARY": 2,
+            "CONTEXT": 1,
+        }.get(priority, 0)
         confidence = float(x.get("confidence") or 0)
         support = len(x.get("source_texts") or []) + len(x.get("source_pages") or [])
         return priority_score, confidence, support
@@ -568,29 +628,25 @@ Rules:
 """
 
 
-def with_retries(fn, attempts: int = 4, base_delay: float = 2.0):
-    last_error: Exception | None = None
-    for attempt in range(attempts):
-        try:
-            return fn()
-        except Exception as exc:  # SDK/network/API errors
-            last_error = exc
-            if attempt == attempts - 1:
-                break
-            time.sleep(base_delay * (2 ** attempt))
-    raise RuntimeError(f"OpenAI request failed after {attempts} attempts: {last_error}") from last_error
-
-
 def normalize_case(
     client: OpenAI,
     discovered: dict[str, Any],
     model: str,
     diagnosis: str,
+    *,
+    settings: remote.RemoteSettings | None = None,
+    audit_dir: Path | None = None,
 ) -> NormalizedCaseMap:
-    response = with_retries(
-        lambda: client.responses.parse(
-            model=model,
-            input=[
+    """Normalize supplied evidence through one validated remote model stage."""
+    response = remote.request_response(
+        client,
+        stage="case_normalization",
+        settings=settings or remote.RemoteSettings(),
+        audit_dir=audit_dir,
+        response_model=NormalizedCaseMap,
+        request={
+            "model": model,
+            "input": [
                 {"role": "system", "content": NORMALIZER_SYSTEM_PROMPT},
                 {
                     "role": "user",
@@ -601,14 +657,19 @@ def normalize_case(
                     ),
                 },
             ],
-            text_format=NormalizedCaseMap,
-        )
+            "text": remote.text_format(NormalizedCaseMap),
+        },
     )
-    if response.output_parsed is None:
-        raise RuntimeError("Normalizer returned no structured output.")
-    result: NormalizedCaseMap = response.output_parsed
-    result.pathway_hypotheses = result.pathway_hypotheses[:MAX_RESEARCH_PATHWAYS]
-    return result
+    result = remote.structured_output(
+        response,
+        NormalizedCaseMap,
+        stage="case_normalization",
+    )
+    return result.model_copy(
+        update={
+            "pathway_hypotheses": result.pathway_hypotheses[:MAX_RESEARCH_PATHWAYS],
+        }
+    )
 
 
 def extract_consulted_web_sources(
@@ -639,7 +700,9 @@ def extract_consulted_web_sources(
                         url=normalized,
                         domain=(urlparse(normalized).hostname or "").lower(),
                         source_type=(
-                            str(node.get("type")) if node.get("type") is not None else None
+                            str(node.get("type"))
+                            if node.get("type") is not None
+                            else None
                         ),
                     ),
                 )
@@ -659,6 +722,9 @@ def run_research_lane(
     prompt: dict[str, Any],
     lane: Literal["authoritative", "open_web"],
     diagnosis: str,
+    *,
+    settings: remote.RemoteSettings | None = None,
+    audit_dir: Path | None = None,
 ) -> tuple[str, list[ConsultedWebSource]]:
     """Run one bounded search lane and retain every consulted URL."""
 
@@ -675,8 +741,7 @@ def run_research_lane(
         "Use authoritative medical sources: official trial registries, PubMed/PMC, "
         "regulators, government cancer resources, and professional evidence records."
         if lane == "authoritative"
-        else
-        "Search the unrestricted open web for distinctive, highly relevant sources "
+        else "Search the unrestricted open web for distinctive, highly relevant sources "
         "that authoritative indexes may miss: journal publishers, academic groups, "
         "conference material, translational or metabolomics commentary, biotechnology "
         "research, medical news, and sponsor research. Avoid duplicating routine "
@@ -686,14 +751,17 @@ def run_research_lane(
     lane_prompt["search_lane"] = lane
     lane_prompt["lane_instruction"] = lane_instruction
 
-    response = with_retries(
-        lambda: client.responses.create(
-            model=model,
-            reasoning={"effort": "medium"},
-            tools=[web_tool],
-            tool_choice="required",
-            include=["web_search_call.action.sources"],
-            input=[
+    response = remote.request_response(
+        client,
+        stage=f"research_{lane}",
+        settings=settings or remote.RemoteSettings(),
+        audit_dir=audit_dir,
+        request={
+            "model": model,
+            "tools": [web_tool],
+            "tool_choice": "required",
+            "include": ["web_search_call.action.sources"],
+            "input": [
                 {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
                 {
                     "role": "user",
@@ -703,10 +771,19 @@ def run_research_lane(
                     ),
                 },
             ],
-        )
+        },
     )
-    if not response.output_text:
-        raise RuntimeError(f"Research call returned no text for {lane} lane.")
+    if not response.output_text or not response.output_text.strip():
+        raise remote.OpenAIRequestFailure(
+            f"Research call returned no text for {lane} lane."
+        )
+    if not any(
+        item.get("type") == "web_search_call" and item.get("status") == "completed"
+        for item in response.model_dump(mode="json").get("output", [])
+    ):
+        raise remote.OpenAIRequestFailure(
+            f"Research call did not complete a web search for {lane} lane."
+        )
     return response.output_text, extract_consulted_web_sources(
         response,
         "batched_priority_pathways",
@@ -714,43 +791,58 @@ def run_research_lane(
     )
 
 
-def research_case(
-    client: OpenAI,
+def biomedical_search_payload(
     case_map: NormalizedCaseMap,
-    model: str,
     diagnosis: str,
-) -> tuple[str, list[ConsultedWebSource]]:
-    """Run moderate authoritative and open-web searches across priority pathways."""
+) -> dict[str, Any]:
+    """Return the minimum disease/molecular context needed for public research.
 
-    pathways = case_map.pathway_hypotheses[:MAX_RESEARCH_PATHWAYS]
-    if not pathways:
-        raise RuntimeError("No pathway hypotheses were available for web research.")
-
-    research_plan = []
-    for pathway in pathways:
-        research_plan.append({
-            "pathway_id": pathway.pathway_id,
-            "title": pathway.title,
-            "patient_specific_basis": pathway.patient_specific_basis,
-            "queries": pathway.research_queries[:3],
-            "confirmation_questions": pathway.confirmation_questions[:4],
-            "combination_or_recombination_paths": (
-                pathway.potential_combination_or_recombination_paths[:4]
-            ),
-        })
-
-    prompt = {
-        "case_context": case_map.case.model_dump(),
-        "priority_pathways": research_plan,
+    Acceptance criteria:
+        1. Dates, geography, specimen details, source text, and history are absent.
+        2. Public molecular concepts and hypothesis IDs survive for evidence joins.
+        3. Patient-derived narrative and free-form research queries are excluded.
+        4. The input case is never mutated; the finalizer retains the full case.
+    """
+    finding_map = {finding.finding_id: finding for finding in case_map.findings}
+    pathways = []
+    for pathway in case_map.pathway_hypotheses[:MAX_RESEARCH_PATHWAYS]:
+        unknown_ids = set(pathway.involved_findings) - finding_map.keys()
+        if unknown_ids:
+            raise ValueError("A pathway refers to an unknown finding ID.")
+        pathways.append(
+            {
+                "pathway_id": pathway.pathway_id,
+                "title": pathway.title,
+                "pathway_type": pathway.pathway_type,
+                "molecular_findings": [
+                    {
+                        "gene_or_marker": finding_map[identifier].gene_or_marker,
+                        "alteration": finding_map[identifier].alteration,
+                        "alteration_type": finding_map[identifier].alteration_type,
+                        "evidence_status": finding_map[identifier].evidence_status,
+                    }
+                    for identifier in pathway.involved_findings
+                ],
+            }
+        )
+    return {
+        "disease_context": {
+            "diagnosis": diagnosis,
+            "histology": case_map.case.histology,
+        },
+        "priority_pathways": pathways,
         "research_depth": "moderately thorough, highly relevant, not exhaustive",
-        "source_budget": "Follow the lane-specific budget; retain only highly relevant sources.",
         "priorities": [
-            "patient-specific mechanism and disease fit",
-            "clinically meaningful human evidence or current trials",
-            "confirmation requirements",
-            "one high-value translational or mechanistic source when it adds distinct value",
-            "important combination or resistance insight only when well supported",
+            "mechanism and exact disease fit",
+            "clinically meaningful human evidence and current trials",
+            "required companion markers and confirmation requirements",
+            "translational evidence that adds distinct mechanistic value",
+            "combination and resistance insights only when supported",
         ],
+        "search_instruction": (
+            "Use only biomedical disease, gene, alteration, and pathway terms in "
+            "public searches. Do not infer patient history, eligibility, or status."
+        ),
         "requested_output": {
             "format": "concise pathway-organized research memo",
             "requirements": [
@@ -759,10 +851,27 @@ def research_case(
                 "include full source URLs",
                 "state what each source supports and does not establish",
                 "separate mechanism value from clinical actionability",
-                "avoid repetitive sources and marginally relevant background",
             ],
         },
     }
+
+
+def research_case(
+    client: OpenAI,
+    case_map: NormalizedCaseMap,
+    model: str,
+    diagnosis: str,
+    *,
+    settings: remote.RemoteSettings | None = None,
+    audit_dir: Path | None = None,
+) -> tuple[str, list[ConsultedWebSource]]:
+    """Run moderate authoritative and open-web searches across priority pathways."""
+
+    pathways = case_map.pathway_hypotheses[:MAX_RESEARCH_PATHWAYS]
+    if not pathways:
+        raise RuntimeError("No pathway hypotheses were available for web research.")
+
+    prompt = biomedical_search_payload(case_map, diagnosis)
 
     authoritative_prompt = dict(prompt)
     authoritative_prompt["source_budget"] = {
@@ -776,35 +885,49 @@ def research_case(
     }
 
     authoritative_memo, authoritative_sources = run_research_lane(
-        client, model, authoritative_prompt, "authoritative", diagnosis
+        client,
+        model,
+        authoritative_prompt,
+        "authoritative",
+        diagnosis,
+        settings=settings,
+        audit_dir=audit_dir,
     )
     open_web_memo, open_web_sources = run_research_lane(
-        client, model, open_web_prompt, "open_web", diagnosis
+        client,
+        model,
+        open_web_prompt,
+        "open_web",
+        diagnosis,
+        settings=settings,
+        audit_dir=audit_dir,
     )
 
     source_map: dict[str, ConsultedWebSource] = {}
     for source in [*authoritative_sources, *open_web_sources]:
         source_map.setdefault(source.url, source)
     sources = list(source_map.values())
-    memo = "\n".join([
-        "# Moderately thorough hybrid pathway research",
-        "",
-        "## Authoritative medical and trial research",
-        "",
-        authoritative_memo,
-        "",
-        "## Open-web translational discovery",
-        "",
-        open_web_memo,
-        "",
-        "## All consulted web sources",
-        "",
-        *[
-            f"- [{source.title}]({source.url}) — {source.discovery_lane}"
-            for source in sources
-        ],
-        "",
-    ])
+    memo = "\n".join(
+        [
+            "# Moderately thorough hybrid pathway research",
+            "",
+            "## Authoritative medical and trial research",
+            "",
+            authoritative_memo,
+            "",
+            "## Open-web translational discovery",
+            "",
+            open_web_memo,
+            "",
+            "## All consulted web sources",
+            "",
+            *[
+                f"- [{source.title}]({source.url}) — {source.discovery_lane}"
+                for source in sources
+            ],
+            "",
+        ]
+    )
     return memo, sources
 
 
@@ -814,15 +937,24 @@ def finalize_report(
     research_memo: str,
     model: str,
     diagnosis: str,
+    *,
+    settings: remote.RemoteSettings | None = None,
+    audit_dir: Path | None = None,
 ) -> FinalReport:
+    """Compile a domain-validated report from the case and observed research."""
     payload = {
         "normalized_case_map": case_map.model_dump(),
         "research_memo": research_memo,
     }
-    response = with_retries(
-        lambda: client.responses.parse(
-            model=model,
-            input=[
+    response = remote.request_response(
+        client,
+        stage="report_finalization",
+        settings=settings or remote.RemoteSettings(),
+        audit_dir=audit_dir,
+        response_model=FinalReport,
+        request={
+            "model": model,
+            "input": [
                 {"role": "system", "content": FINALIZER_SYSTEM_PROMPT},
                 {
                     "role": "user",
@@ -832,17 +964,16 @@ def finalize_report(
                     ),
                 },
             ],
-            text_format=FinalReport,
-        )
+            "text": remote.text_format(FinalReport),
+        },
     )
-    if response.output_parsed is None:
-        raise RuntimeError("Finalizer returned no structured output.")
-    return response.output_parsed
+    return remote.structured_output(response, FinalReport, stage="report_finalization")
 
 
 # ---------------------------------------------------------------------------
 # OUTPUT RENDERING
 # ---------------------------------------------------------------------------
+
 
 def render_markdown(report: FinalReport) -> str:
     lines: list[str] = [
@@ -859,19 +990,30 @@ def render_markdown(report: FinalReport) -> str:
     ]
 
     for index, pathway in enumerate(report.pathways, start=1):
-        lines.extend([
-            f"## {index}. {pathway.title}",
-            "",
-            pathway.executive_interpretation,
-            "",
-            "### Simplified pathway",
-            "",
-            "```text",
-        ])
+        lines.extend(
+            [
+                f"## {index}. {pathway.title}",
+                "",
+                pathway.executive_interpretation,
+                "",
+                "### Simplified pathway",
+                "",
+                "```text",
+            ]
+        )
         for step_index, step in enumerate(pathway.simplified_pathway):
             prefix = "" if step_index == 0 else "   ↓\n"
             lines.append(prefix + step)
-        lines.extend(["```", "", "### Biological significance", "", pathway.biological_significance, ""])
+        lines.extend(
+            [
+                "```",
+                "",
+                "### Biological significance",
+                "",
+                pathway.biological_significance,
+                "",
+            ]
+        )
 
         if pathway.therapeutic_strategies:
             lines.extend(["### Therapeutic strategies to investigate", ""])
@@ -901,28 +1043,32 @@ def render_markdown(report: FinalReport) -> str:
         if pathway.evidence:
             lines.extend(["### Evidence", ""])
             for evidence in pathway.evidence:
-                lines.extend([
-                    f"**{evidence.source_title}** — `{evidence.evidence_tier}`",
-                    "",
-                    f"{evidence.claim}",
-                    "",
-                    f"- Population fit: {evidence.population_match}",
-                    f"- Supports: {evidence.supports}",
-                    f"- Does not establish: {evidence.does_not_establish}",
-                    f"- Source: {evidence.source_url}",
-                    "",
-                ])
+                lines.extend(
+                    [
+                        f"**{evidence.source_title}** — `{evidence.evidence_tier}`",
+                        "",
+                        f"{evidence.claim}",
+                        "",
+                        f"- Population fit: {evidence.population_match}",
+                        f"- Supports: {evidence.supports}",
+                        f"- Does not establish: {evidence.does_not_establish}",
+                        f"- Source: {evidence.source_url}",
+                        "",
+                    ]
+                )
 
-        lines.extend([
-            "### Clinical actionability",
-            "",
-            pathway.clinical_actionability,
-            "",
-            "### Bottom line",
-            "",
-            pathway.bottom_line,
-            "",
-        ])
+        lines.extend(
+            [
+                "### Clinical actionability",
+                "",
+                pathway.clinical_actionability,
+                "",
+                "### Bottom line",
+                "",
+                pathway.bottom_line,
+                "",
+            ]
+        )
 
     if report.cross_pathway_interactions:
         lines.extend(["## Cross-pathway interactions", ""])
@@ -939,24 +1085,26 @@ def render_markdown(report: FinalReport) -> str:
         lines.extend(f"- {x}" for x in report.no_assumption_statements)
         lines.append("")
 
-    lines.extend([
-        "## Biological significance",
-        "",
-        report.final_biological_significance,
-        "",
-        "## Clinical actionability",
-        "",
-        report.final_clinical_actionability,
-        "",
-        "## Required confirmation",
-        "",
-        report.final_required_confirmation,
-        "",
-        "## Clinical-use notice",
-        "",
-        report.disclaimer,
-        "",
-    ])
+    lines.extend(
+        [
+            "## Biological significance",
+            "",
+            report.final_biological_significance,
+            "",
+            "## Clinical actionability",
+            "",
+            report.final_clinical_actionability,
+            "",
+            "## Required confirmation",
+            "",
+            report.final_required_confirmation,
+            "",
+            "## Clinical-use notice",
+            "",
+            report.disclaimer,
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -966,64 +1114,85 @@ def analyze_file(
     model: str,
     normalizer_model: str,
     diagnosis: str,
+    *,
+    settings: remote.RemoteSettings | None = None,
 ) -> tuple[Path, Path]:
+    """Run the complete remote analysis and atomically persist real artifacts."""
+    settings = settings or remote.RemoteSettings()
     if not OPENAI_API_KEY:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set. Export it before running:\n"
-            "  export OPENAI_API_KEY='sk-proj-...'"
-        )
-
+        raise RuntimeError("OPENAI_API_KEY is not set.")
+    if not diagnosis.strip():
+        raise ValueError("Diagnosis is required.")
     try:
         payload = json.loads(input_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Invalid JSON in {input_path}: {exc}") from exc
-
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f"Invalid JSON input: {input_path.name}.") from error
     if not isinstance(payload, dict):
         payload = {"input": payload}
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    client = OpenAI(api_key=OPENAI_API_KEY)
-
+    audit_dir = output_dir / "openai_calls"
     discovered = discover_payload(payload)
-    print("[1/4] Normalizing case and diagnosis...", flush=True)
-    case_map = normalize_case(client, discovered, normalizer_model, diagnosis)
-    print("[2/4–3/4] Running authoritative and open-web research...", flush=True)
-    research_memo, consulted_sources = research_case(
-        client, case_map, model, diagnosis
-    )
-    print("[4/4] Compiling diagnosis-aligned report...", flush=True)
-    report = finalize_report(client, case_map, research_memo, model, diagnosis)
-
+    with remote.build_client(OPENAI_API_KEY, settings) as client:
+        print("[1/4] Normalizing case and diagnosis...", flush=True)
+        case_map = normalize_case(
+            client,
+            discovered,
+            normalizer_model,
+            diagnosis,
+            settings=settings,
+            audit_dir=audit_dir,
+        )
+        print("[2/4–3/4] Running authoritative and open-web research...", flush=True)
+        research_memo, consulted_sources = research_case(
+            client,
+            case_map,
+            model,
+            diagnosis,
+            settings=settings,
+            audit_dir=audit_dir,
+        )
+        print("[4/4] Compiling diagnosis-aligned report...", flush=True)
+        report = finalize_report(
+            client,
+            case_map,
+            research_memo,
+            model,
+            diagnosis,
+            settings=settings,
+            audit_dir=audit_dir,
+        )
     stem = input_path.stem
     json_path = output_dir / f"{stem}.pathway_analysis.json"
     md_path = output_dir / f"{stem}.pathway_analysis.md"
-    debug_path = output_dir / f"{stem}.normalized_case_map.json"
-    research_path = output_dir / f"{stem}.research_memo.md"
-    sources_path = output_dir / f"{stem}.research_sources.json"
-
-    json_path.write_text(
-        json.dumps(report.model_dump(), indent=2, ensure_ascii=False),
-        encoding="utf-8",
+    remote.write_json_atomic(json_path, report.model_dump(mode="json"))
+    remote.write_text_atomic(md_path, render_markdown(report))
+    remote.write_json_atomic(
+        output_dir / f"{stem}.normalized_case_map.json",
+        case_map.model_dump(mode="json"),
     )
-    md_path.write_text(render_markdown(report), encoding="utf-8")
-    debug_path.write_text(
-        json.dumps(case_map.model_dump(), indent=2, ensure_ascii=False),
-        encoding="utf-8",
+    remote.write_text_atomic(output_dir / f"{stem}.research_memo.md", research_memo)
+    remote.write_json_atomic(
+        output_dir / f"{stem}.research_sources.json",
+        [source.model_dump(mode="json") for source in consulted_sources],
     )
-    research_path.write_text(research_memo, encoding="utf-8")
-    sources_path.write_text(
-        json.dumps(
-            [source.model_dump() for source in consulted_sources],
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    remote.write_json_atomic(
+        output_dir / f"{stem}.openai_manifest.json",
+        {
+            "provider": "openai",
+            "model": model,
+            "normalizer_model": normalizer_model,
+            "reasoning_mode": settings.reasoning_mode,
+            "reasoning_effort": settings.reasoning_effort,
+            "input_sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+            "audit_directory": str(audit_dir.resolve()),
+            "search_payload_policy": "biomedical_fields_v1",
+            "store": False,
+        },
     )
-
     return json_path, md_path
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate a dynamic pathway and combination/recombination analysis from any oncology JSON."
     )
@@ -1032,11 +1201,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=OPENAI_MODEL)
     parser.add_argument("--normalizer-model", default=NORMALIZER_MODEL)
     parser.add_argument(
+        "--reasoning-mode", choices=("pro",), default=OPENAI_REASONING_MODE
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=("low", "medium", "high", "xhigh", "max"),
+        default=OPENAI_REASONING_EFFORT,
+    )
+    parser.add_argument(
+        "--request-timeout",
+        type=float,
+        default=float(os.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "900")),
+    )
+    parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--max-output-tokens", type=int, default=32_000)
+    parser.add_argument(
         "--diagnosis",
         required=True,
         help="User-defined diagnosis appended to every model prompt.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> int:
@@ -1048,8 +1232,16 @@ def main() -> int:
             model=args.model,
             normalizer_model=args.normalizer_model,
             diagnosis=args.diagnosis,
+            settings=remote.RemoteSettings(
+                reasoning_mode=args.reasoning_mode,
+                reasoning_effort=args.reasoning_effort,
+                request_timeout_seconds=args.request_timeout,
+                max_attempts=args.max_attempts,
+                max_output_tokens=args.max_output_tokens,
+                max_retry_output_tokens=max(args.max_output_tokens, 64_000),
+            ),
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

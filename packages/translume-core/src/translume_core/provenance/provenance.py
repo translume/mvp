@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
 from translume_core.provenance.hashing import hash_text, stable_json_hash
+from translume_ports.model_provider import ModelCallCapture
+from translume_schemas.model_calls import ModelCallRecord
 from translume_schemas.provenance import ArtifactProvenance
 
 
@@ -25,6 +29,9 @@ def build_artifact_provenance(
     source_chunk_ids: Sequence[str] | None = None,
     generation_status: str = "generated",
     artifact_id: str | None = None,
+    model_calls: Sequence[ModelCallRecord] = (),
+    model_call_ids: Sequence[str] = (),
+    component_provenance: Sequence[ArtifactProvenance] = (),
 ) -> ArtifactProvenance:
     """Build provenance metadata for a generated artifact.
 
@@ -36,11 +43,17 @@ def build_artifact_provenance(
         5. Includes generation status for runtime auditability.
         6. Function is deterministic if artifact_id and timestamp are supplied.
     """
+    completed_calls = [
+        record
+        for record in model_calls
+        if record.endpoint == "/responses" and record.status == "completed"
+    ]
+    completed = completed_calls[-1] if completed_calls else None
     return ArtifactProvenance(
         artifact_id=artifact_id or f"artifact_{uuid4().hex}",
         artifact_type=artifact_type,
         schema_name=schema_name,
-        model_name=model_name,
+        model_name=(completed.actual_model or model_name) if completed else model_name,
         prompt_hash=hash_text(prompt_text) if prompt_text is not None else None,
         schema_hash=stable_json_hash(schema_json) if schema_json is not None else None,
         source_file_id=source_file_id,
@@ -48,7 +61,94 @@ def build_artifact_provenance(
         source_artifact_ids=list(source_artifact_ids),
         created_at=created_at,
         generation_status=generation_status,
+        provider_name=completed.provider if completed else None,
+        reasoning_mode=completed.reasoning_mode if completed else None,
+        reasoning_effort=completed.reasoning_effort if completed else None,
+        wire_schema_hash=completed.wire_schema_hash if completed else None,
+        model_calls=list(model_calls),
+        model_call_ids=list(
+            dict.fromkeys(
+                [*model_call_ids, *[record.call_id for record in model_calls]]
+            )
+        ),
+        component_provenance=list(component_provenance),
     )
+
+
+def model_call_snapshot(model_provider: object) -> tuple[ModelCallRecord, ...]:
+    """Read an immutable request-scoped snapshot without manufacturing records.
+
+    Acceptance criteria:
+        1. Only actual typed call records are accepted.
+        2. Pure test/domain providers without telemetry produce no fake usage.
+        3. No caller-owned collection is mutated.
+    """
+    records = getattr(model_provider, "call_records", ())
+    if not isinstance(records, (list, tuple)):
+        raise ArtifactProvenanceError(
+            "Model call records must be an immutable snapshot"
+        )
+    if any(not isinstance(record, ModelCallRecord) for record in records):
+        raise ArtifactProvenanceError(
+            "Model call provenance contains an invalid record"
+        )
+    return tuple(records)
+
+
+@dataclass(frozen=True)
+class _UnscopedCallCapture:
+    """Compatibility capture for pure domain providers without remote calls."""
+
+    model_provider: object
+    start: int
+
+    @property
+    def records(self) -> tuple[ModelCallRecord, ...]:
+        return model_call_snapshot(self.model_provider)[self.start :]
+
+
+@contextmanager
+def capture_model_calls(model_provider: object) -> Iterator[ModelCallCapture]:
+    """Isolate generated-artifact provenance from concurrently running stages.
+
+    Acceptance criteria:
+        1. Production providers use an explicit task-local capture scope.
+        2. Pure domain providers do not acquire manufactured API metadata.
+        3. Scope cleanup occurs even when generation or validation fails.
+    """
+    capture = getattr(model_provider, "capture_calls", None)
+    if callable(capture):
+        with capture() as scope:
+            yield scope
+    else:
+        yield _UnscopedCallCapture(
+            model_provider, len(model_call_snapshot(model_provider))
+        )
+
+
+def unique_model_calls(
+    records: Sequence[ArtifactProvenance],
+) -> tuple[ModelCallRecord, ...]:
+    """Count a real attempt once even when several artifacts reference it.
+
+    Acceptance criteria:
+        1. Traverses extraction and decision-stage component provenance.
+        2. Preserves first-observed call order and rejects conflicting IDs.
+        3. Does not infer usage for requests without a provider usage record.
+    """
+    unique: dict[str, ModelCallRecord] = {}
+    pending = list(reversed(records))
+    while pending:
+        provenance = pending.pop()
+        for call in provenance.model_calls:
+            existing = unique.get(call.call_id)
+            if existing is not None and existing != call:
+                raise ArtifactProvenanceError(
+                    "Conflicting metadata for one model call ID"
+                )
+            unique[call.call_id] = call
+        pending.extend(reversed(provenance.component_provenance))
+    return tuple(unique.values())
 
 
 def require_complete_provenance_record(record: ArtifactProvenance) -> None:

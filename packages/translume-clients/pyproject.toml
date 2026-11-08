@@ -2,7 +2,7 @@
 name = "translume-clients"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ['httpx', 'pydantic', 'psycopg[binary]>=3.3.0']
+dependencies = ['httpx[socks]==0.28.1', 'pydantic', 'psycopg[binary]>=3.3.0']
 
 [build-system]
 requires = ["hatchling"]

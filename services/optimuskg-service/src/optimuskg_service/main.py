@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
 from translume_adapters.graph_providers.optimuskg_runtime import (
     OptimusKGGraphConfig,
     OptimusKGRuntimeError,
@@ -39,6 +39,11 @@ def health() -> dict[str, object]:
         vendor_available = False
         error = str(runtime_error)
     nodes_path, edges_path = _cached_parquet_paths(config)
+    if not vendor_available or nodes_path is None or edges_path is None:
+        raise HTTPException(
+            status_code=503,
+            detail=error or "Required OptimusKG graph tables are not initialized",
+        )
     return {
         "status": "ok",
         "service": "optimuskg_service",
@@ -67,7 +72,8 @@ async def context(request: ContextRequest) -> dict[str, object]:
     """
     try:
         entities = NormalizedEntitySet.model_validate(request.entities)
-        artifact = retrieve_optimuskg_graph_context(
+        artifact = await asyncio.to_thread(
+            retrieve_optimuskg_graph_context,
             entities,
             _graph_config(),
             retrieval_modes=request.retrieval_modes,

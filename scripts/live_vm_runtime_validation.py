@@ -1,685 +1,365 @@
 #!/usr/bin/env python3
-"""Run the real Translume live-VM runtime validation workflow.
+"""Optional developer orchestration of the real Docker/CPU/OpenAI workflow.
 
-This script starts the Docker Compose stack, executes the real full-stack
-integration path, and writes a runtime report plus failure diagnostics when the
-stack fails. It does not fabricate success, patch runtime state, or use mocked
-services.
+All application checks execute inside the deployed containers. This host helper
+uses Python's standard library and the repository's pure report helpers; the
+end-user workflow in README requires Docker only. It never substitutes fixtures
+for the report, reference data, OpenAI calls, or downstream verification.
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
+import math
 import os
+import re
 import subprocess
+import sys
+import tempfile
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from scripts.full_stack_preflight import (
-    DEFAULT_REQUIREMENTS,
-    PreflightError,
-    run_preflight,
-)
-from scripts.run_full_stack_integration import (
-    FullStackIntegrationError,
-    run_full_stack_integration,
-)
-
-
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_REPORTS_DIR = ROOT / "data" / "runtime_validation"
-DEFAULT_COMPOSE_PROFILES = ("gpu", "docling")
-SENSITIVE_ENV_PARTS = (
-    "KEY",
-    "PASSWORD",
-    "SECRET",
-    "TOKEN",
-    "DSN",
-    "CREDENTIAL",
+PACKAGE_PATH = ROOT / "packages" / "translume-core" / "src"
+if str(PACKAGE_PATH) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_PATH))
+
+from translume_core.runtime_validation import (
+    RuntimeCommandResult,
+    RuntimeCommandSpec,
+    build_runtime_validation_report,
+    command_specs_from_config,
+    failure_patterns_from_config,
+    load_runtime_validation_config,
+    render_runtime_report_markdown,
+    runtime_report_to_dict,
 )
+
+DEFAULT_CONFIG = ROOT / "configs" / "integration" / "live_vm_runtime_validation.json"
+SENSITIVE_ENV_PARTS = ("KEY", "PASSWORD", "SECRET", "TOKEN", "DSN", "CREDENTIAL")
 
 
 class LiveRuntimeValidationError(RuntimeError):
-    """Raised when live VM validation fails."""
-
-
-@dataclass(frozen=True)
-class CommandResult:
-    """Represent a completed runtime command.
-
-    Attributes:
-        command: Command arguments.
-        returncode: Process return code.
-        stdout: Captured standard output.
-        stderr: Captured standard error.
-        elapsed_seconds: Runtime duration in seconds.
-    """
-
-    command: tuple[str, ...]
-    returncode: int
-    stdout: str
-    stderr: str
-    elapsed_seconds: float
-
-
-@dataclass(frozen=True)
-class DiagnosticPaths:
-    """Represent generated diagnostic file paths.
-
-    Attributes:
-        output_dir: Directory containing runtime validation artifacts.
-        report_json: JSON report path.
-        report_md: Markdown report path.
-        compose_ps_json: Docker Compose ps JSON path, if written.
-        compose_logs_txt: Docker Compose logs path, if written.
-        redacted_env_json: Redacted environment path, if written.
-    """
-
-    output_dir: Path
-    report_json: Path
-    report_md: Path
-    compose_ps_json: Path | None = None
-    compose_logs_txt: Path | None = None
-    redacted_env_json: Path | None = None
-
-
-@dataclass(frozen=True)
-class LiveRuntimeValidationResult:
-    """Represent live VM validation output.
-
-    Attributes:
-        status: Either `ok` or `failed`.
-        started_at_epoch: Start time in seconds since epoch.
-        elapsed_seconds: Runtime duration in seconds.
-        report_paths: Generated report and diagnostics paths.
-        integration_result: Full-stack result payload when successful.
-        error: Failure message when unsuccessful.
-    """
-
-    status: str
-    started_at_epoch: float
-    elapsed_seconds: float
-    report_paths: DiagnosticPaths
-    integration_result: dict[str, object] | None = None
-    error: str | None = None
-
-
-def load_env_file(path: Path) -> dict[str, str]:
-    """Load a simple dotenv file into a dictionary.
-
-    Acceptance criteria:
-        1. Determinism: Same file content returns the same mapping.
-        2. Validation: Missing files raise `FileNotFoundError`.
-        3. Parsing: Blank lines and comments are ignored.
-        4. No mutation: Does not modify `os.environ`.
-
-    Args:
-        path: Dotenv path.
-
-    Returns:
-        Parsed environment mapping.
-
-    Raises:
-        FileNotFoundError: If `path` does not exist.
-        ValueError: If a non-comment line does not contain `=`.
-    """
-    values: dict[str, str] = {}
-    for line_number, raw_line in enumerate(
-        path.read_text(encoding="utf-8").splitlines(),
-        start=1,
-    ):
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            raise ValueError(f"invalid dotenv line {line_number}: {raw_line}")
-        key, value = line.split("=", 1)
-        normalized_key = key.strip()
-        if not normalized_key:
-            raise ValueError(f"empty dotenv key on line {line_number}")
-        values[normalized_key] = strip_optional_quotes(value.strip())
-    return values
+    """The real command plan could not be executed or verified."""
 
 
 def strip_optional_quotes(value: str) -> str:
-    """Return a dotenv value with one matching quote pair removed.
-
-    Acceptance criteria:
-        1. Determinism: Same value returns the same result.
-        2. No mutation: Does not mutate caller-owned values.
-        3. Quote handling: Removes only matching single or double outer quotes.
-        4. Preservation: Unquoted values are returned unchanged.
-
-    Args:
-        value: Raw dotenv value.
-
-    Returns:
-        Normalized value.
-    """
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+    """Remove one matching quote pair without modifying an unquoted value."""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
         return value[1:-1]
     return value
 
 
-def merged_environment(
-    env_file_values: Mapping[str, str],
-    process_environment: Mapping[str, str],
-) -> dict[str, str]:
-    """Return runtime environment with process values taking precedence.
+def load_env_file(path: Path) -> dict[str, str]:
+    """Read dotenv values for redaction, never for shell evaluation.
 
     Acceptance criteria:
-        1. Determinism: Same inputs return the same mapping.
-        2. Precedence: Existing process environment values override `.env`.
-        3. No mutation: Inputs are not mutated.
-        4. Completeness: All keys from both mappings are included.
-
-    Args:
-        env_file_values: Values parsed from `.env`.
-        process_environment: Current process environment.
-
-    Returns:
-        Merged environment dictionary.
+        1. Missing or malformed files raise without printing their contents.
+        2. Comments and matching quotes are removed from ordinary dotenv values.
+        3. The caller's process environment is not mutated.
+        4. Docker Compose remains responsible for actual dotenv interpolation.
     """
-    merged = dict(env_file_values)
-    merged.update(process_environment)
-    return merged
+    values: dict[str, str] = {}
+    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            raise ValueError(f"Invalid dotenv assignment on line {line_number}.")
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            raise ValueError(f"Invalid dotenv key on line {line_number}.")
+        if value.startswith(("'", '"')):
+            quote = value[0]
+            match = re.fullmatch(rf"{quote}(.*?)(?<!\\){quote}\s*(?:#.*)?", value)
+            if match is None:
+                raise ValueError(f"Invalid quoted dotenv value on line {line_number}.")
+            value = match.group(1)
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].rstrip()
+        values[key] = value
+    return values
+
+
+def merged_environment(
+    env_file_values: Mapping[str, str], process_environment: Mapping[str, str]
+) -> dict[str, str]:
+    """Copy both mappings, with process values taking Compose precedence."""
+    return {**env_file_values, **process_environment}
 
 
 def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
-    """Return environment with sensitive values redacted.
+    """Copy an environment mapping while concealing sensitive-looking values."""
+    return {
+        key: "<redacted>" if _sensitive_name(key) else value
+        for key, value in sorted(environment.items())
+    }
+
+
+def _sensitive_name(name: str) -> bool:
+    return any(part in name.upper() for part in SENSITIVE_ENV_PARTS)
+
+
+def redact_output(
+    value: str,
+    *,
+    environment: Mapping[str, str],
+    secret_names: Sequence[str] = (),
+) -> str:
+    """Remove known credentials and common credential syntax from diagnostics.
 
     Acceptance criteria:
-        1. Determinism: Same environment returns the same redacted mapping.
-        2. Safety: Sensitive-looking keys are redacted.
-        3. Preservation: Non-sensitive values are preserved.
-        4. No mutation: Input mapping is not mutated.
-
-    Args:
-        environment: Runtime environment mapping.
-
-    Returns:
-        Redacted environment mapping.
+        1. Credentials supplied only in the dotenv file are also redacted.
+        2. Longer secrets are replaced before overlapping shorter values.
+        3. Bearer tokens, OpenAI keys, and URL credentials have syntax backstops.
+        4. The input text and environment mapping are not modified.
     """
-    redacted: dict[str, str] = {}
-    for key, value in environment.items():
-        upper_key = key.upper()
-        if any(part in upper_key for part in SENSITIVE_ENV_PARTS):
-            redacted[key] = "<redacted>"
-        else:
-            redacted[key] = value
-    return dict(sorted(redacted.items()))
+    names = set(secret_names)
+    names.update(name for name in environment if _sensitive_name(name))
+    secrets = sorted(
+        {environment[name] for name in names if environment.get(name)},
+        key=len,
+        reverse=True,
+    )
+    result = value
+    for secret in secrets:
+        result = result.replace(secret, "<redacted>")
+    result = re.sub(r"sk-[A-Za-z0-9_-]{8,}", "<redacted>", result)
+    result = re.sub(r"(?i)(bearer\s+)[^\s\"']+", r"\1<redacted>", result)
+    return re.sub(
+        r"([A-Za-z][A-Za-z0-9+.-]*://)[^\s/:@]+:[^\s/@]+@",
+        r"\1<redacted>@",
+        result,
+    )
 
 
 def compose_command(
-    compose_args: Sequence[str],
-    profiles: Sequence[str],
+    compose_args: Sequence[str], profiles: Sequence[str] = ()
 ) -> list[str]:
-    """Return a Docker Compose command with profiles.
-
-    Acceptance criteria:
-        1. Determinism: Same args and profiles return the same command.
-        2. Ordering: Profiles are emitted in supplied order.
-        3. No mutation: Inputs are not mutated.
-        4. CLI compatibility: Command starts with `docker compose`.
-
-    Args:
-        compose_args: Arguments after profiles.
-        profiles: Docker Compose profiles to enable.
-
-    Returns:
-        Command argument list.
-    """
+    """Build a Compose command; the normal CPU stack needs no profile."""
     command = ["docker", "compose"]
     for profile in profiles:
         command.extend(("--profile", profile))
-    command.extend(compose_args)
-    return command
+    return [*command, *compose_args]
 
 
-def run_command(
-    command: Sequence[str],
+def _compose_with_env_file(argv: Sequence[str], env_file: Path) -> tuple[str, ...]:
+    if tuple(argv[:2]) != ("docker", "compose"):
+        raise LiveRuntimeValidationError(
+            "Runtime checks must run through Docker Compose."
+        )
+    return (*argv[:2], "--env-file", str(env_file.resolve()), *argv[2:])
+
+
+def _output_text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
+def execute_runtime_command(
+    spec: RuntimeCommandSpec,
     *,
-    cwd: Path,
-    environment: Mapping[str, str],
-    timeout_seconds: float,
-) -> CommandResult:
-    """Run a real subprocess command and capture output.
+    root: Path,
+    env_file: Path,
+    process_environment: Mapping[str, str],
+    redaction_environment: Mapping[str, str],
+    secret_names: Sequence[str],
+) -> RuntimeCommandResult:
+    """Execute one finite real subprocess and redact every captured channel.
 
     Acceptance criteria:
-        1. Executes the supplied command exactly once.
-        2. Captures stdout and stderr.
-        3. Does not swallow non-zero return codes.
-        4. Does not mutate the supplied environment mapping.
-
-    Args:
-        command: Command arguments.
-        cwd: Working directory.
-        environment: Runtime environment.
-        timeout_seconds: Timeout in seconds.
-
-    Returns:
-        Captured command result.
-
-    Raises:
-        TimeoutError: If the subprocess exceeds the timeout.
+        1. Arguments are passed without a shell and Compose reads the given file.
+        2. Missing Docker returns 127; timeouts return 124 with partial output.
+        3. Failed commands remain failed and preserve their real diagnostics.
+        4. No secret appears in recorded command arguments, stdout, or stderr.
     """
+    if not math.isfinite(spec.timeout_seconds) or spec.timeout_seconds <= 0:
+        raise LiveRuntimeValidationError(
+            "Command timeouts must be positive and finite."
+        )
+    argv = _compose_with_env_file(spec.argv, env_file)
     started = time.monotonic()
-    completed = subprocess.run(
-        list(command),
-        cwd=cwd,
-        env=dict(environment),
-        capture_output=True,
-        text=True,
-        timeout=timeout_seconds,
-        check=False,
-    )
-    return CommandResult(
-        command=tuple(command),
-        returncode=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
+    try:
+        completed = subprocess.run(
+            list(argv),
+            cwd=root,
+            env=dict(process_environment),
+            capture_output=True,
+            text=True,
+            timeout=spec.timeout_seconds,
+            check=False,
+        )
+        return_code = completed.returncode
+        stdout, stderr = completed.stdout, completed.stderr
+    except subprocess.TimeoutExpired as error:
+        return_code = 124
+        stdout, stderr = _output_text(error.stdout), _output_text(error.stderr)
+        stderr += f"\nCommand timed out after {spec.timeout_seconds:g} seconds."
+    except OSError as error:
+        return_code, stdout = 127, ""
+        stderr = f"Could not execute Docker Compose: {type(error).__name__}: {error}"
+
+    def safe(text: str) -> str:
+        return redact_output(
+            text, environment=redaction_environment, secret_names=secret_names
+        )
+
+    return RuntimeCommandResult(
+        name=spec.name,
+        argv=tuple(safe(item) for item in argv),
+        return_code=int(return_code),
+        stdout=safe(stdout),
+        stderr=safe(stderr),
+        required=spec.required,
         elapsed_seconds=time.monotonic() - started,
     )
 
 
-def require_success(result: CommandResult, action: str) -> None:
-    """Raise if a runtime command failed.
-
-    Acceptance criteria:
-        1. Return code zero passes.
-        2. Non-zero return code raises `LiveRuntimeValidationError`.
-        3. Error message includes command and captured stderr/stdout.
-        4. Function is pure.
-
-    Args:
-        result: Command result.
-        action: Human-readable command purpose.
-
-    Raises:
-        LiveRuntimeValidationError: If return code is non-zero.
-    """
-    if result.returncode == 0:
-        return
-    raise LiveRuntimeValidationError(
-        f"{action} failed with exit code {result.returncode}: "
-        f"command={list(result.command)!r}; stdout={result.stdout!r}; "
-        f"stderr={result.stderr!r}"
-    )
-
-
-def prepare_output_dir(base_dir: Path, started_at_epoch: float) -> Path:
-    """Create and return a timestamped runtime validation directory.
-
-    Acceptance criteria:
-        1. Directory is created if it does not exist.
-        2. Directory name is derived from explicit timestamp.
-        3. Function writes only under `base_dir`.
-        4. Returned path is absolute.
-
-    Args:
-        base_dir: Parent diagnostics directory.
-        started_at_epoch: Explicit start timestamp.
-
-    Returns:
-        Created output directory.
-    """
-    run_name = time.strftime(
-        "%Y%m%dT%H%M%SZ",
-        time.gmtime(started_at_epoch),
-    )
-    output_dir = (base_dir / run_name).resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir
-
-
-def write_text(path: Path, content: str) -> Path:
-    """Write text to a file and return the path.
-
-    Acceptance criteria:
-        1. Parent directory is created.
-        2. UTF-8 encoding is used.
-        3. Content is written exactly as supplied.
-        4. Boundary function isolates filesystem writes.
-
-    Args:
-        path: Output path.
-        content: Text content.
-
-    Returns:
-        Written path.
-    """
+def _write_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    return path
-
-
-def collect_runtime_diagnostics(
-    *,
-    output_dir: Path,
-    profiles: Sequence[str],
-    environment: Mapping[str, str],
-    root: Path,
-) -> DiagnosticPaths:
-    """Collect real Docker Compose diagnostics after a validation failure.
-
-    Acceptance criteria:
-        1. Attempts `docker compose ps --format json`.
-        2. Attempts `docker compose logs --tail=400`.
-        3. Writes redacted environment values.
-        4. Diagnostic collection failures are recorded, not hidden.
-
-    Args:
-        output_dir: Diagnostics directory.
-        profiles: Compose profiles used for the stack.
-        environment: Runtime environment.
-        root: Repository root.
-
-    Returns:
-        Diagnostic path summary.
-    """
-    ps_path = output_dir / "compose_ps.json"
-    logs_path = output_dir / "compose_logs.txt"
-    env_path = output_dir / "redacted_environment.json"
-
-    write_text(
-        env_path,
-        json.dumps(redact_environment(environment), indent=2, sort_keys=True),
-    )
-
+    temporary: Path | None = None
     try:
-        ps_result = run_command(
-            compose_command(("ps", "--format", "json"), profiles),
-            cwd=root,
-            environment=environment,
-            timeout_seconds=60,
-        )
-        write_text(
-            ps_path,
-            ps_result.stdout
-            or json.dumps(asdict(ps_result), indent=2, default=str),
-        )
-    except (OSError, subprocess.SubprocessError, TimeoutError) as error:
-        write_text(ps_path, json.dumps({"error": str(error)}, indent=2))
-
-    try:
-        logs_result = run_command(
-            compose_command(("logs", "--tail=400"), profiles),
-            cwd=root,
-            environment=environment,
-            timeout_seconds=120,
-        )
-        write_text(
-            logs_path,
-            logs_result.stdout
-            + "\n--- STDERR ---\n"
-            + logs_result.stderr,
-        )
-    except (OSError, subprocess.SubprocessError, TimeoutError) as error:
-        write_text(logs_path, f"failed to collect logs: {error}\n")
-
-    return DiagnosticPaths(
-        output_dir=output_dir,
-        report_json=output_dir / "runtime_validation_report.json",
-        report_md=output_dir / "runtime_validation_report.md",
-        compose_ps_json=ps_path,
-        compose_logs_txt=logs_path,
-        redacted_env_json=env_path,
-    )
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, delete=False
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
 
 
-def render_report_markdown(result: LiveRuntimeValidationResult) -> str:
-    """Render a human-readable live VM validation report.
-
-    Acceptance criteria:
-        1. Includes status.
-        2. Includes elapsed time.
-        3. Includes diagnostics paths.
-        4. Includes error details when validation fails.
-
-    Args:
-        result: Validation result.
-
-    Returns:
-        Markdown report string.
-    """
-    paths = result.report_paths
-    lines = [
-        "# Translume Live VM Runtime Validation Report",
-        "",
-        f"Status: **{result.status}**",
-        f"Elapsed seconds: `{result.elapsed_seconds:.2f}`",
-        f"Output directory: `{paths.output_dir}`",
-        "",
-    ]
-    if result.integration_result is not None:
-        lines.extend(
-            [
-                "## Integration Result",
-                "",
-                "```json",
-                json.dumps(result.integration_result, indent=2, sort_keys=True),
-                "```",
-                "",
-            ]
-        )
-    if result.error is not None:
-        lines.extend(["## Error", "", result.error, ""])
-    lines.extend(
-        [
-            "## Diagnostic Files",
-            "",
-            f"- JSON report: `{paths.report_json}`",
-            f"- Markdown report: `{paths.report_md}`",
-            f"- Compose ps: `{paths.compose_ps_json}`",
-            f"- Compose logs: `{paths.compose_logs_txt}`",
-            f"- Redacted environment: `{paths.redacted_env_json}`",
-            "",
-            "## Repair Loop",
-            "",
-            "1. Open the compose logs and identify the first failing service.",
-            "2. Fix configuration, vendor repo, model, GPU, or service error.",
-            "3. Re-run `make live-vm-validate`.",
-            "4. Do not accept the MVP as demo-ready until this report is ok.",
-        ]
-    )
-    return "\n".join(lines)
+def write_runtime_report(
+    output_dir: Path, report_dict: Mapping[str, Any], markdown: str
+) -> tuple[Path, Path]:
+    """Atomically save the actual command report in JSON and Markdown."""
+    report_id = str(report_dict["report_id"])
+    json_path = output_dir / f"{report_id}_runtime_report.json"
+    markdown_path = output_dir / f"{report_id}_runtime_report.md"
+    _write_atomic(json_path, json.dumps(dict(report_dict), indent=2) + "\n")
+    _write_atomic(markdown_path, markdown)
+    return json_path, markdown_path
 
 
-def write_runtime_result(result: LiveRuntimeValidationResult) -> DiagnosticPaths:
-    """Persist live VM validation result files.
-
-    Acceptance criteria:
-        1. Writes JSON result.
-        2. Writes Markdown report.
-        3. Uses explicit paths in `result.report_paths`.
-        4. Boundary function isolates filesystem writes.
-
-    Args:
-        result: Live runtime validation result.
-
-    Returns:
-        Diagnostic path summary.
-    """
-    write_text(
-        result.report_paths.report_json,
-        json.dumps(asdict(result), indent=2, default=str),
-    )
-    write_text(result.report_paths.report_md, render_report_markdown(result))
-    return result.report_paths
-
-
-async def run_live_vm_validation(
+def run_validation(
     *,
     root: Path,
     env_file: Path,
-    requirements_path: Path,
-    output_base_dir: Path,
-    profiles: Sequence[str],
-    require_gpu: bool,
-    leave_up: bool,
-    down_on_failure: bool,
-    wait_timeout_seconds: float,
-    wait_interval_seconds: float,
-    api_timeout_seconds: float,
-) -> LiveRuntimeValidationResult:
-    """Run real live-VM validation and collect diagnostics.
+    config: Mapping[str, Any],
+    process_environment: Mapping[str, str],
+    continue_after_failure: bool = False,
+) -> dict[str, Any]:
+    """Run the configured real stack, container checks, and full verification.
 
     Acceptance criteria:
-        1. Loads `.env` and current process environment.
-        2. Runs preflight with Docker and optional GPU requirements.
-        3. Runs `docker compose config` against the real compose file.
-        4. Starts the real Docker Compose stack.
-        5. Runs the real full-stack integration workflow.
-        6. Writes runtime report and diagnostics.
-        7. Does not fabricate success or mask failures.
-
-    Args:
-        root: Repository root.
-        env_file: Dotenv path.
-        requirements_path: Full-stack requirements path.
-        output_base_dir: Parent diagnostics directory.
-        profiles: Docker Compose profiles to enable.
-        require_gpu: Whether to require `nvidia-smi` in preflight.
-        leave_up: Whether to leave containers running after success.
-        down_on_failure: Whether to stop containers after failure.
-        wait_timeout_seconds: Service wait timeout.
-        wait_interval_seconds: Service wait interval.
-        api_timeout_seconds: Report-processing timeout.
-
-    Returns:
-        Live VM validation result.
+        1. The plan includes a required verification command, never empty success.
+        2. Required failures stop subsequent work unless explicitly overridden.
+        3. Optional diagnostic commands still run after a required failure.
+        4. Reports include skipped command names without inventing their results.
+        5. Only observed command exits determine success; containers stay running.
     """
-    started = time.time()
-    output_dir = prepare_output_dir(output_base_dir, started)
-    report_paths = DiagnosticPaths(
-        output_dir=output_dir,
-        report_json=output_dir / "runtime_validation_report.json",
-        report_md=output_dir / "runtime_validation_report.md",
+    file_environment = load_env_file(env_file)
+    environment = merged_environment(file_environment, process_environment)
+    commands = command_specs_from_config(config, environment)
+    if not any(
+        spec.name == "integration_full_stack" and spec.required for spec in commands
+    ):
+        raise LiveRuntimeValidationError(
+            "Plan must require integration_full_stack verification."
+        )
+    for spec in commands:
+        _compose_with_env_file(spec.argv, env_file)
+        if not math.isfinite(spec.timeout_seconds) or spec.timeout_seconds <= 0:
+            raise LiveRuntimeValidationError(
+                "Command timeouts must be positive and finite."
+            )
+    secret_names = tuple(
+        str(name) for name in config.get("secret_environment_names", [])
     )
-    env_values = load_env_file(env_file)
-    environment = merged_environment(env_values, os.environ)
-    try:
-        run_preflight(
-            requirements_path=requirements_path,
-            environment=environment,
+    results: list[RuntimeCommandResult] = []
+    skipped: list[str] = []
+    failed_required = False
+    for spec in commands:
+        if failed_required and spec.required and not continue_after_failure:
+            skipped.append(spec.name)
+            continue
+        print(f"Running {spec.name} ...", flush=True)
+        result = execute_runtime_command(
+            spec,
             root=root,
-            require_docker=True,
-            require_gpu=require_gpu,
+            env_file=env_file,
+            process_environment=process_environment,
+            redaction_environment=environment,
+            secret_names=secret_names,
         )
-        require_success(
-            run_command(
-                compose_command(("config",), profiles),
-                cwd=root,
-                environment=environment,
-                timeout_seconds=120,
-            ),
-            "docker compose config",
-        )
-        require_success(
-            run_command(
-                compose_command(("up", "--build", "-d"), profiles),
-                cwd=root,
-                environment=environment,
-                timeout_seconds=1800,
-            ),
-            "docker compose up",
-        )
-        integration_result = await run_full_stack_integration(
-            requirements_path=requirements_path,
-            environment=environment,
-            root=root,
-            wait_timeout_seconds=wait_timeout_seconds,
-            wait_interval_seconds=wait_interval_seconds,
-            api_timeout_seconds=api_timeout_seconds,
-        )
-        result = LiveRuntimeValidationResult(
-            status="ok",
-            started_at_epoch=started,
-            elapsed_seconds=time.time() - started,
-            report_paths=report_paths,
-            integration_result=asdict(integration_result),
-        )
-        write_runtime_result(result)
-        if not leave_up:
-            run_command(
-                compose_command(("down",), profiles),
-                cwd=root,
-                environment=environment,
-                timeout_seconds=300,
-            )
-        return result
-    except (OSError, subprocess.SubprocessError, TimeoutError, PreflightError,
-            FullStackIntegrationError, LiveRuntimeValidationError,
-            ValueError) as error:
-        diagnostic_paths = collect_runtime_diagnostics(
-            output_dir=output_dir,
-            profiles=profiles,
-            environment=environment,
-            root=root,
-        )
-        result = LiveRuntimeValidationResult(
-            status="failed",
-            started_at_epoch=started,
-            elapsed_seconds=time.time() - started,
-            report_paths=diagnostic_paths,
-            error=str(error),
-        )
-        write_runtime_result(result)
-        if down_on_failure:
-            run_command(
-                compose_command(("down",), profiles),
-                cwd=root,
-                environment=environment,
-                timeout_seconds=300,
-            )
-        return result
+        results.append(result)
+        failed_required = failed_required or (spec.required and result.return_code != 0)
+        print(f"{spec.name}: exit={result.return_code}", flush=True)
+    # Historical log messages do not describe a failure of a successful run.
+    patterns = (
+        failure_patterns_from_config(config)
+        if any(result.return_code != 0 for result in results)
+        else ()
+    )
+    report = build_runtime_validation_report(results, patterns)
+    payload = runtime_report_to_dict(report)
+    payload["skipped_commands"] = skipped
+    output_dir = root / str(config.get("report_output_dir", "data/runtime_validation"))
+    markdown = render_runtime_report_markdown(report)
+    if skipped:
+        markdown += "\n## Skipped after a required failure\n\n"
+        markdown += "\n".join(f"- `{name}`" for name in skipped) + "\n"
+    json_path, markdown_path = write_runtime_report(output_dir, payload, markdown)
+    return {
+        "status": report.status,
+        "report_id": report.report_id,
+        "json_report": str(json_path),
+        "markdown_report": str(markdown_path),
+        "skipped_commands": skipped,
+        "findings": [finding.category for finding in report.findings],
+    }
 
 
 def main() -> int:
-    """Run live VM validation from the command line."""
-    parser = argparse.ArgumentParser(
-        description="Run real Translume live-VM Docker/GPU validation."
-    )
+    """Run the optional developer validation helper; Docker remains mandatory."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
-    parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS)
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_REPORTS_DIR)
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument(
-        "--profile",
-        action="append",
-        dest="profiles",
-        default=[],
-        help="Docker Compose profile to enable. May be supplied multiple times.",
+        "--continue-after-failure",
+        action="store_true",
+        help="Attempt remaining required checks after failure; diagnostics always run.",
     )
-    parser.add_argument("--no-require-gpu", action="store_true")
-    parser.add_argument("--leave-up", action="store_true")
-    parser.add_argument("--down-on-failure", action="store_true")
-    parser.add_argument("--wait-timeout-seconds", type=float, default=600.0)
-    parser.add_argument("--wait-interval-seconds", type=float, default=5.0)
-    parser.add_argument("--api-timeout-seconds", type=float, default=900.0)
     args = parser.parse_args()
-    profiles = tuple(args.profiles) or DEFAULT_COMPOSE_PROFILES
-    result = asyncio.run(
-        run_live_vm_validation(
+    try:
+        config = load_runtime_validation_config(args.config)
+        if args.output_dir is not None:
+            config["report_output_dir"] = str(args.output_dir.resolve())
+        result = run_validation(
             root=ROOT,
             env_file=args.env_file,
-            requirements_path=args.requirements,
-            output_base_dir=args.output_dir,
-            profiles=profiles,
-            require_gpu=not args.no_require_gpu,
-            leave_up=args.leave_up,
-            down_on_failure=args.down_on_failure,
-            wait_timeout_seconds=args.wait_timeout_seconds,
-            wait_interval_seconds=args.wait_interval_seconds,
-            api_timeout_seconds=args.api_timeout_seconds,
+            config=config,
+            process_environment=os.environ,
+            continue_after_failure=args.continue_after_failure,
         )
-    )
-    print(json.dumps(asdict(result), indent=2, default=str))
-    return 0 if result.status == "ok" else 1
+    except (OSError, ValueError, LiveRuntimeValidationError) as error:
+        result = {
+            "status": "failed",
+            "error": redact_output(str(error), environment=os.environ),
+        }
+    print(json.dumps(result, indent=2))
+    return 0 if result["status"] == "ok" else 1
 
 
 if __name__ == "__main__":

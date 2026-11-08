@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +22,9 @@ from translume_core.compiler.structured_model_artifacts import (
     compact_sankey_for_prompt,
     compact_tumor_behavior_for_prompt,
 )
-from translume_core.provenance.provenance import build_artifact_provenance
+from translume_core.provenance.provenance import (
+    build_artifact_provenance,
+)
 from translume_core.performance import run_with_latency_budget
 from translume_core.safety.language import SafetyLanguageError
 from translume_schemas.confirmatory import ConfirmatoryTestingOutput
@@ -95,15 +97,19 @@ async def _generate_decision_stage_artifact(
     *,
     stage_name: str,
     latency_budgets: DecisionBriefLatencyBudgets | None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
     **kwargs: Any,
 ):
     """Generate one stage artifact under its configured latency budget."""
     full_stage_name = f"decision_brief.{stage_name}"
-    return await run_with_latency_budget(
+    result = await run_with_latency_budget(
         stage_name=full_stage_name,
         timeout_seconds=_decision_stage_budget(latency_budgets, full_stage_name),
         awaitable=_generate_artifact(**kwargs),
     )
+    if provenance_sink is not None:
+        provenance_sink(result.provenance)
+    return result
 
 
 @dataclass(frozen=True)
@@ -128,7 +134,7 @@ async def generate_oncologist_decision_brief_with_model(
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
 ) -> DecisionBriefGenerationResult:
-    """Generate a staged oncologist decision brief through local vLLM.
+    """Generate a staged oncologist decision brief through OpenAI.
 
     Acceptance criteria:
         1. Runs each decision prompt stage independently.
@@ -146,7 +152,7 @@ async def generate_oncologist_decision_brief_with_model(
         confirmatory: Confirmatory testing artifact.
         tumor_behavior: Tumor behavior / resistance-state artifact.
         model_provider: Local structured-output model provider.
-        model_name: Local vLLM model name.
+        model_name: OpenAI model name.
         prompts_root: Directory containing prompt templates.
         created_at: Provenance timestamp.
 
@@ -198,6 +204,12 @@ async def generate_oncologist_decision_brief_with_model(
         created_at=created_at,
         generation_status="deterministic_synthesis",
         artifact_id=artifact.artifact_id,
+        component_provenance=stage_outputs.provenance,
+        model_call_ids=[
+            call_id
+            for record in stage_outputs.provenance
+            for call_id in record.model_call_ids
+        ],
     )
     return DecisionBriefGenerationResult(artifact=artifact, provenance=provenance)
 
@@ -216,6 +228,7 @@ class DecisionBriefStageOutputs:
     next_tests: NextTestRecommendationsOutput
     translational_assessment: TranslationalAssessmentOutput
     evidence_sentence_map: tuple[EvidenceSentence, ...] = ()
+    provenance: tuple[ArtifactProvenance, ...] = ()
 
     def artifact_ids(self) -> list[str]:
         """Return stage artifact IDs in synthesis order."""
@@ -281,13 +294,14 @@ async def generate_decision_brief_stage_outputs_with_model(
         confirmatory: Confirmatory testing artifact.
         tumor_behavior: Tumor behavior artifact.
         model_provider: Local structured-output model provider.
-        model_name: Local vLLM model name.
+        model_name: OpenAI model name.
         prompts_root: Directory containing prompt files.
         created_at: Provenance timestamp.
 
     Returns:
         Validated stage outputs for deterministic synthesis.
     """
+    stage_provenance: list[ArtifactProvenance] = []
     current_state = await generate_current_tumor_state_stage_with_model(
         context=context,
         model_provider=model_provider,
@@ -295,6 +309,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     actionable_biology = await generate_actionable_biology_stage_with_model(
         context=context,
@@ -304,6 +319,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     treatment_options = await generate_treatment_options_stage_with_model(
         context=context,
@@ -315,6 +331,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     treatment_pressure = await generate_treatment_pressure_stage_with_model(
         context=context,
@@ -326,6 +343,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     resistance_forecast = await generate_resistance_forecast_stage_with_model(
         context=context,
@@ -337,6 +355,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     biomarker_watch = await generate_biomarker_watch_stage_with_model(
         context=context,
@@ -347,6 +366,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     retesting_triggers = await generate_retesting_triggers_stage_with_model(
         context=context,
@@ -357,6 +377,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     next_tests = await generate_next_test_stage_with_model(
         context=context,
@@ -368,6 +389,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     translational_assessment = await generate_translational_assessment_stage_with_model(
         context=context,
@@ -384,6 +406,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         prompts_root=prompts_root,
         created_at=created_at,
         latency_budgets=latency_budgets,
+        provenance_sink=stage_provenance.append,
     )
     evidence_sentence_map = build_evidence_sentence_map_from_context(context)
     translational_assessment = enforce_patient_population_alignment_and_evidence_labels(
@@ -402,6 +425,7 @@ async def generate_decision_brief_stage_outputs_with_model(
         next_tests=next_tests,
         translational_assessment=translational_assessment,
         evidence_sentence_map=tuple(evidence_sentence_map),
+        provenance=tuple(stage_provenance),
     )
     require_decision_stage_outputs_evidence_grounded(
         **stage_outputs.as_validation_kwargs()
@@ -417,11 +441,13 @@ async def generate_current_tumor_state_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> CurrentTumorStateOutput:
     """Generate the current tumor state prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="current_tumor_state",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="current_tumor_state",
         schema_model=CurrentTumorStateOutput,
         planned_artifact_id=_artifact_id(context.artifact_id, "CurrentTumorStateOutput"),
@@ -446,11 +472,13 @@ async def generate_actionable_biology_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> ActionableBiologyOutput:
     """Generate the actionable biology prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="actionable_biology",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="actionable_biology",
         schema_model=ActionableBiologyOutput,
         planned_artifact_id=_artifact_id(context.artifact_id, "ActionableBiologyOutput"),
@@ -480,6 +508,7 @@ async def generate_treatment_options_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> RankedTreatmentOptionsOutput:
     """Generate the ranked treatment options prompt stage."""
     planned_artifact_id = _artifact_id(
@@ -501,6 +530,7 @@ async def generate_treatment_options_stage_with_model(
     result = await _generate_decision_stage_artifact(
         stage_name="ranked_treatment_options",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="ranked_treatment_options",
         schema_model=RankedTreatmentOptionsOutput,
         planned_artifact_id=planned_artifact_id,
@@ -526,6 +556,7 @@ async def generate_treatment_options_stage_with_model(
         result = await _generate_decision_stage_artifact(
             stage_name="ranked_treatment_options",
             latency_budgets=latency_budgets,
+            provenance_sink=provenance_sink,
             prompt_name="ranked_treatment_options",
             schema_model=RankedTreatmentOptionsOutput,
             planned_artifact_id=planned_artifact_id,
@@ -563,11 +594,13 @@ async def generate_treatment_pressure_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> TreatmentPressureMapOutput:
     """Generate the treatment pressure prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="treatment_pressure",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="treatment_pressure",
         schema_model=TreatmentPressureMapOutput,
         planned_artifact_id=_artifact_id(context.artifact_id, "TreatmentPressureMapOutput"),
@@ -604,11 +637,13 @@ async def generate_resistance_forecast_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> ResistanceForecastOutput:
     """Generate the resistance forecast prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="resistance_forecast",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="resistance_forecast",
         schema_model=ResistanceForecastOutput,
         planned_artifact_id=_artifact_id(context.artifact_id, "ResistanceForecastOutput"),
@@ -700,11 +735,13 @@ async def generate_biomarker_watch_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> BiomarkerWatchListOutput:
     """Generate the biomarker watch-list prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="biomarker_watch_list",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="biomarker_watch_list",
         schema_model=BiomarkerWatchListOutput,
         planned_artifact_id=_artifact_id(context.artifact_id, "BiomarkerWatchListOutput"),
@@ -738,11 +775,13 @@ async def generate_retesting_triggers_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> RetestingTriggersOutput:
     """Generate the re-testing trigger prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="retesting_triggers",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="retesting_triggers",
         schema_model=RetestingTriggersOutput,
         planned_artifact_id=_artifact_id(context.artifact_id, "RetestingTriggersOutput"),
@@ -777,11 +816,13 @@ async def generate_next_test_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> NextTestRecommendationsOutput:
     """Generate the next-test recommendation prompt stage."""
     result = await _generate_decision_stage_artifact(
         stage_name="next_test_recommendation",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="next_test_recommendation",
         schema_model=NextTestRecommendationsOutput,
         planned_artifact_id=_artifact_id(
@@ -826,6 +867,7 @@ async def generate_translational_assessment_stage_with_model(
     prompts_root: Path,
     created_at: datetime,
     latency_budgets: DecisionBriefLatencyBudgets | None = None,
+    provenance_sink: Callable[[ArtifactProvenance], None] | None = None,
 ) -> TranslationalAssessmentOutput:
     """Generate the five-question translational assessment prompt stage.
 
@@ -839,6 +881,7 @@ async def generate_translational_assessment_stage_with_model(
     result = await _generate_decision_stage_artifact(
         stage_name="translational_assessment",
         latency_budgets=latency_budgets,
+        provenance_sink=provenance_sink,
         prompt_name="translational_assessment",
         schema_model=TranslationalAssessmentOutput,
         planned_artifact_id=_artifact_id(
@@ -3074,7 +3117,7 @@ def _require_equal_payload(actual: object, expected: object, field_name: str) ->
 
 
 def _with_prompt_budget(stage_name: str, packet: Mapping[str, object]) -> dict[str, object]:
-    """Return a prompt packet sized for local vLLM execution.
+    """Return a prompt packet sized for OpenAI execution.
 
     The decision brief pipeline intentionally uses many small packets instead of
     one large context. This helper gives every packet a stage-specific character

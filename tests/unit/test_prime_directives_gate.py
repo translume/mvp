@@ -26,10 +26,15 @@ REQUIRED_ENV = {
     "TRANSLUME_REQUIRE_DOCLING": "true",
     "TRANSLUME_REQUIRE_OPENSEARCH": "true",
     "TRANSLUME_REQUIRE_POSTGRES": "true",
-    "BLOCK_REMOTE_MODEL_PROVIDERS": "true",
+    "TRANSLUME_MODEL_PROVIDER": "openai",
+    "TRANSLUME_ALLOW_LOCAL_INFERENCE": "false",
+    "OPENAI_API_KEY": "test-unit-credential",
+    "OPENAI_REASONING_MODE": "pro",
+    "OPENAI_REASONING_EFFORT": "xhigh",
+    "OPENAI_EMBEDDING_MODEL": "text-embedding-3-large",
     "REACTOME_LOCAL_ENABLED": "true",
-    "VLLM_BASE_URL": "http://vllm-clinical:8000/v1",
-    "VLLM_MODEL": "real/model-id",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "OPENAI_REASONING_MODEL": "gpt-6-astra",
     "DOCLING_SERVICE_URL": "http://docling-service:8090",
     "OPTIMUSKG_SERVICE_URL": "http://optimuskg-service:8091",
     "TOOLUNIVERSE_SERVICE_URL": "http://tooluniverse-service:8092",
@@ -265,17 +270,17 @@ def test_gate_fails_zip_extracted_vendors(tmp_path: Path) -> None:
         (target / "README.md").write_text("zip", encoding="utf-8")
     report = validate_prime_directives(environment=REQUIRED_ENV, root=root, force=True)
     assert report.ok is False
-    assert any(f.rule_id == "mims_vendors:updateable_git_clones" for f in report.findings)
+    assert any(f.rule_id == "mims_vendors:verified_sources" for f in report.findings)
 
 
 @pytest.mark.skipif(not _git_available(), reason="git is required for this test")
-def test_gate_blocks_remote_provider_credentials(tmp_path: Path) -> None:
+def test_gate_blocks_unapproved_provider_credentials(tmp_path: Path) -> None:
     root = _prepare_root(tmp_path)
     _prepare_git_vendors(root)
-    environment = {**REQUIRED_ENV, "OPENAI_API_KEY": "real-secret"}
+    environment = {**REQUIRED_ENV, "ANTHROPIC_API_KEY": "test-secret"}
     report = validate_prime_directives(environment=environment, root=root, force=True)
     assert report.ok is False
-    assert any(f.rule_id == "remote_provider_blocked:OPENAI_API_KEY" for f in report.findings)
+    assert any(f.rule_id == "remote_provider_blocked:ANTHROPIC_API_KEY" for f in report.findings)
 
 
 @pytest.mark.skipif(not _git_available(), reason="git is required for this test")
@@ -307,13 +312,13 @@ def test_merge_environment_file_prefers_process_environment(tmp_path: Path) -> N
 
 
 @pytest.mark.skipif(not _git_available(), reason="git is required for this test")
-def test_gate_rejects_remote_vllm_base_url(tmp_path: Path) -> None:
+def test_gate_rejects_local_model_endpoint(tmp_path: Path) -> None:
     root = _prepare_root(tmp_path)
     _prepare_git_vendors(root)
-    environment = {**REQUIRED_ENV, "VLLM_BASE_URL": "https://api.openai.com/v1"}
+    environment = {**REQUIRED_ENV, "OPENAI_BASE_URL": "http://localhost:8000/v1"}
     report = validate_prime_directives(environment=environment, root=root, force=True)
     assert report.ok is False
-    assert any(f.rule_id == "vllm_base_url:local_only" for f in report.findings)
+    assert any(f.rule_id == "openai:endpoint" for f in report.findings)
 
 
 @pytest.mark.skipif(not _git_available(), reason="git is required for this test")

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-
 from translume_schemas.document import DocumentExtractionOutput
 from translume_schemas.session import StoredFile
 
@@ -24,19 +23,19 @@ class DoclingClientConfig:
     """
 
     base_url: str
-    timeout_seconds: float = 240.0
-    extraction_method: str = "docling"
+    timeout_seconds: float = 7200.0
+    extraction_method: str = "openai"
 
 
 class DoclingServiceClient:
-    """HTTP client for the real Docling document extraction service."""
+    """HTTP client for the internal OpenAI document-extraction service."""
 
     def __init__(self, config: DoclingClientConfig) -> None:
         self._config = config
         self._base_url = config.base_url.rstrip("/")
 
     def extract(self, stored_file: StoredFile) -> DocumentExtractionOutput:
-        """Extract structured document content through Docling service.
+        """Extract structured document content through the remote-model service.
 
         Acceptance criteria:
             1. Sends the stored PDF bytes to the configured Docling service.
@@ -73,12 +72,29 @@ class DoclingServiceClient:
                     timeout=self._config.timeout_seconds,
                 )
             except httpx.HTTPError as error:
-                raise DoclingClientError(f"docling service request failed: {error}") from error
+                raise DoclingClientError(
+                    "remote document service request failed"
+                ) from error
         if response.status_code >= 400:
             raise DoclingClientError(
-                f"docling service error {response.status_code}: {response.text}"
+                f"remote document service error {response.status_code}: "
+                + _error_detail(response)
             )
         try:
             return DocumentExtractionOutput.model_validate(response.json())
-        except Exception as error:
-            raise DoclingClientError("docling service returned invalid extraction JSON") from error
+        except (ValueError, TypeError) as error:
+            raise DoclingClientError(
+                "remote document service returned invalid extraction JSON"
+            ) from error
+
+
+def _error_detail(response: httpx.Response) -> str:
+    """Return only the service's bounded diagnostic, never an arbitrary body."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return "request failed without a structured diagnostic"
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    if not isinstance(detail, str):
+        return "request failed without a structured diagnostic"
+    return detail[:500]

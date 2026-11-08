@@ -22,12 +22,6 @@ def _write_complete_medeadb(root: Path) -> Path:
             path = root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"fixture")
-    embedding = (
-        root / "transcriptformer_embedding" / "embedding_store" / "disease" / "cell.npy"
-    )
-    embedding.parent.mkdir(parents=True, exist_ok=True)
-    embedding.write_bytes(b"fixture")
-    (embedding.parent / "metadata.json.gz").write_bytes(b"fixture")
     return root
 
 
@@ -51,49 +45,16 @@ def _write_graph_pair(root: Path) -> tuple[Path, Path]:
     return nodes, edges
 
 
-def test_inspect_medeadb_requires_all_resource_families(tmp_path: Path) -> None:
+def test_inspect_medeadb_requires_only_active_nonempty_data(tmp_path: Path) -> None:
     medeadb = _write_complete_medeadb(tmp_path / "MedeaDB")
-    status = inspect_medeadb(medeadb)
-    assert status.available is True
-    assert all(status.resources.values())
-
-    (medeadb / "depmap_24q2" / "corr_matrix.npy").unlink()
-    status = inspect_medeadb(medeadb)
-    assert status.available is False
-    assert "depmap_24q2/corr_matrix.npy" in status.missing
-
-    _write_complete_medeadb(medeadb)
-    embedding = next(
-        (medeadb / "transcriptformer_embedding" / "embedding_store").rglob("*.npy")
-    )
-    embedding.write_bytes(b"")
-    status = inspect_medeadb(medeadb)
-    assert status.available is False
-    assert "transcriptformer_embedding/embedding_store/**/*.npy" in status.missing
-
-    _write_complete_medeadb(medeadb)
-    metadata = next(
-        (medeadb / "transcriptformer_embedding" / "embedding_store").rglob(
-            "metadata.json.gz"
-        )
-    )
-    metadata.unlink()
-    status = inspect_medeadb(medeadb)
-    assert status.available is False
-    assert (
-        "transcriptformer_embedding/embedding_store/**/metadata.json.gz"
-        in status.missing
-    )
-
-    _write_complete_medeadb(medeadb)
-    checkpoint = medeadb / "compass" / "checkpoint" / "pretrainer.pt"
-    checkpoint.write_bytes(
-        b"version https://git-lfs.github.com/spec/v1\n"
-        b"oid sha256:fixture\nsize 123\n"
-    )
-    status = inspect_medeadb(medeadb)
-    assert status.available is False
-    assert "compass/checkpoint/pretrainer.pt" in status.missing
+    assert inspect_medeadb(medeadb).available is True
+    assert set(inspect_medeadb(medeadb).resources) == {"depmap_24q2"}
+    required = medeadb / "depmap_24q2/corr_matrix.npy"
+    required.write_bytes(b"")
+    assert inspect_medeadb(medeadb).available is False
+    required.write_bytes(b"version https://git-lfs.github.com/spec/v1\n")
+    assert inspect_medeadb(medeadb).available is False
+    assert "depmap_24q2/corr_matrix.npy" in inspect_medeadb(medeadb).missing
 
 
 def test_download_medeadb_uses_huggingface_snapshot_local_dir(
@@ -109,6 +70,9 @@ def test_download_medeadb_uses_huggingface_snapshot_local_dir(
         _write_complete_medeadb(destination)
         return str(destination)
 
+    module.HfApi = lambda: SimpleNamespace(
+        dataset_info=lambda *args, **kwargs: SimpleNamespace(sha="immutable-revision-1")
+    )
     module.snapshot_download = snapshot_download  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "huggingface_hub", module)
     destination = tmp_path / "cache" / "MedeaDB"
@@ -118,7 +82,11 @@ def test_download_medeadb_uses_huggingface_snapshot_local_dir(
     assert calls[0]["repo_id"] == "mims-harvard/MedeaDB"
     assert calls[0]["repo_type"] == "dataset"
     assert calls[0]["local_dir"] == destination.resolve()
-    assert calls[0]["revision"] == "revision-1"
+    assert calls[0]["revision"] == "immutable-revision-1"
+    assert calls[0]["allow_patterns"] == list(MEDEADB_REQUIRED_FILES["depmap_24q2"])
+    assert all(
+        not name.endswith((".pt", ".pth")) for name in calls[0]["allow_patterns"]
+    )
 
 
 def test_download_optimuskg_uses_client_cache_and_validates_schema(
@@ -142,7 +110,12 @@ def test_download_optimuskg_uses_client_cache_and_validates_schema(
     monkeypatch.setitem(
         sys.modules,
         "optimuskg",
-        SimpleNamespace(set_cache_dir=set_cache_dir, get_file=get_file),
+        SimpleNamespace(
+            set_cache_dir=set_cache_dir,
+            get_file=get_file,
+            get_doi=lambda: "doi:10.7910/DVN/IYNGEV",
+            get_server=lambda: "https://dataverse.harvard.edu",
+        ),
     )
     repo = tmp_path / "OptimusKG"
     repo.mkdir()
@@ -191,7 +164,7 @@ def test_preflight_validates_host_mims_data_paths(tmp_path: Path) -> None:
     assert any(item.startswith("optimuskg_cache:") for item in checked)
 
     (medea_host / "MedeaDB" / "depmap_24q2" / "corr_matrix.npy").unlink()
-    with pytest.raises(PreflightError, match="make medea-data"):
+    with pytest.raises(PreflightError, match="Docker data-init"):
         validate_mims_data(tmp_path, environment)
 
 

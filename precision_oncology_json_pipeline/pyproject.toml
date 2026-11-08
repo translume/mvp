@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "precision-oncology-json-pipeline"
-version = "1.0.0"
+version = "1.1.0"
 description = "Deterministic OpenAI-powered JSON pipeline for precision-oncology actionable packets"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Proprietary / internal evaluation"}
 authors = [{name = "Translume integration team"}]
 dependencies = [
-  "fastapi==0.139.0",
-  "openai>=2.45.0,<3.0.0",
-  "pydantic>=2.13.4,<3.0.0",
-  "uvicorn==0.51.0",
+  "fastapi==0.162.2",
+  "openai==2.54.0",
+  "pydantic==2.14.3",
+  "uvicorn==0.54.0",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +29,7 @@ dev = [
 precision-oncology-pipeline = "precision_oncology_pipeline:main"
 
 [tool.setuptools]
-py-modules = ["precision_oncology_pipeline"]
+py-modules = ["precision_oncology_pipeline", "precision_oncology_runner"]
 
 [tool.ruff]
 target-version = "py311"

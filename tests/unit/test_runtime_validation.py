@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from translume_core.runtime_validation import (
     RuntimeCommandResult,
-    RuntimeFailurePattern,
     build_runtime_validation_report,
     command_specs_from_config,
     expand_env_value,
@@ -38,10 +37,10 @@ def test_failure_patterns_from_config_and_classification() -> None:
     config = {
         "failure_patterns": [
             {
-                "category": "gpu_unavailable",
-                "patterns": ["nvidia-smi"],
-                "explanation": "GPU failure.",
-                "next_actions": ["Check GPU."],
+                "category": "openai_access_failure",
+                "patterns": ["insufficient_quota"],
+                "explanation": "OpenAI rejected the account quota.",
+                "next_actions": ["Check API project billing."],
             }
         ]
     }
@@ -49,11 +48,11 @@ def test_failure_patterns_from_config_and_classification() -> None:
     report = build_runtime_validation_report(
         [
             RuntimeCommandResult(
-                name="gpu_state",
-                argv=("nvidia-smi",),
+                name="integration_full_stack",
+                argv=("docker", "compose", "run", "--rm", "verify"),
                 return_code=1,
                 stdout="",
-                stderr="nvidia-smi failed",
+                stderr="OpenAI request failed: insufficient_quota",
                 required=True,
                 elapsed_seconds=0.1,
             )
@@ -62,7 +61,7 @@ def test_failure_patterns_from_config_and_classification() -> None:
     )
     assert report.status == "failed"
     categories = {finding.category for finding in report.findings}
-    assert "gpu_unavailable" in categories
+    assert "openai_access_failure" in categories
     assert "required_command_failed" in categories
 
 

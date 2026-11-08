@@ -13,7 +13,7 @@ class MedeaReasoningProvider:
     """Bounded Medea reasoning adapter using local result artifacts.
 
     A production Medea service should write schema-compatible reasoning JSON to
-    this artifact path after routing all model calls through local vLLM. This
+    this artifact path after routing all model calls through OpenAI. This
     adapter refuses to fabricate reasoning when that result is missing.
     """
 

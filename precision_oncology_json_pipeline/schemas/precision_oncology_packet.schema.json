@@ -3340,6 +3340,64 @@
           "default": false,
           "title": "Cache Hit",
           "type": "boolean"
+        },
+        "provider": {
+          "default": "openai",
+          "title": "Provider",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "reasoning_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Mode"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        },
+        "wire_schema_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wire Schema Sha256"
+        },
+        "attempts": {
+          "default": 1,
+          "title": "Attempts",
+          "type": "integer"
         }
       },
       "required": [
@@ -3521,6 +3579,11 @@
     },
     "reasoning_effort": {
       "title": "Reasoning Effort",
+      "type": "string"
+    },
+    "reasoning_mode": {
+      "default": "pro",
+      "title": "Reasoning Mode",
       "type": "string"
     },
     "clinical_disclaimer": {

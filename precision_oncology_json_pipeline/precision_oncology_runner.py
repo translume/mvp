@@ -68,7 +68,23 @@ class PipelineFailureDiagnostic:
 @app.get("/health")
 def health() -> dict[str, str]:
     """Return runner readiness without executing a model call."""
-    return {"status": "ok", "service": "precision-oncology-pipeline"}
+    if not os.getenv("OPENAI_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required.")
+    if os.getenv("OPENAI_REASONING_MODE", "pro") != "pro":
+        raise HTTPException(status_code=503, detail="OpenAI Pro mode is required.")
+    if (
+        os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        != "https://api.openai.com/v1"
+    ):
+        raise HTTPException(
+            status_code=503, detail="Official OpenAI endpoint required."
+        )
+    return {
+        "status": "ok",
+        "service": "precision-oncology-pipeline",
+        "provider": "openai",
+        "reasoning_mode": "pro",
+    }
 
 
 @app.post("/runs", response_model=PrecisionRunResponse)
@@ -90,12 +106,24 @@ def run_precision_pipeline(
     _write_json(input_path, request.review_packet)
 
     command = _pipeline_command(input_path, output_root)
-    result = subprocess.run(
-        command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    timeout = _run_timeout()
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        diagnostic = PipelineFailureDiagnostic(
+            exit_code=124,
+            inferred_stage=_infer_failed_stage(output_root),
+            error=f"Precision-oncology run exceeded {timeout:g} seconds.",
+            pydantic_warnings_summarized=False,
+        )
+        _persist_failure_diagnostic(diagnostic, session_root, output_root)
+        raise HTTPException(status_code=504, detail=diagnostic.error) from error
     if result.returncode != 0:
         diagnostic = _pipeline_failure_diagnostic(result, output_root)
         _persist_failure_diagnostic(diagnostic, session_root, output_root)
@@ -129,12 +157,28 @@ def _pipeline_command(input_path: Path, output_root: Path) -> list[str]:
         "--output-dir",
         str(output_root),
         "--model",
-        os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
+        os.getenv("OPENAI_REASONING_MODEL", os.getenv("OPENAI_MODEL", "gpt-6-astra")),
+        "--reasoning-mode",
+        os.getenv("OPENAI_REASONING_MODE", "pro"),
         "--reasoning-effort",
-        os.getenv("OPENAI_REASONING_EFFORT", "medium"),
+        os.getenv("OPENAI_REASONING_EFFORT", "xhigh"),
         "--request-timeout",
         os.getenv("PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS", "900"),
     ]
+
+
+def _run_timeout() -> float:
+    """Return a finite subprocess deadline from deployment configuration."""
+    try:
+        value = float(os.getenv("PRECISION_ONCOLOGY_RUN_TIMEOUT_SECONDS", "10800"))
+    except ValueError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Invalid pipeline run timeout.",
+        ) from error
+    if not 1 <= value <= 86400:
+        raise HTTPException(status_code=503, detail="Invalid pipeline run timeout.")
+    return value
 
 
 def _validated_identifier(value: str, label: str) -> str:

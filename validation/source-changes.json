@@ -1,0 +1,1648 @@
+{
+  "original_archive_sha256": "29a5575d21238085364d69ded0a3110b0cbb19143629d5f51f9d0964ba570cd7",
+  "changed_files": [
+    {
+      "path": ".dockerignore",
+      "change": "modified",
+      "sha256": "0574d9f1abc0362178b73f0771ce7f17ef00f639617109dcc58de7db32a20415",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": ".env.example",
+      "change": "modified",
+      "sha256": "000444d7d7b04668c1f5cfaa695da779a173eab36ca35b4680791b1468d28435",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "DEVELOPER.md",
+      "change": "modified",
+      "sha256": "fa4454dca3b007fb25503965f9fed8d6c61aec39fdee34457d8d4915730a23c1",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "Makefile",
+      "change": "modified",
+      "sha256": "f7d9444661c12598296ba0a6d1551433e51298ab21215cebebc0876797282205",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "QUICKSTART.md",
+      "change": "modified",
+      "sha256": "3c1e19bd81dd6efa674bf093672af65331f90c6b1d7cb6c5cee08a2a859da33e",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "README.md",
+      "change": "modified",
+      "sha256": "7317c435dcab8982b475370dd2b615549caf1ef613c870d5a3d9eb178dba26b2",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "STRUCTURED_OUTPUTS.md",
+      "change": "modified",
+      "sha256": "1d5591e13ecd0bee03911fcd008274e5f791383465cbd6543f1753d838843402",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "VALIDATION.md",
+      "change": "added",
+      "sha256": "82229203bc6384378b92668006f2ddafeb6f36cdba384cea1edb204780de89de",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "apps/translume-api/src/translume_api/config.py",
+      "change": "modified",
+      "sha256": "d1361f6118927405954967ede861fb023d57d088218e13a847ef16071d724233",
+      "code_blocks": [
+        "Settings",
+        "Settings.validate_report_extraction_budget",
+        "_default_tool_workflows_csv",
+        "_parse_boolean",
+        "get_settings"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "apps/translume-api/src/translume_api/main.py",
+      "change": "modified",
+      "sha256": "caa29ac086a6b68f0db56090f173658e320449d5ae8f653c1f2f238373535e4f",
+      "code_blocks": [
+        "_http_error_detail",
+        "_http_status_code",
+        "_openai_client",
+        "_read_pdf_upload",
+        "_validate_openai_access",
+        "_workflow_config",
+        "_workflow_providers",
+        "health",
+        "lifespan",
+        "process_report",
+        "validate_claim"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "configs/integration/full_stack_requirements.json",
+      "change": "modified",
+      "sha256": "5ea5fa3ee67c2ac504a955a91d2562887622169daa033651451a07f22559d050",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "configs/integration/live_vm_runtime_validation.json",
+      "change": "modified",
+      "sha256": "f3f3bd4c4d224462f855606222482fa09cf8af92b5bdc529cb085180b5d607bb",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "data/input/.gitkeep",
+      "change": "added",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/api.Dockerfile",
+      "change": "modified",
+      "sha256": "7d6c9e11a7b06d83fef07759ff55b76071e4991f65836d4b4d99d62cfe23a61a",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/docling.Dockerfile",
+      "change": "modified",
+      "sha256": "30b8f41827a4c1eefb76954d268f640bc12fa7113f402004e2bcca348b5be263",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/dynamic-pathway-analyzer.Dockerfile",
+      "change": "modified",
+      "sha256": "76fd45c7404e777d383158fc2c3c386a21b9614121b713a5669c61201c5e5c26",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/medea-service.Dockerfile",
+      "change": "modified",
+      "sha256": "fce8a49f144a56b7326747db9726f080182dee39a3f91a8e32f6ed0cf68a3a7c",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/optimuskg-service.Dockerfile",
+      "change": "modified",
+      "sha256": "34947a2902a713191d96daf19d574a6ab70aac62ad45005b3f81c7ea04a2dad8",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/precision-oncology-pipeline.Dockerfile",
+      "change": "modified",
+      "sha256": "59e8f8b79754a8c2c17246d79d672ed7e102cb0c61222e669f1e2cbb59f14279",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/runtime-requirements.in",
+      "change": "added",
+      "sha256": "31f6968d056a4a3652ef65876f213d07a5fcd1b25ef85ca3c9cd3579ec9f8772",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/runtime-requirements.txt",
+      "change": "added",
+      "sha256": "13beb492a77de028e6f2d0c30e330088e44b9f8050c6f5520faa4d0d42ba2d8c",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/setup.Dockerfile",
+      "change": "added",
+      "sha256": "db8b73af13064167189b6b3ea439ea6fe277c4aa8496c28257dbf8d334ac5de4",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/test-requirements.in",
+      "change": "added",
+      "sha256": "9d11b713a84339c49bedf8eed72c31b54e3d2cb8f803e196be83d8405190e0cf",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/test-requirements.txt",
+      "change": "added",
+      "sha256": "b4edf4c2419f608c343a7bc1d3d27f07e150fdd94f466b45861e95ea5109a6e9",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/test.Dockerfile",
+      "change": "added",
+      "sha256": "878a6d0635cf754b390b74b041624c39af2ac1435b9495ceeb642c38de91e1a7",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/tooluniverse-service.Dockerfile",
+      "change": "modified",
+      "sha256": "73ac4fc5e1c79e541b1daffb8e8cf8c814eeffff6acc775ab744935bfeebf462",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/ui.Dockerfile",
+      "change": "modified",
+      "sha256": "517753c85c8559e0f026b60b11ef3682efb4455b8f494b18abd2ab1733e60fa2",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker/worker.Dockerfile",
+      "change": "modified",
+      "sha256": "255a3f78d27df2225f41c3480fb3558a804b892567e3ef695eff09f086484974",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "docker-compose.yml",
+      "change": "modified",
+      "sha256": "915d18ef043018cfba9ca6cfa3659647d521f867c912c323ebaf81982c3252d3",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/.env.example",
+      "change": "modified",
+      "sha256": "5bb0bbee39c3db76a26f78bdcf5aaa62f459d4a28825074fe2ed3d99b546f2d1",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/README.md",
+      "change": "modified",
+      "sha256": "5c06288f9fce01a08a608b2215ec610e38df67ad518524d9d20ab20d846443f1",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/dynamic_pathway_analyzer.py",
+      "change": "modified",
+      "sha256": "a54295fb458f15b546d5464cd337cc7a671b0f1e9877890351ff9005acba01f4",
+      "code_blocks": [
+        "analyze_file",
+        "biomedical_search_payload",
+        "discover_payload",
+        "finalize_report",
+        "main",
+        "normalize_case",
+        "parse_args",
+        "research_case",
+        "run_research_lane"
+      ],
+      "removed_code_blocks": [
+        "with_retries"
+      ]
+    },
+    {
+      "path": "dynamic_pathway_analyzer/dynamic_pathway_runner.py",
+      "change": "modified",
+      "sha256": "0f2b428af2bb05096f357f561429e473195fc9fc90530a0d5019b7dad53e2982",
+      "code_blocks": [
+        "_reasoning_model",
+        "_remaining_seconds",
+        "_run_command",
+        "_run_timeout",
+        "health",
+        "run_dynamic_pathway_analysis"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/openai_runtime.py",
+      "change": "added",
+      "sha256": "5f4af141053a5c94f55bee9bddbc784e4359e135976ec222505484b83a54133d",
+      "code_blocks": [
+        "OpenAIRequestFailure",
+        "RemoteSettings",
+        "RemoteSettings.__post_init__",
+        "_json_hash",
+        "build_client",
+        "error_code",
+        "request_response",
+        "response_metadata",
+        "retryable_api_error",
+        "strict_schema",
+        "structured_output",
+        "text_format",
+        "write_json_atomic",
+        "write_text_atomic"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/readme2.md",
+      "change": "modified",
+      "sha256": "6cff7ac1f933eb17686ae8a865a7cb4b6c5bd64dcfc1bc15357480139af37670",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/requirements.txt",
+      "change": "modified",
+      "sha256": "4cfc2380fac163e403a146befaebbfe1c72749eaed0ed9ff4db40dfe4174f2b8",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/test_dynamic_pathway_runner.py",
+      "change": "modified",
+      "sha256": "df6bca82b080b1c171706b9ff10a5ab38c5f0c347cea73bd5f2b18c80049a515",
+      "code_blocks": [
+        "test_command_timeout_is_explicit",
+        "test_elapsed_deadline_blocks_the_next_subprocess",
+        "test_runner_propagates_shared_models_mode_effort_and_deadline",
+        "test_runner_redacts_failure_credentials"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/test_openai_runtime.py",
+      "change": "added",
+      "sha256": "d12661122badff1bc90988bf37df0a84dd150ada7b2b9dca878a53eae5e2e602",
+      "code_blocks": [
+        "Echo",
+        "case_map",
+        "invoke",
+        "report",
+        "sdk_client",
+        "sdk_response",
+        "test_bad_json_does_not_echo_model_content",
+        "test_full_dynamic_flow_uses_four_real_sdk_requests_and_writes_audit",
+        "test_invalid_completed_output_is_recorded_as_failed_with_usage",
+        "test_nonofficial_endpoint_and_standard_mode_are_rejected",
+        "test_partial_text_and_refusals_never_succeed",
+        "test_public_search_payload_excludes_identifying_fields_without_mutation",
+        "test_remote_policy_and_audit_use_actual_sdk_metadata",
+        "test_terminal_failures_do_not_retry",
+        "test_truncation_retry_has_one_larger_bound_and_retains_failed_usage",
+        "test_tumor_board_request_uses_pro_without_web",
+        "test_wire_schemas_preserve_properties_and_nullable_values"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "dynamic_pathway_analyzer/tumor_board_causal_synthesis.py",
+      "change": "modified",
+      "sha256": "d234558f7334ad58d13409a5707ef9073dc76322ea8dbfc9c5a8951f85158ec2",
+      "code_blocks": [
+        "build_user_message",
+        "call_with_retries",
+        "main",
+        "parse_args"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/pyproject.toml",
+      "change": "modified",
+      "sha256": "e1a2ef831f565230b211c7a0dfff59d17dcca53cd0857f7c0608fc8d8b6a7df1",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/embedding_providers/__init__.py",
+      "change": "added",
+      "sha256": "4a0bb495b1667cbb9d18e89e6c4c5d91f151d2021c91117443523368313e9cdf",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/embedding_providers/openai_embedding_provider.py",
+      "change": "added",
+      "sha256": "37fe1dfaf9aee7ec9325be371840c69d4bc4b5c999f1828af87598feb8788138",
+      "code_blocks": [
+        "OpenAIEmbeddingProvider",
+        "OpenAIEmbeddingProvider.__init__",
+        "OpenAIEmbeddingProvider.embed",
+        "OpenAISyncEmbeddingProvider",
+        "OpenAISyncEmbeddingProvider.__init__",
+        "OpenAISyncEmbeddingProvider.embed",
+        "_EmbeddingProviderBase",
+        "_EmbeddingProviderBase.__init__",
+        "_EmbeddingProviderBase._accept_batch",
+        "_EmbeddingProviderBase._cache_key",
+        "_EmbeddingProviderBase._original_order",
+        "_EmbeddingProviderBase._prepare",
+        "_EmbeddingProviderBase._request",
+        "embedding_batches",
+        "validate_embedding_response"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/graph_providers/optimuskg_runtime.py",
+      "change": "modified",
+      "sha256": "bd5523e97b0372af1079ae078cc6f447a16cb38899302038dcff491f3d6f9fa0",
+      "code_blocks": [
+        "_collect_matching_nodes",
+        "_graph_artifact_from_parquet"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/model_providers/openai_provider.py",
+      "change": "added",
+      "sha256": "55f98f2f87ae60f60752911169bb32b76804b51e3af9c10c57d3eaa44e705784",
+      "code_blocks": [
+        "OpenAIModelProvider",
+        "OpenAIModelProvider.__init__",
+        "OpenAIModelProvider._count_request",
+        "OpenAIModelProvider._max_tokens_for_schema",
+        "OpenAIModelProvider._require_budget",
+        "OpenAIModelProvider.bind_correlation_id",
+        "OpenAIModelProvider.build_request",
+        "OpenAIModelProvider.call_records",
+        "OpenAIModelProvider.capture_calls",
+        "OpenAIModelProvider.count_structured_request",
+        "OpenAIModelProvider.count_tokens",
+        "OpenAIModelProvider.structured_completion",
+        "OpenAIModelProvider.wire_schema"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/model_providers/openai_schema.py",
+      "change": "added",
+      "sha256": "0444d551db194e93cf2f6cd636ab6b20000d034f9b4bd961d3ec071c2a925f70",
+      "code_blocks": [
+        "_bound_node",
+        "_normalize_node",
+        "bounded_generation_schema",
+        "to_openai_strict_schema"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/reasoning_providers/medea_reasoning_provider.py",
+      "change": "modified",
+      "sha256": "a6431eaa685034bcb581a867f4939d4de09aed73e0380756e2691db4df7eae5f",
+      "code_blocks": [
+        "MedeaReasoningProvider"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-adapters/src/translume_adapters/tool_providers/tooluniverse_runtime.py",
+      "change": "modified",
+      "sha256": "8e6569ebbc6e7d61d885ca1e85ba3b6757434c27fb832f76c19d64ab0a150161",
+      "code_blocks": [
+        "ToolUniverseRuntime",
+        "ToolUniverseRuntime._run_workflows_sync",
+        "ToolUniverseRuntime.run_workflows"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-clients/pyproject.toml",
+      "change": "modified",
+      "sha256": "a4fa2d2f4ba26ee254569c1f69f6efbadfc74b3f00b265d1037fbfbebb1a37aa",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-clients/src/translume_clients/docling.py",
+      "change": "modified",
+      "sha256": "ffff1e5f84dadc9b1bf7d580e0dc07c34ce1004c0f38a44d3603db3e849c52fe",
+      "code_blocks": [
+        "DoclingClientConfig",
+        "DoclingServiceClient",
+        "DoclingServiceClient.extract",
+        "_error_detail"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-clients/src/translume_clients/openai_client.py",
+      "change": "added",
+      "sha256": "fac94b5cbe2292d7754af15d48afdc8d335defddea43c09dfcd68668f7c8453b",
+      "code_blocks": [
+        "OpenAICallCapture",
+        "OpenAICallCapture.records",
+        "OpenAIClient",
+        "OpenAIClient.__aenter__",
+        "OpenAIClient.__aexit__",
+        "OpenAIClient.__init__",
+        "OpenAIClient._post",
+        "OpenAIClient.aclose",
+        "OpenAIClient.count_tokens",
+        "OpenAIClient.embeddings",
+        "OpenAIClient.response",
+        "OpenAIClient.structured_completion",
+        "OpenAISyncClient",
+        "OpenAISyncClient.__enter__",
+        "OpenAISyncClient.__exit__",
+        "OpenAISyncClient.__init__",
+        "OpenAISyncClient._post",
+        "OpenAISyncClient.close",
+        "OpenAISyncClient.count_tokens",
+        "OpenAISyncClient.embeddings",
+        "OpenAISyncClient.response",
+        "OpenAISyncClient.structured_completion",
+        "_OpenAIClientBase",
+        "_OpenAIClientBase.__init__",
+        "_OpenAIClientBase._begin_operation",
+        "_OpenAIClientBase._headers",
+        "_OpenAIClientBase._process_http_response",
+        "_OpenAIClientBase._record",
+        "_OpenAIClientBase._response_request",
+        "_OpenAIClientBase.bind_correlation_id",
+        "_OpenAIClientBase.call_records",
+        "_OpenAIClientBase.capture_calls",
+        "_append_journal",
+        "_error_code",
+        "_http_error",
+        "_json_hash",
+        "_json_object",
+        "_nonnegative_integer",
+        "_response_error",
+        "_retry_delay",
+        "_safe_identifier",
+        "_structured_object",
+        "_usage_fields",
+        "_wire_schema",
+        "normalize_count_request",
+        "response_text",
+        "validate_openai_base_url"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/compiler/decision_brief.py",
+      "change": "modified",
+      "sha256": "0004a7ac18d6d5c5c9dabec90dfc548d71a875b8ffb69cfaf1537c44145fe8a6",
+      "code_blocks": [
+        "DecisionBriefStageOutputs",
+        "_generate_decision_stage_artifact",
+        "_with_prompt_budget",
+        "generate_actionable_biology_stage_with_model",
+        "generate_biomarker_watch_stage_with_model",
+        "generate_current_tumor_state_stage_with_model",
+        "generate_decision_brief_stage_outputs_with_model",
+        "generate_next_test_stage_with_model",
+        "generate_oncologist_decision_brief_with_model",
+        "generate_resistance_forecast_stage_with_model",
+        "generate_retesting_triggers_stage_with_model",
+        "generate_translational_assessment_stage_with_model",
+        "generate_treatment_options_stage_with_model",
+        "generate_treatment_pressure_stage_with_model"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/compiler/report_extraction.py",
+      "change": "modified",
+      "sha256": "b08a2af6fb0f67f6a40f9159df9698f171d88f7a6f7345c75652976dacb99271",
+      "code_blocks": [
+        "LegacyReportExtractionDisabledError",
+        "generate_report_extraction_from_chunks"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/compiler/structured_model_artifacts.py",
+      "change": "modified",
+      "sha256": "fe662fa8d4bef8fb6914325105817482626f22cc39acec9534e822819c096aff",
+      "code_blocks": [
+        "ClaimEvidenceListOutput",
+        "StructuredArtifactInputBudgetError",
+        "_generate_artifact",
+        "_generate_report_extraction_adaptively",
+        "_generate_valid_artifact_attempt",
+        "_plan_token_bounded_report_extraction_batches",
+        "_require_prompt_within_token_budget",
+        "_retrieved_chunk_prompt_payload",
+        "_structured_model_failure_message",
+        "compact_clinical_artifact_bundle_for_prompt",
+        "compact_evidence_context_for_prompt",
+        "generate_claim_evidence_with_model",
+        "generate_confirmatory_testing_with_model",
+        "generate_mechanism_sankey_with_model",
+        "generate_molecular_fit_matrix_with_model",
+        "generate_molecular_phenotype_with_model",
+        "generate_report_extraction_with_model",
+        "generate_tumor_behavior_model_with_model"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/compiler/tumor_behavior.py",
+      "change": "modified",
+      "sha256": "b3364cec4678327dbef368a8e4009ef5e4261b8ef6730dbef5722a9ca29264aa",
+      "code_blocks": [
+        "LegacyTumorBehaviorDisabledError",
+        "generate_tumor_behavior_model_from_context"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/document/quality.py",
+      "change": "modified",
+      "sha256": "1847ce6a52d8cf21177790d8d5187f5e353a6743192a72338b51365abe124582",
+      "code_blocks": [
+        "select_best_document_extraction"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/evaluation/decision_brief.py",
+      "change": "modified",
+      "sha256": "8e127fb4d6af782b15c4ecfb9e2bd9a570a09ba07046ad9ea40721b4f8516396",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/prime_directives/gate.py",
+      "change": "modified",
+      "sha256": "efac3e23becf76cc3f88f5d90dce3d6e008d1d922689acd7767caead1d980047",
+      "code_blocks": [
+        "validate_openai_runtime",
+        "validate_prime_directives",
+        "validate_remote_provider_environment",
+        "validate_required_true_flags",
+        "validate_vendor_repositories"
+      ],
+      "removed_code_blocks": [
+        "validate_vllm_local_endpoint",
+        "validate_vllm_model"
+      ]
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/provenance/coverage.py",
+      "change": "modified",
+      "sha256": "29b0ff2123ef521e269716ca3c404eab49994fd19c9f8b4d64b677bd90f131bf",
+      "code_blocks": [
+        "provenance_for_claim",
+        "provenance_for_medea_reasoning"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/provenance/provenance.py",
+      "change": "modified",
+      "sha256": "8ad3d9026e0635cfc64630efb89a9e3dd0326a084633b1137a9684846962c063",
+      "code_blocks": [
+        "_UnscopedCallCapture",
+        "_UnscopedCallCapture.records",
+        "build_artifact_provenance",
+        "capture_model_calls",
+        "model_call_snapshot",
+        "unique_model_calls"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/runtime_validation.py",
+      "change": "modified",
+      "sha256": "e5c70d40b1ec078db1308d5be08512facae78432af7fc478ac0a36218ae04872",
+      "code_blocks": [
+        "classify_runtime_failures"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/vendor/packaged.py",
+      "change": "added",
+      "sha256": "0f15a300d824271f1a521b7c659c51f65da2e205843fd1a56cc192d2584c23ee",
+      "code_blocks": [
+        "_archive_files",
+        "_entries",
+        "_link_target",
+        "_sha256",
+        "install_packaged_vendor_sources",
+        "require_packaged_vendor_sources",
+        "verify_packaged_vendor_source"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-core/src/translume_core/workflow.py",
+      "change": "modified",
+      "sha256": "79d8a636c6402168443eb5f29f8dd10f65d89addf3152b9d2ac3a90dff806a8f",
+      "code_blocks": [
+        "TranslumeWorkflowConfig",
+        "TranslumeWorkflowProviders",
+        "_extract_best_document",
+        "_gather_workflow_stages",
+        "_require_model_provider",
+        "_require_reasoning_model",
+        "_run_sync_workflow_stage",
+        "process_report_pdf"
+      ],
+      "removed_code_blocks": [
+        "_require_vllm_model"
+      ]
+    },
+    {
+      "path": "packages/translume-ports/src/translume_ports/embedding_provider.py",
+      "change": "added",
+      "sha256": "299b4a8bcffefc26ac9cb598d2fd2449a06b5423b20b233f32b9f56511c9d363",
+      "code_blocks": [
+        "EmbeddingProvider",
+        "EmbeddingProvider.embed",
+        "SyncEmbeddingProvider",
+        "SyncEmbeddingProvider.embed"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-ports/src/translume_ports/model_provider.py",
+      "change": "modified",
+      "sha256": "1686a1c65d67ff78e750b670248143de713445508c412059d6ea63f8c4069621",
+      "code_blocks": [
+        "ModelCallCapture",
+        "ModelCallCapture.records",
+        "ModelProvider",
+        "ModelProvider.call_records",
+        "ModelProvider.capture_calls",
+        "ModelProvider.count_structured_request",
+        "ModelProvider.count_tokens",
+        "ModelProvider.structured_completion"
+      ],
+      "removed_code_blocks": [
+        "ModelOutputTruncatedError",
+        "ModelOutputTruncatedError.__init__"
+      ]
+    },
+    {
+      "path": "packages/translume-schemas/src/translume_schemas/document.py",
+      "change": "modified",
+      "sha256": "57816c1e2df96365a22fb4ac2792524a71b8b70139e4de1dbaa7910fc79e787b",
+      "code_blocks": [
+        "DocumentExtractionOutput",
+        "DocumentPage"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-schemas/src/translume_schemas/medea.py",
+      "change": "modified",
+      "sha256": "27f3bf84ab7fe9a413d4d5c12e97eec1af7916a09e14b71d673904403a658104",
+      "code_blocks": [
+        "MedeaLiteratureSearch",
+        "MedeaPaperJudgement",
+        "MedeaReasoningArtifact",
+        "MedeaSourceReference"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-schemas/src/translume_schemas/model_calls.py",
+      "change": "added",
+      "sha256": "ef8464b92e79af8ee27db1ae52f0801a239e7740826f73fe846d013dd0fa40fe",
+      "code_blocks": [
+        "ModelAuditError",
+        "ModelAuthenticationError",
+        "ModelCallRecord",
+        "ModelConnectionError",
+        "ModelIncompleteError",
+        "ModelInputBudgetError",
+        "ModelInputBudgetError.__init__",
+        "ModelInvalidRequestError",
+        "ModelOutputTruncatedError",
+        "ModelOutputTruncatedError.__init__",
+        "ModelProviderError",
+        "ModelProviderError.__init__",
+        "ModelQuotaError",
+        "ModelRateLimitError",
+        "ModelRefusalError",
+        "ModelResponseError",
+        "ModelTimeoutError"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "packages/translume-schemas/src/translume_schemas/provenance.py",
+      "change": "modified",
+      "sha256": "d032cd943232b97e337f7a9b01e4682b1e2b8d48cab555edfc4bef30b60eb733",
+      "code_blocks": [
+        "ArtifactProvenance"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/.env.example",
+      "change": "modified",
+      "sha256": "993d508687229beb25b99264f2ff039696ab65b78de939fa72d471a50367e6e2",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/README.md",
+      "change": "modified",
+      "sha256": "497c02093d37b88bedf66a886dfdc55774bb1377277d58eb5aa8c74795cd617d",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/VALIDATION.md",
+      "change": "modified",
+      "sha256": "22bbb07ad08982589e9ac4e2f6170f7a587492812678c425ea6f1c09c4fcb063",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/precision_oncology_pipeline.py",
+      "change": "modified",
+      "sha256": "409374c3b3272f44ebab631b0f6868c6595726ba0d701f8e60c04eca95fb4dc3",
+      "code_blocks": [
+        "FinalPacket",
+        "ModelResult",
+        "OpenAIParsedOutputError",
+        "OpenAIParsedOutputError.retryable",
+        "OpenAIResponsesGateway",
+        "OpenAIResponsesGateway.__enter__",
+        "OpenAIResponsesGateway.__exit__",
+        "OpenAIResponsesGateway.__init__",
+        "OpenAIResponsesGateway._call_once",
+        "OpenAIResponsesGateway._call_with_retry",
+        "OpenAIResponsesGateway._get_client",
+        "OpenAIResponsesGateway.structured_call",
+        "PipelineConfig",
+        "UsageRecord",
+        "_api_error_code",
+        "_retryable_api_error",
+        "_safe_api_error",
+        "append_usage",
+        "assemble_final_packet",
+        "build_argument_parser",
+        "build_initial_state",
+        "build_minimal_patient_anchor",
+        "config_from_arguments",
+        "openai_wire_schema",
+        "run_pipeline",
+        "source_discovery_payload"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/precision_oncology_runner.py",
+      "change": "modified",
+      "sha256": "eba84c8095d5069069d5128db0464971acc8116697e54a05d510625571f35e6e",
+      "code_blocks": [
+        "_pipeline_command",
+        "_run_timeout",
+        "health",
+        "run_precision_pipeline"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/pyproject.toml",
+      "change": "modified",
+      "sha256": "9c53b3afca9e81295ce317c83fd5a9b1d63369069869f3d23a859f650b9a89fc",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/requirements.txt",
+      "change": "modified",
+      "sha256": "bf1647a253873ef196071625fc4388e665f10c9f7cb4e7ef8218082315602b6e",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/schemas/precision_oncology_packet.schema.json",
+      "change": "modified",
+      "sha256": "e1b1e2b23bbdec9c1b148aa800dbde8ee66127e9843bb9f581f0e67f0f172f25",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/tests/test_openai_remote_runtime.py",
+      "change": "added",
+      "sha256": "b25c0a903d503319bf7948a51f7a09f05c816a492b6da779687735a2bf1a7048",
+      "code_blocks": [
+        "Echo",
+        "gateway_with_transport",
+        "invoke",
+        "response_payload",
+        "test_all_actual_generation_schemas_are_compatible",
+        "test_cache_identity_includes_mode_effort_and_schema",
+        "test_mandatory_web_search_requires_a_completed_tool_call",
+        "test_nonofficial_base_url_is_rejected_before_network",
+        "test_output_limit_gets_one_larger_attempt_with_truthful_provenance",
+        "test_partial_valid_json_and_refusals_are_never_success",
+        "test_schema_conversion_preserves_field_named_default",
+        "test_sdk_request_is_remote_pro_and_strict",
+        "test_server_retry_retains_failed_and_successful_receipts",
+        "test_terminal_api_failures_make_one_attempt"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/tests/test_pipeline.py",
+      "change": "modified",
+      "sha256": "655462931006b0764deea232c014624ed7b74966f4d613cd35bef57ae94923be",
+      "code_blocks": [
+        "test_hypothesis_synthesis_adapts_after_incomplete_response",
+        "test_mocked_end_to_end_run_emits_renderable_final_packet",
+        "test_openai_gateway_accepts_content_level_parsed_output",
+        "test_openai_gateway_builds_structured_web_search_request",
+        "test_report_compiler_uses_stage_timeout_and_compacts_timeout_retry"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "precision_oncology_json_pipeline/tests/test_runner.py",
+      "change": "modified",
+      "sha256": "e084752413100d386f30f1ce2b474a77592ce2e5901be0a217c761f4c095b26c",
+      "code_blocks": [
+        "test_health_requires_remote_configuration_without_disclosing_key",
+        "test_pipeline_command_propagates_shared_openai_roles",
+        "test_runner_timeout_persists_failure_and_returns_gateway_timeout"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "pyproject.toml",
+      "change": "modified",
+      "sha256": "c10b5e680a0fbd33ebbe6b492b6790b8152c661e1ea7da2e5af2741096ab27e4",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "scripts/download_mims_data.py",
+      "change": "modified",
+      "sha256": "59682886219c5982c7c81d490e6917391bc1ccd61ef575cdaf2ea0291a8ec8d2",
+      "code_blocks": [
+        "_build_parser",
+        "download_medeadb",
+        "download_optimuskg",
+        "inspect_medeadb"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "scripts/full_stack_preflight.py",
+      "change": "modified",
+      "sha256": "e44c321469254f501ec2a913c02c63990e423e8e923326e3d34916f1dfc5962b",
+      "code_blocks": [
+        "main",
+        "run_preflight",
+        "validate_mims_data",
+        "validate_model_identifier",
+        "validate_vendor_repositories"
+      ],
+      "removed_code_blocks": [
+        "validate_gpu_visible"
+      ]
+    },
+    {
+      "path": "scripts/initialize_runtime.py",
+      "change": "added",
+      "sha256": "0d081169b2e2b6abb606bbd3e18ca4e7469a34b537f1ee53fce56a72bc9c9c65",
+      "code_blocks": [
+        "initialize_persistence",
+        "main"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "scripts/install_packaged_vendors.py",
+      "change": "added",
+      "sha256": "461570984bb6212ce7c8180d5b4fef4c3fb0d87e7b021841418b3fe3907596d8",
+      "code_blocks": [
+        "main"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "scripts/live_vm_runtime_validate.py",
+      "change": "modified",
+      "sha256": "d682292b7440202cf7427da7f816250bbff771ceab8d9c1eb40c758d5dc21ff8",
+      "code_blocks": [],
+      "removed_code_blocks": [
+        "execute_runtime_command",
+        "main",
+        "write_runtime_report"
+      ]
+    },
+    {
+      "path": "scripts/live_vm_runtime_validation.py",
+      "change": "modified",
+      "sha256": "f92058ad0a3c1d1ffb67886d250249ff34e68bcb9ec70c6b84746ef2fa79a94d",
+      "code_blocks": [
+        "LiveRuntimeValidationError",
+        "_compose_with_env_file",
+        "_output_text",
+        "_sensitive_name",
+        "_write_atomic",
+        "compose_command",
+        "execute_runtime_command",
+        "load_env_file",
+        "main",
+        "merged_environment",
+        "redact_environment",
+        "redact_output",
+        "run_validation",
+        "strip_optional_quotes",
+        "write_runtime_report"
+      ],
+      "removed_code_blocks": [
+        "CommandResult",
+        "DiagnosticPaths",
+        "LiveRuntimeValidationResult",
+        "collect_runtime_diagnostics",
+        "prepare_output_dir",
+        "render_report_markdown",
+        "require_success",
+        "run_command",
+        "run_live_vm_validation",
+        "write_runtime_result",
+        "write_text"
+      ]
+    },
+    {
+      "path": "scripts/run_full_stack_integration.py",
+      "change": "modified",
+      "sha256": "81c90857a0d1465de574e5e7628069d8925da342e000f88144f8a314cd93b3de",
+      "code_blocks": [
+        "FullStackIntegrationResult",
+        "build_openai_structured_output_request",
+        "main",
+        "run_full_stack_integration",
+        "validate_downstream_report",
+        "validate_openai_structured_output",
+        "validate_remote_provenance"
+      ],
+      "removed_code_blocks": [
+        "build_vllm_structured_output_request",
+        "validate_vllm_structured_output"
+      ]
+    },
+    {
+      "path": "scripts/run_unit_tests.py",
+      "change": "added",
+      "sha256": "8e1265fc5871048f4edf51e589ed6e1070fa00f37c1893e33c79f19bd5bef44a",
+      "code_blocks": [
+        "main"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/docling-service/pyproject.toml",
+      "change": "modified",
+      "sha256": "9831866949eff33ebeadc0f0e8a5d83b048416684f02569601dc822fbc05efd0",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/docling-service/src/docling_service/converter.py",
+      "change": "modified",
+      "sha256": "cc63fc662f9bb2ee7e435c2a34a1527cb170bfd813712001c0f55cb3ddf19b8f",
+      "code_blocks": [],
+      "removed_code_blocks": [
+        "DoclingServiceError",
+        "build_docling_format_options",
+        "convert_pdf_with_docling"
+      ]
+    },
+    {
+      "path": "services/docling-service/src/docling_service/main.py",
+      "change": "modified",
+      "sha256": "ce964da4d6ee39a93cf1fba3ef0e23ec90c243ba53ae3bb592b0fcba96cbcc24",
+      "code_blocks": [
+        "extract",
+        "health",
+        "lifespan"
+      ],
+      "removed_code_blocks": [
+        "_source_file_id"
+      ]
+    },
+    {
+      "path": "services/docling-service/src/docling_service/openai_converter.py",
+      "change": "added",
+      "sha256": "e5fe22489c6f6787ca44f6548d18ada57c3c7697b30f869764ebb466ee149ec4",
+      "code_blocks": [
+        "DocumentAPI",
+        "DocumentAPI.call_records",
+        "DocumentAPI.close",
+        "DocumentAPI.count_tokens",
+        "DocumentAPI.response",
+        "DocumentConversionError",
+        "OpenAIDocumentConfig",
+        "OpenAIDocumentConfig.__post_init__",
+        "_TranscribedBlock",
+        "_TranscribedPage",
+        "_TranscribedTable",
+        "_convert_document",
+        "_convert_page",
+        "_generate_page_response",
+        "_page_from_transcription",
+        "_retained_native_blocks",
+        "_source_id",
+        "build_page_request",
+        "convert_pdf_with_openai",
+        "document_config_from_environment"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/pyproject.toml",
+      "change": "modified",
+      "sha256": "2ae4bc564bc4736cb13c947c501180f71f4935ac0af27e9758a97a17899fae05",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/database_runtime.py",
+      "change": "modified",
+      "sha256": "d228ccee631a7954d2aa560d67277f294666f884301ca7741589f1b6f5818866",
+      "code_blocks": [
+        "MedeaDBStatus",
+        "MedeaDBStatus.as_dict",
+        "_close_lookup",
+        "_import_depmap_module",
+        "_validate_observation",
+        "collect_medeadb_evidence",
+        "database_required",
+        "depmap_correlation",
+        "inspect_medeadb",
+        "medeadb_path",
+        "require_medeadb",
+        "validate_medeadb_runtime"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/literature_search.py",
+      "change": "added",
+      "sha256": "4a74794774151dc57c7ada7417a02934c21243a74edd2c03bd42e2265edac86c",
+      "code_blocks": [
+        "LiteraturePaper",
+        "LiteraturePaper.context",
+        "LiteraturePaper.reference",
+        "LiteratureSearchResult",
+        "LiteratureSourceError",
+        "LiteratureSourceError.__init__",
+        "PublicLiteratureSearch",
+        "PublicLiteratureSearch.__init__",
+        "PublicLiteratureSearch._europe_pmc",
+        "PublicLiteratureSearch._get_json",
+        "PublicLiteratureSearch._semantic_scholar",
+        "PublicLiteratureSearch.search",
+        "_HTMLText",
+        "_HTMLText.__init__",
+        "_HTMLText.handle_data",
+        "_HTMLText.handle_endtag",
+        "_citation_count",
+        "_optional_string",
+        "_plain_text",
+        "search_queries"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/main.py",
+      "change": "modified",
+      "sha256": "8dae85e78f78d72f1133ae6601e47174bff15768d722af1ea0417a7fc3edb321",
+      "code_blocks": [
+        "MedeaServiceRuntime",
+        "_artifact_from_result",
+        "_bounded_integer",
+        "_consume_worker_exception",
+        "_positive_number",
+        "_query_from_context",
+        "_reason_sync",
+        "_runtime",
+        "database_depmap_correlation",
+        "database_status",
+        "health",
+        "lifespan",
+        "reason",
+        "runtime_contract"
+      ],
+      "removed_code_blocks": [
+        "_artifact_from_medea_result",
+        "_assert_medea_reasoning_members",
+        "_collect_database_evidence",
+        "_collect_database_evidence_if_enabled",
+        "_medea_reasoning_timeout_seconds",
+        "_module_names",
+        "_nonnegative_int_environment",
+        "_positive_int_environment",
+        "_positive_int_runtime_environment",
+        "_result_to_text",
+        "_run_medea_literature_reasoning",
+        "_run_medea_literature_reasoning_with_timeout",
+        "_unavailable_medea_artifact",
+        "_validate_database_runtime_if_enabled",
+        "_validate_reasoning_text"
+      ]
+    },
+    {
+      "path": "services/medea-service/src/medea_service/openai_literature_action.py",
+      "change": "added",
+      "sha256": "bdc6f17094bb0237255319c2bd52bcd5295578954ec73712d4a48160897cea73",
+      "code_blocks": [
+        "OpenAILiteratureResult",
+        "_CitedSynthesis",
+        "_PaperDecision",
+        "_PaperDecisions",
+        "_no_evidence_result",
+        "_validate_citations",
+        "attribute_synthesis",
+        "judge_papers",
+        "run_literature_pipeline"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/openai_reranker.py",
+      "change": "added",
+      "sha256": "936700858292718f2cf656d6603ea1e98d5ddf19877d2920127edf19b2f4ad57",
+      "code_blocks": [
+        "OpenAIEmbeddingReranker",
+        "OpenAIEmbeddingReranker.__init__",
+        "OpenAIEmbeddingReranker.compute_score",
+        "SynchronousEmbeddingProvider",
+        "SynchronousEmbeddingProvider.embed",
+        "_cosine",
+        "_segment_utf8",
+        "_weighted_unit_mean"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/openai_runtime.py",
+      "change": "added",
+      "sha256": "7461ad42b68ab97fc6ecac6f01c9e3a5d083e4c8b4097fbf420485fe23938145",
+      "code_blocks": [
+        "OpenAICompletion",
+        "OpenAICompletion.__call__",
+        "OpenAICompletion.__init__",
+        "OpenAICompletion._send_once",
+        "OpenAICompletion.checkpoint",
+        "OpenAICompletion.response_ids",
+        "OpenAICompletion.send",
+        "OpenAIMedeaConfig",
+        "OpenAIMedeaConfig.__post_init__",
+        "build_medea_request",
+        "build_openai_client",
+        "build_openai_medea_config"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/vendor_modules/__init__.py",
+      "change": "added",
+      "sha256": "4caa0a7bd6ea14c2b2d5ec1fcff9f4a637bf7a003ff5e5150396dee2ad201094",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/vendor_modules/gpt_utils.py",
+      "change": "added",
+      "sha256": "492271e95b6abdb72249ec5478889995787d1d30e34ac47aa2e5d63e16c57940",
+      "code_blocks": [
+        "chat_completion"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/medea-service/src/medea_service/vendor_runtime.py",
+      "change": "modified",
+      "sha256": "4ce5d9bedaa7ac1d81f34b2fd47d673ac9559e38dc291f4be803bf525f179cd7",
+      "code_blocks": [
+        "MedeaSourceRuntime",
+        "MedeaSourceRuntime.new_open_scholar_module",
+        "VendorRuntimeError",
+        "_load_source_module",
+        "import_vendor_module",
+        "split_sentences"
+      ],
+      "removed_code_blocks": [
+        "add_vendor_repo_to_path",
+        "assert_remote_model_env_blocked",
+        "read_json_file"
+      ]
+    },
+    {
+      "path": "services/optimuskg-service/src/optimuskg_service/main.py",
+      "change": "modified",
+      "sha256": "755d61b1fe25882ede6f2a736c172f5bcfea12a810a04c499ab8b16b39296667",
+      "code_blocks": [
+        "context",
+        "health"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/optimuskg-service/src/optimuskg_service/vendor_runtime.py",
+      "change": "modified",
+      "sha256": "933c341c743dd7c5ca7eddca8e2676f44091026f516253d7838250f27729d2a3",
+      "code_blocks": [
+        "assert_remote_model_env_blocked"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "services/tooluniverse-service/src/tooluniverse_service/vendor_runtime.py",
+      "change": "modified",
+      "sha256": "2d64e178d3b75e1a8103268ea01918cc65b610299dc763831a281b03c3854155",
+      "code_blocks": [
+        "assert_remote_model_env_blocked"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/integration/test_full_stack_integration_contract.py",
+      "change": "modified",
+      "sha256": "85c7e34fa5b47ca523962575bf7925a12db1945c25cebba52801d3a611ddcffb",
+      "code_blocks": [
+        "test_full_stack_requirements_are_loadable",
+        "test_openai_preflight_request_uses_pro_responses",
+        "test_real_full_stack_integration_entrypoint_is_opt_in"
+      ],
+      "removed_code_blocks": [
+        "test_vllm_preflight_request_uses_single_user_message"
+      ]
+    },
+    {
+      "path": "tests/unit/test_api_upload_limits.py",
+      "change": "added",
+      "sha256": "0dae2ab0e9837dc6960fab3ede9791c8a4d5fc9752d0ddaefa8832edd34ae3f3",
+      "code_blocks": [
+        "test_invalid_upload_is_rejected_before_inference",
+        "test_pdf_upload_preserves_source_bytes"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_docling_integration.py",
+      "change": "modified",
+      "sha256": "532fcc50ec6d5661930202f39c56171b16ef00468cdd19b4868d010ab01aed5e",
+      "code_blocks": [
+        "test_docling_required_without_provider_fails",
+        "test_document_service_defaults_to_remote_astra_pro"
+      ],
+      "removed_code_blocks": [
+        "test_docling_pdf_format_options_disable_ocr"
+      ]
+    },
+    {
+      "path": "tests/unit/test_dynamic_pathway_analyzer_container.py",
+      "change": "modified",
+      "sha256": "b3caca2049b700337bc7ccbfc1a48792838fd2528169682940169d1dd997247c",
+      "code_blocks": [
+        "test_dynamic_pathway_analyzer_compose_contract",
+        "test_dynamic_pathway_analyzer_dockerfile_contract"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_gradio_makefile.py",
+      "change": "modified",
+      "sha256": "98c28dc9a36324e750965b222c923b82546e25663bdbbbfc9cf3938da3d41563",
+      "code_blocks": [
+        "_services",
+        "test_compose_and_dependencies_cannot_start_local_inference",
+        "test_credentials_reach_only_inference_services",
+        "test_default_compose_includes_complete_report_workflow",
+        "test_only_the_browser_ui_and_api_are_exposed_to_loopback"
+      ],
+      "removed_code_blocks": [
+        "test_compose_scopes_remote_key_to_downstream_runners",
+        "test_gradio_targets_start_downstream_runner_services"
+      ]
+    },
+    {
+      "path": "tests/unit/test_live_vm_runtime_validation.py",
+      "change": "added",
+      "sha256": "f6a7ff02653cf25e68c01afb9b91ecb7555e17e7208d65a843a4479d5c7115ee",
+      "code_blocks": [
+        "_spec",
+        "test_command_failures_are_recorded_without_false_success",
+        "test_command_redacts_real_boundary_output_and_preserves_nonzero_status",
+        "test_compose_command_has_no_implicit_profile",
+        "test_default_plan_runs_only_current_container_checks",
+        "test_dotenv_redaction_handles_quotes_comments_and_process_precedence",
+        "test_empty_plan_cannot_claim_success",
+        "test_failure_skips_required_work_but_collects_diagnostics"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_medea_openai_runtime.py",
+      "change": "added",
+      "sha256": "9d2989079b7ad86d0bbc996b6288a1456bd7fda3162a2f3813a0c867b6df90b7",
+      "code_blocks": [
+        "_ModelHTTP",
+        "_ModelHTTP.__call__",
+        "_ModelHTTP.__init__",
+        "_context",
+        "_database",
+        "_literature_handler",
+        "_response",
+        "test_actual_upstream_modules_import_without_any_local_model_dependency",
+        "test_actual_upstream_openscholar_search_judge_rank_and_synthesize_use_openai",
+        "test_auth_error_never_becomes_negative_literature_evidence",
+        "test_both_actual_openscholar_ranking_methods_use_remote_embeddings",
+        "test_cancelled_completion_never_sends_a_followup_request",
+        "test_depmap_nonfinite_observation_cannot_become_scientific_evidence",
+        "test_depmap_startup_rejects_mismatched_matrix_shape",
+        "test_genuine_empty_search_is_distinct_from_source_failure",
+        "test_long_multibyte_passages_are_fully_segmented_before_remote_embedding",
+        "test_medea_output_limit_gets_one_bounded_retry_and_preserves_attempt_receipts",
+        "test_missing_or_invented_judgement_id_fails_instead_of_dropping_paper",
+        "test_openai_config_preserves_key_and_rejects_local_or_alternate_routes",
+        "test_real_depmap_parser_reads_memory_mapped_arrays_without_checkpoints",
+        "test_service_keeps_real_database_citations_call_journal_and_failure_status"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_mims_data_download.py",
+      "change": "modified",
+      "sha256": "a8aaac19c9463747195128d702fec293cd7cdf1ad2af5b79e5a6527ee65c63d8",
+      "code_blocks": [
+        "_write_complete_medeadb",
+        "test_download_medeadb_uses_huggingface_snapshot_local_dir",
+        "test_download_optimuskg_uses_client_cache_and_validates_schema",
+        "test_inspect_medeadb_requires_only_active_nonempty_data",
+        "test_preflight_validates_host_mims_data_paths"
+      ],
+      "removed_code_blocks": [
+        "test_inspect_medeadb_requires_all_resource_families"
+      ]
+    },
+    {
+      "path": "tests/unit/test_openai_client.py",
+      "change": "added",
+      "sha256": "55ceabf0c0acf990d95de51233a30748046c07012ef1116303d757ff6d1e1d35",
+      "code_blocks": [
+        "_completed",
+        "test_auth_and_quota_failures_never_retry_or_return_error_body",
+        "test_count_payload_keeps_schema_tools_reasoning_and_does_not_mutate",
+        "test_only_official_openai_endpoint_is_accepted",
+        "test_read_timeout_is_not_repeated_after_uncertain_remote_generation",
+        "test_remote_request_is_authenticated_and_audit_contains_only_metadata",
+        "test_stage_cancellation_preserves_an_uncertain_attempt_in_the_journal",
+        "test_sync_transport_distinguishes_refusal_truncation_and_failure",
+        "test_transient_retry_has_distinct_attempt_records_and_one_operation"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_openai_document_converter.py",
+      "change": "added",
+      "sha256": "eac8a33dd960c44cf907587ca164ea0efc9d069cf69a253ece2575a20d9f8235",
+      "code_blocks": [
+        "_pdf",
+        "_response",
+        "test_document_http_upload_runs_real_pdf_conversion_and_returns_audit_metadata",
+        "test_page_request_rejects_size_limit_and_invalid_routing",
+        "test_pdf_input_budget_checks_complete_request_before_inference",
+        "test_pdf_output_limit_gets_one_counted_retry_without_using_partial_output",
+        "test_pdf_provider_failure_never_returns_partial_extraction",
+        "test_real_pdf_pages_preserve_numbers_native_text_and_call_records"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_openai_embedding_provider.py",
+      "change": "added",
+      "sha256": "f25e82dde9d7a7568a84c9aa1d0d8c2d7b82ea1f345fbd42788fa6f71e536e7b",
+      "code_blocks": [
+        "test_conservative_token_bounds_cover_utf8_and_total_batch_limits",
+        "test_invalid_embeddings_are_never_filled_or_used",
+        "test_remote_embedding_batches_are_deduplicated_cached_and_reordered"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_openai_provider.py",
+      "change": "added",
+      "sha256": "3d9fccf4d6910dae2588ceef24e0c0f8919eed0927e765a4907894fa9bc804d6",
+      "code_blocks": [
+        "_ConcurrentArtifact",
+        "_TinyArtifact",
+        "_args",
+        "_generation_kwargs",
+        "_require_closed_nodes",
+        "_response",
+        "_write_prompts",
+        "test_clinical_repair_never_retries_authentication_failure",
+        "test_concurrent_artifacts_never_claim_peer_calls_or_schema_hashes",
+        "test_decision_stage_keeps_actual_trace_across_timeout_task_boundary",
+        "test_every_main_generation_schema_is_strict_without_mutating_public_models",
+        "test_exact_input_overflow_splits_report_and_retains_every_leaf_trace",
+        "test_output_limit_retry_reserves_larger_output_and_keeps_actual_attempts",
+        "test_oversized_repair_is_blocked_before_a_second_generation",
+        "test_provider_counts_exact_request_and_sends_pro_strict_response",
+        "test_provider_rejects_input_overflow_before_model_generation",
+        "test_repair_prompt_is_counted_again_and_all_attempts_reach_provenance",
+        "test_schema_normalization_preserves_optional_meaning_and_a_field_named_default"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_packaged_vendor_sources.py",
+      "change": "added",
+      "sha256": "490106634a8790f0477cdb9480d0afb57ab388c790046d17bff0302f97fe96f5",
+      "code_blocks": [
+        "_source_archives",
+        "test_archive_checksum_tampering_fails_before_installing_any_source",
+        "test_archive_member_cannot_write_through_a_preceding_directory_symlink",
+        "test_archive_path_traversal_is_rejected_even_when_archive_is_locked",
+        "test_escaping_source_symlinks_are_rejected",
+        "test_extra_source_is_rejected_but_compiled_python_cache_is_ignored",
+        "test_in_tree_symlink_is_preserved_and_its_target_cannot_be_replaced",
+        "test_installer_preserves_original_bytes_is_repeatable_and_does_not_invent_git",
+        "test_modified_existing_tree_is_rejected_without_overwriting_user_changes"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_prime_directives_gate.py",
+      "change": "modified",
+      "sha256": "f4c8728557aab177cc7b67bc88e669733de05b15cd819751829c1fa77f056ebc",
+      "code_blocks": [
+        "test_gate_blocks_unapproved_provider_credentials",
+        "test_gate_fails_zip_extracted_vendors",
+        "test_gate_rejects_local_model_endpoint"
+      ],
+      "removed_code_blocks": [
+        "test_gate_blocks_remote_provider_credentials",
+        "test_gate_rejects_remote_vllm_base_url"
+      ]
+    },
+    {
+      "path": "tests/unit/test_real_mims_service_execution.py",
+      "change": "modified",
+      "sha256": "55fe09b55e5747aeb0706b2706e9a7e2a6724c783365bcebfe22b6d93e4830b6",
+      "code_blocks": [],
+      "removed_code_blocks": [
+        "_clear_medea_modules",
+        "_medea_context",
+        "_write_complete_fake_medeadb",
+        "_write_fake_medea_reasoning_repo",
+        "test_medea_runtime_contract_blocks_remote_provider_env",
+        "test_medea_runtime_contract_requires_local_routing",
+        "test_medea_service_combines_literature_reasoning_and_medeadb",
+        "test_medea_service_returns_unavailable_artifact_for_agent_trace",
+        "test_medea_service_returns_unavailable_artifact_for_empty_reasoning",
+        "test_medea_service_returns_unavailable_artifact_for_timeout",
+        "test_medea_service_runs_vendored_entrypoint_with_local_vllm_env"
+      ]
+    },
+    {
+      "path": "tests/unit/test_runtime_validation.py",
+      "change": "modified",
+      "sha256": "32e82bc795c2f17314d1af74e7f799baf9512a56cf550134a282769dce66619f",
+      "code_blocks": [
+        "test_failure_patterns_from_config_and_classification"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_source_grounded_report_extraction.py",
+      "change": "modified",
+      "sha256": "075a0af0b439ca00eb07336d0088fed52da1e1e02e494b629a77ed9271807070",
+      "code_blocks": [
+        "test_report_extraction_recovers_from_truncated_batch"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_ui_launch.py",
+      "change": "modified",
+      "sha256": "0d93be163f2ca64c723100b46d05384b4d71a0cc922052489f1a09d4dfc64d37",
+      "code_blocks": [
+        "test_compose_sets_internal_api_url_and_ui_healthcheck"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "tests/unit/test_workflow_e2e.py",
+      "change": "modified",
+      "sha256": "d5b7775fa8d8658230a229c41f90473034d4a15cd23dd8f4aa67030ad3c6be5c",
+      "code_blocks": [
+        "FakeStructuredModelProvider",
+        "FakeStructuredModelProvider.structured_completion",
+        "test_process_report_pdf_fails_without_openai_model_provider",
+        "test_process_report_pdf_strict_mims_with_test_providers"
+      ],
+      "removed_code_blocks": [
+        "test_process_report_pdf_fails_without_local_model_provider",
+        "test_process_report_pdf_strict_mims_with_local_artifacts"
+      ]
+    },
+    {
+      "path": "tests/unit/test_workflow_stage_cancellation.py",
+      "change": "added",
+      "sha256": "f0d97e6fba29328daa3c9121ced1cdb1a59cd1043c1cd16d66004463d4d960ee",
+      "code_blocks": [
+        "test_cancelling_workflow_drains_every_parallel_stage",
+        "test_failed_stage_cancels_and_awaits_sibling_cleanup_before_raising",
+        "test_parallel_stage_results_preserve_input_order"
+      ],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "third_party/README.md",
+      "change": "modified",
+      "sha256": "83a4a7cad716f885bf0cb5656253d71fd16cf9d8228b224388b5abc05e777ba5",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "third_party/vendor_archives.lock.json",
+      "change": "added",
+      "sha256": "acec3963be50691904257dbf33685d8329b8f900abe36a98709c157c893f790c",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "uv.lock",
+      "change": "modified",
+      "sha256": "d4784695b4a7b42882df8121974de66e36e55d33253eab38be1d871adf56f5f8",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    },
+    {
+      "path": "validation/unit-tests.txt",
+      "change": "added",
+      "sha256": "3f731699b87a9e4a6dc7aa5a69653ffa5a30b57626bd31cbb29411ef4ca868c2",
+      "code_blocks": [],
+      "removed_code_blocks": []
+    }
+  ],
+  "removed_files": [
+    "packages/translume-adapters/src/translume_adapters/model_providers/local_vllm_provider.py",
+    "packages/translume-clients/src/translume_clients/local_vllm.py",
+    "services/medea-service/src/medea_service/local_runtime.py",
+    "tests/unit/test_local_vllm_client.py",
+    "tests/unit/test_local_vllm_provider.py",
+    "tests/unit/test_medea_local_runtime.py"
+  ],
+  "packaging_exclusions": [
+    "expanded third_party/upstream (rebuilt from locked bundled archives)",
+    "Python/test/lint caches",
+    "runtime scientific-data caches and incomplete cache markers",
+    "private environment files; .env.example is included"
+  ]
+}

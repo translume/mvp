@@ -1,274 +1,99 @@
 # Dynamic Pathway Analyzer
 
-This utility reads an arbitrary precision-oncology JSON file and produces a unique,
-case-specific pathway report.
+This CPU service continues the existing downstream report workflow. It reads the
+precision pipeline's trial-prescreen state, normalizes the case, researches
+pathways, creates the pathway report, and synthesizes the tumor-board summary.
+All five model stages use the official OpenAI Responses API with Astra Pro:
+normalization, authoritative search, open-web research, report compilation, and
+no-web tumor-board synthesis.
 
-## What it does
+## Run with the complete application
 
-1. Recursively finds disease context, molecular findings, trials, sources,
-   hypotheses, and assay limitations without depending on one exact JSON schema.
-2. Normalizes the patient evidence with an OpenAI structured-output call.
-3. Dynamically groups findings into pathways.
-4. Creates focused research questions for each pathway.
-5. Uses two moderately thorough OpenAI Responses API `web_search` calls across
-   the highest-priority pathways: one authoritative medical/registry search and
-   one unrestricted open-web search for distinctive translational evidence.
-6. Returns:
-   - simplified pathway descriptions;
-   - therapeutic strategies to investigate;
-   - potential synthetic-lethal and combination paths;
-   - DNA repair/recombination interactions where relevant;
-   - bypass and resistance pathways;
-   - confirmation requirements;
-   - evidence tiers and source URLs;
-   - a clinician-facing Markdown report and structured JSON.
+1. Follow the repository-root `README.md` to install Docker and start the stack.
+2. Put your actual OpenAI project key in the root `.env` as `OPENAI_API_KEY`.
+3. Enter the diagnosis and upload the real report in the UI. The main API invokes
+   the precision runner, this analyzer, and the tumor-board synthesizer.
+4. Review the **Pathway analysis** tab and download the generated report.
 
-## Setup
+The service writes the following under `data/artifacts/<session_id>/`:
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+- `pathway_output_comprehensive/<run_id>/`: pathway JSON, Markdown, normalized
+  case, research memo, consulted sources, and an OpenAI manifest.
+- `tumor_board_output/<run_id>/`: `onco_board_summary.md`, its manifest, and
+  per-attempt OpenAI receipts.
 
-export OPENAI_API_KEY="sk-proj-..."
-```
+Both output directories retain `openai_calls/` receipts for successful and
+failed attempts, with actual request/response IDs and usage where available.
+No credentials or model input text are written into those receipts.
 
-Do not put the real key in source code, Git, logs, or generated reports.
-
-## Command-line usage
-
-```text
-usage: dynamic_pathway_analyzer.py [-h]
-                                   [--output-dir OUTPUT_DIR]
-                                   [--model MODEL]
-                                   [--normalizer-model NORMALIZER_MODEL]
-                                   --diagnosis DIAGNOSIS
-                                   input_json
-```
-
-### Required arguments
-
-- `input_json`: path to the oncology JSON file to analyze.
-- `--diagnosis DIAGNOSIS`: user-defined diagnosis used as population context in
-  every model prompt.
-
-### Optional arguments
-
-- `--output-dir OUTPUT_DIR`: output directory; defaults to `./pathway_output`.
-- `--model MODEL`: model used for research and final synthesis; defaults to
-  `OPENAI_MODEL`, then `gpt-5.6`.
-- `--normalizer-model MODEL`: model used for case normalization and pathway
-  construction; defaults to `OPENAI_NORMALIZER_MODEL`, then the main model.
-- `-h`, `--help`: print the built-in command reference.
-
-## Run
+Inspect the service from the repository root:
 
 ```bash
-python dynamic_pathway_analyzer.py \
-  ./outputs/run_17247c3e6168a540870b0b3dc641/state_after_trial_prescreens.json \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir ./outputs/pathway_output_comprehensive
+docker compose logs --tail=200 dynamic-pathway-analyzer
 ```
 
-Complete example with explicit models:
+Display the two command interfaces inside Docker:
 
 ```bash
-python dynamic_pathway_analyzer.py \
-  state_after_trial_prescreens.json \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir pathway_output_hybrid \
-  --model gpt-5.6 \
-  --normalizer-model gpt-5.6
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/dynamic_pathway_analyzer.py --help
+
+docker compose exec --user analyzer dynamic-pathway-analyzer \
+  python /app/tumor_board_causal_synthesis.py --help
 ```
 
-Optional model configuration:
+## Model settings
 
-```bash
-export OPENAI_MODEL="gpt-5.6"
-export OPENAI_NORMALIZER_MODEL="gpt-5.6"
+Defaults:
+
+```dotenv
+OPENAI_REASONING_MODEL=gpt-6-astra
+OPENAI_NORMALIZER_MODEL=gpt-6-astra
+OPENAI_REASONING_MODE=pro
+OPENAI_REASONING_EFFORT=xhigh
+OPENAI_REQUEST_TIMEOUT_SECONDS=900
+DYNAMIC_PATHWAY_RUN_TIMEOUT_SECONDS=7200
 ```
 
-Additional environment controls:
+The CLI supports `--model`, `--reasoning-mode`, `--reasoning-effort`,
+`--request-timeout`, `--max-attempts`, and `--max-output-tokens`.
+The analyzer additionally supports `--normalizer-model`. The internal runner
+passes the same environment values to both commands. A nonofficial inference
+endpoint or standard mode fails validation before a model call.
 
-```bash
-export MAX_JSON_CHARS=180000
-export MAX_FINDINGS=80
-export MAX_SOURCE_RECORDS=40
-export MAX_RESEARCH_PATHWAYS=5
-```
+Every request sends `store=False` and an explicit output-token allowance.
+The wrapper is the only retry owner; SDK automatic retries are disabled.
+A token-limit response can receive one larger bounded allowance. Credential,
+permission, quota, refusal, filtering, and domain-validation failures are
+terminal. Partial output is never returned as a finished report.
 
-For a faster, narrower run:
+## Source handling
 
-```bash
-export MAX_RESEARCH_PATHWAYS=3
+The public-search payload includes disease/histology, relevant molecular
+concepts, and pathway identifiers. It excludes dates, location, specimen details,
+patient history, source quotations, patient-specific narrative, and generated
+free-form queries. The finalizer still receives the full normalized case.
+Field minimization does not guarantee that user-supplied free text contains no
+identifying information.
 
-python dynamic_pathway_analyzer.py \
-  ./outputs/run_17247c3e6168a540870b0b3dc641/state_after_trial_prescreens.json \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir ./outputs/pathway_output_comprehensive
-```
+The two research calls request actual hosted web searches and retain consulted
+source metadata. The tumor-board stage has no search tool: it receives only the
+completed pathway analysis and research memo. Missing inputs, absent model
+output, and unsuccessful searches fail explicitly instead of creating evidence.
+The original domain models, source URLs, evidence tiers, uncertainty, and
+human-review requirements are retained.
 
-The required `--diagnosis` value is prepended to every model prompt as:
+## Runtime modules
 
-```text
-Diagnosis: <user-defined value>
-```
+- `dynamic_pathway_analyzer.py`: evidence discovery, normalization, research,
+  structured report validation, and deterministic Markdown rendering.
+- `tumor_board_causal_synthesis.py`: bounded synthesis using the two completed
+  Markdown documents.
+- `openai_runtime.py`: official endpoint validation, strict wire schemas,
+  completion/refusal handling, bounded retries, receipts, and atomic writes.
+- `dynamic_pathway_runner.py`: session-scoped HTTP orchestration with finite
+  subprocess deadlines and redacted diagnostics.
 
-It is prompt context only; the script does not force-write it into the
-normalized case object.
-
-The analyzer prints progress for normalization, research, and final synthesis.
-The default workflow makes four sequential model operations:
-
-1. normalize the input case;
-2. search authoritative medical and registry sources;
-3. search the unrestricted web for distinctive translational evidence;
-4. compile the final structured report.
-
-Runtime depends on model load, web-search latency, and retries. Avoid starting
-multiple copies against the same case unless concurrent paid API calls are
-intentional.
-
-## Files created
-
-- `*.normalized_case_map.json`: patient findings and dynamically inferred pathway map.
-- `*.research_memo.md`: web-grounded evidence memo.
-- `*.research_sources.json`: complete audited URLs consulted by web search.
-- `*.pathway_analysis.json`: final structured report.
-- `*.pathway_analysis.md`: final clinician-facing narrative.
-
-Use a new output directory for materially different diagnoses or settings so
-older results are not confused with the latest run.
-
-## Important behavior
-
-The analyzer does not trust existing model-generated treatment rankings in the
-input. It extracts source findings and supporting context, then rebuilds the
-pathway analysis.
-
-It distinguishes:
-
-- RNA underexpression;
-- DNA copy-number loss;
-- heterozygous loss;
-- homozygous/biallelic deletion;
-- protein loss;
-- functional pathway loss.
-
-Potential combinations and recombination-pathway interactions are returned as
-hypotheses, not treatment recommendations.
-
-Web discovery is not restricted to government sites. The analyzer can inspect
-primary journals, conference publications, academic sites, translational and
-metabolomics commentary, medical news, and sponsor research. Non-primary
-sources may explain mechanisms or surface research leads, but cannot establish
-efficacy, approval, standard care, or patient-specific eligibility by themselves.
-
-The default research pass is intentionally bounded: up to five pathways, up to
-three prepared queries per pathway, 6–10 authoritative sources, and 3–6
-distinctive open-web sources.
-Set `MAX_RESEARCH_PATHWAYS` in the environment to lower the pathway count further.
-
-## Search and evidence boundaries
-
-The authoritative lane searches sources such as trial registries, PubMed/PMC,
-NCBI, FDA, NCI, EMA, and WHO. The open-web lane can discover journal-publisher
-pages, academic research, conference publications, biotechnology research,
-metabolomics or translational commentary, medical news, and sponsor material.
-
-Evidence from a cancer type unrelated to `--diagnosis` may be retained as
-indirect mechanism, resistance, safety, or negative evidence. It must not be
-presented as diagnosis-matched actionability unless separate disease-matched,
-tumor-agnostic, guideline, regulatory, or trial evidence supports that role.
-
-## Clinical boundary
-
-This program produces educational precision-oncology research support. It does
-not recommend treatment or determine clinical-trial eligibility. Findings,
-sources, assay interpretations, and trial status require review by qualified
-clinicians and molecular-pathology professionals.
-
-## No-web tumor-board causal synthesis
-
-`tumor_board_causal_synthesis.py` creates a second-stage Molecular Tumor Board
-Causal Summary and Adaptive Action Plan from an existing pathway-analysis
-Markdown file and research memo. It performs one model call and supplies no web
-search tool; the two Markdown documents are its complete evidence boundary.
-
-```bash
-python tumor_board_causal_synthesis.py \
-  --pathway-analysis ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.pathway_analysis.md \
-  --research-memo ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.research_memo.md \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir ./outputs/tumor_board_output
-```
-
-The script looks for `tumor_board_causal_synthesis_prompt.md` beside the Python
-file. Until that file is placed there, it can use the originally supplied prompt
-attachment. A prompt can always be selected explicitly:
-
-```bash
-python tumor_board_causal_synthesis.py \
-  --pathway-analysis ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.pathway_analysis.md \
-  --research-memo ./outputs/pathway_output_comprehensive/state_after_trial_prescreens.research_memo.md \
-  --system-prompt ./fallback-prompt.txt \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir ./outputs/tumor_board_output
-```
-
-Outputs:
-
-- `onco_board_summar.md`: clinician-facing report.
-- `onco_board_summar.manifest.json`: model, prompt, input
-  hashes, usage, and evidence-boundary audit metadata.
-
----
-
-For this specific case, use:
-
-```
-MAX_JSON_CHARS = int(os.getenv("MAX_JSON_CHARS", "180000"))
-MAX_FINDINGS = int(os.getenv("MAX_FINDINGS", "40"))
-MAX_SOURCE_RECORDS = int(os.getenv("MAX_SOURCE_RECORDS", "40"))
-MAX_RESEARCH_PATHWAYS = int(os.getenv("MAX_RESEARCH_PATHWAYS", "5"))
-```
-
-Why:
-
- - The extracted research payload is only about 57,000 characters, so increasing MAX_JSON_CHARS above 180,000 provides no benefit.
-
- - The analyzer finds 24 findings, so MAX_FINDINGS=40 retains all of them.
-
- - It finds 19 source records, so MAX_SOURCE_RECORDS=40 retains all sources.
-
- - MAX_RESEARCH_PATHWAYS is the only setting currently limiting comprehensiveness. Raising it from 3 to 5 captures more biology without increasing the number of API calls—the pathways remain batched into the same two searches.
-
-Recommended environment configuration:
-
-```
-export MAX_JSON_CHARS=180000
-export MAX_FINDINGS=40
-export MAX_SOURCE_RECORDS=40
-export MAX_RESEARCH_PATHWAYS=5
-```
-
-Then:
-
-```
-dynamic_pathway_analyzer.py \
-  ../state_after_trial_prescreens.json \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir pathway_output_comprehensive
-```
-
-Profiles:
-
-| Goal | Pathways |
-|---|---:|
-| Faster, focused | 3 |
-| Comprehensive under ~20 minutes | 5 |
-| Very broad, potentially slower | 7 |
-| Exhaustive and likely too slow/noisy | 10 |
-
-
-Five is the best balance. The workflow still makes four sequential API operations, so no setting can guarantee completion under 20 minutes during API congestion or retries, but these values should normally stay within that target while retaining all currently discovered findings and sources.
+No module loads or executes a local language, embedding, vision, or reranking
+model. The source includes isolated unit tests; the runtime does not use their
+fixtures or simulate remote completions.

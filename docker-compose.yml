@@ -1,192 +1,228 @@
+x-runtime: &runtime
+  init: true
+  restart: unless-stopped
+
+x-common-environment: &common-environment
+  TRANSLUME_ENV: production
+  TRANSLUME_ENFORCE_PRIME_DIRECTIVES: "true"
+  TRANSLUME_MODEL_PROVIDER: openai
+  TRANSLUME_ALLOW_LOCAL_INFERENCE: "false"
+  TRANSLUME_REQUIRE_MIMS: "true"
+  TRANSLUME_REQUIRE_DOCLING: "true"
+  TRANSLUME_REQUIRE_OPENSEARCH: "true"
+  TRANSLUME_REQUIRE_POSTGRES: "true"
+  TRANSLUME_RETRIEVAL_MODE: lexical
+  TRANSLUME_STORAGE_ROOT: /data/uploads
+  TRANSLUME_AUDIT_ROOT: /data/audit
+  TRANSLUME_PROMPTS_ROOT: /app/configs/prompts
+  POSTGRES_DSN: postgresql://translume:translume@postgres:5432/translume
+  OPENSEARCH_URL: http://opensearch:9200
+  DOCLING_SERVICE_URL: http://docling-service:8090
+  DOCLING_EXTRACTION_METHOD: openai
+  DOCLING_TIMEOUT_SECONDS: ${DOCLING_TIMEOUT_SECONDS:-7200}
+  OPTIMUSKG_SERVICE_URL: http://optimuskg-service:8091
+  OPTIMUSKG_VENDOR_DIR: /app/third_party/upstream/OptimusKG
+  OPTIMUSKG_CACHE_DIR: /data/optimuskg
+  OPTIMUSKG_USE_LCC: "true"
+  OPTIMUSKG_MAX_EDGES: ${OPTIMUSKG_MAX_EDGES:-500}
+  TOOLUNIVERSE_SERVICE_URL: http://tooluniverse-service:8092
+  TOOLUNIVERSE_VENDOR_DIR: /app/third_party/upstream/ToolUniverse
+  TOOLUNIVERSE_WORKFLOW_CONFIG: /app/configs/local/tooluniverse_workflows.json
+  TOOLUNIVERSE_LIGHT_IMPORT: "true"
+  TOOLUNIVERSE_LAZY_LOADING: "true"
+  TRANSLUME_TOOL_WORKFLOWS: literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context,recent_therapy_agent_backfill_context
+  MEDEA_SERVICE_URL: http://medea-service:8093
+  MEDEA_VENDOR_DIR: /app/third_party/upstream/Medea
+  MEDEADB_PATH: /data/medeadb
+  MEDEA_REQUIRE_DATABASE: "true"
+  MEDEA_RERANKER: openai_embeddings
+  MIMS_TIMEOUT_SECONDS: ${MIMS_TIMEOUT_SECONDS:-7200}
+  REACTOME_LOCAL_ENABLED: "true"
+  REACTOME_GRAPHDB_IMAGE: public.ecr.aws/reactome/graphdb:Release97
+  REACTOME_RELEASE: "97"
+  REACTOME_NEO4J_URI: bolt://reactome-graphdb:7687
+  REACTOME_NEO4J_DATABASE: graph.db
+  REACTOME_NEO4J_AUTH_MODE: basic
+  REACTOME_NEO4J_USER: neo4j
+  REACTOME_NEO4J_PASSWORD: test
+  REACTOME_QUERY_TIMEOUT_SECONDS: "30"
+  REACTOME_MAX_RESULTS: "30"
+  REACTOME_MAX_QUERY_TERMS: "8"
+  REACTOME_REMOTE_FALLBACK: "false"
+  PRECISION_ONCOLOGY_SERVICE_URL: http://precision-oncology-pipeline:8094
+  DYNAMIC_PATHWAY_SERVICE_URL: http://dynamic-pathway-analyzer:8095
+  TRANSLUME_DOWNSTREAM_TIMEOUT_SECONDS: ${TRANSLUME_DOWNSTREAM_TIMEOUT_SECONDS:-21600}
+
+x-openai-environment: &openai-environment
+  OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in the .env file}
+  OPENAI_BASE_URL: https://api.openai.com/v1
+  OPENAI_REASONING_MODEL: ${OPENAI_REASONING_MODEL:-gpt-6-astra}
+  OPENAI_DOCUMENT_MODEL: ${OPENAI_DOCUMENT_MODEL:-gpt-6-astra}
+  OPENAI_REASONING_MODE: pro
+  OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-xhigh}
+  OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-large}
+  OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1536}
+  OPENAI_REQUEST_TIMEOUT_SECONDS: ${OPENAI_REQUEST_TIMEOUT_SECONDS:-900}
+  OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
+  OPENAI_MAX_OUTPUT_TOKENS: ${OPENAI_MAX_OUTPUT_TOKENS:-32768}
+  OPENAI_RETRY_MAX_OUTPUT_TOKENS: ${OPENAI_RETRY_MAX_OUTPUT_TOKENS:-65536}
+  OPENAI_CONTEXT_TOKEN_BUDGET: ${OPENAI_CONTEXT_TOKEN_BUDGET:-200000}
+  OPENAI_INPUT_TOKEN_BUDGET: ${OPENAI_INPUT_TOKEN_BUDGET:-100000}
+
 services:
   postgres:
+    <<: *runtime
     image: postgres:16
     environment:
       POSTGRES_DB: translume
       POSTGRES_USER: translume
       POSTGRES_PASSWORD: translume
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U translume -d translume"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 20
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
   opensearch:
+    <<: *runtime
     image: opensearchproject/opensearch:2
     environment:
       discovery.type: single-node
       plugins.security.disabled: "true"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: Translume-dev-password-123!
-    ports:
-      - "9200:9200"
+      node.store.allow_mmap: "false"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
       interval: 15s
       timeout: 10s
-      retries: 20
+      retries: 40
     volumes:
       - opensearch-data:/usr/share/opensearch/data
 
-  vllm-clinical:
-    image: vllm/vllm-openai:latest
-    profiles: ["gpu"]
-    command: >
-      ${VLLM_MODEL:?Set VLLM_MODEL to the local/HuggingFace clinical structured-output model id}
-      --host 0.0.0.0
-      --port 8000
-      --structured-outputs-config.backend=auto
-    gpus:
-      - device_ids: ["0"]
-        capabilities: ["gpu"]
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5).read()"]
-      interval: 30s
-      timeout: 10s
-      retries: 60
-
-  vllm-docling:
-    image: vllm/vllm-openai:latest
-    profiles: ["gpu", "docling"]
-    command: >
-      ibm-granite/granite-docling-258M
-      --revision untied
-      --host 0.0.0.0
-      --port 8000
-      --dtype bfloat16
-      --max-model-len 8192
-      --max-num-seqs 512
-      --max-num-batched-tokens 8192
-      --gpu-memory-utilization 0.90
-      --enable-chunked-prefill
-      --structured-outputs-config.backend=auto
-      --limit-mm-per-prompt '{"image":1}'
-    gpus:
-      - device_ids: ["1"]
-        capabilities: ["gpu"]
-    ports:
-      - "8001:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/models', timeout=5).read()"]
-      interval: 30s
-      timeout: 10s
-      retries: 60
-
-  docling-service:
+  data-init:
+    init: true
     build:
       context: .
-      dockerfile: docker/docling.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
-    environment:
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
-    ports:
-      - "8090:8090"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-
-  optimuskg-service:
-    build:
-      context: .
-      dockerfile: docker/optimuskg-service.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
-    environment:
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
-      OPTIMUSKG_CACHE_DIR: /app/data/optimuskg_cache
-      OPTIMUSKG_USE_LCC: ${OPTIMUSKG_USE_LCC:-true}
-      OPTIMUSKG_FORCE_DOWNLOAD: ${OPTIMUSKG_FORCE_DOWNLOAD:-false}
+      dockerfile: docker/setup.Dockerfile
+    environment: *common-environment
     volumes:
-      - "${OPTIMUSKG_CACHE_DIR:-./data/optimuskg_cache}:/app/data/optimuskg_cache"
-    ports:
-      - "8091:8091"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-
-  reactome-graphdb:
-    image: ${REACTOME_GRAPHDB_IMAGE:-public.ecr.aws/reactome/graphdb:Release97}
-    restart: unless-stopped
-    expose:
-      - "7474"
-      - "7687"
-    environment:
-      NEO4J_dbms_memory_heap_maxSize: ${REACTOME_NEO4J_HEAP_MAX_SIZE:-8g}
-
-  tooluniverse-service:
-    build:
-      context: .
-      dockerfile: docker/tooluniverse-service.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
-    environment:
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
-    ports:
-      - "8092:8092"
-    depends_on:
-      reactome-graphdb:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8092/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
-      retries: 40
-      start_period: 300s
-
-  medea-service:
-    build:
-      context: .
-      dockerfile: docker/medea-service.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
-    environment:
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
-      MEDEADB_PATH: /app/data/medea_cache/MedeaDB
-      MEDEA_REQUIRE_DATABASE: ${MEDEA_REQUIRE_DATABASE:-true}
-      MEDEA_DB_MAX_GENE_PAIRS: ${MEDEA_DB_MAX_GENE_PAIRS:-10}
-      MEDEA_DB_SIMILAR_GENES_PER_SINGLE_GENE: ${MEDEA_DB_SIMILAR_GENES_PER_SINGLE_GENE:-3}
-    volumes:
-      - "${MEDEADB_PATH:-./data/medea_cache/MedeaDB}:/app/data/medea_cache/MedeaDB:ro"
-    ports:
-      - "8093:8093"
-    depends_on:
-      vllm-clinical:
-        condition: service_started
-        required: false
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8093/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-
-  translume-api:
-    build:
-      context: .
-      dockerfile: docker/api.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
-    environment:
-      # Remote credentials are intentionally scoped to downstream runners.
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
-    ports:
-      - "8080:8080"
-    volumes:
-      - "./third_party:/app/third_party:ro"
+      - medea-data:/data/medeadb
+      - optimuskg-data:/data/optimuskg
+      - upload-data:/data/uploads
+      - audit-data:/data/audit
     depends_on:
       postgres:
         condition: service_healthy
       opensearch:
         condition: service_healthy
+    restart: "no"
+
+  reactome-graphdb:
+    <<: *runtime
+    image: public.ecr.aws/reactome/graphdb:Release97
+    platform: linux/amd64
+    environment:
+      NEO4J_dbms_memory_heap_initial__size: 1g
+      NEO4J_dbms_memory_heap_max__size: ${REACTOME_HEAP_SIZE:-2g}
+      NEO4J_dbms_memory_pagecache_size: ${REACTOME_PAGECACHE_SIZE:-1g}
+
+  docling-service:
+    <<: *runtime
+    build:
+      context: .
+      dockerfile: docker/docling.Dockerfile
+    environment:
+      <<: [*common-environment, *openai-environment]
+      OPENAI_AUDIT_PATH: /data/audit/openai-document.jsonl
+    volumes:
+      - audit-data:/data/audit
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=10).read()"]
+      interval: 20s
+      timeout: 15s
+      retries: 20
+
+  optimuskg-service:
+    <<: *runtime
+    build:
+      context: .
+      dockerfile: docker/optimuskg-service.Dockerfile
+    environment: *common-environment
+    volumes:
+      - optimuskg-data:/data/optimuskg
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/health', timeout=10).read()"]
+      interval: 20s
+      timeout: 15s
+      retries: 20
+
+  tooluniverse-service:
+    <<: *runtime
+    build:
+      context: .
+      dockerfile: docker/tooluniverse-service.Dockerfile
+    environment: *common-environment
+    depends_on:
+      reactome-graphdb:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8092/health', timeout=20).read()"]
+      interval: 30s
+      timeout: 25s
+      retries: 120
+      start_period: 300s
+
+  medea-service:
+    <<: *runtime
+    build:
+      context: .
+      dockerfile: docker/medea-service.Dockerfile
+    environment:
+      <<: [*common-environment, *openai-environment]
+      OPENAI_AUDIT_PATH: /data/audit/openai-medea.jsonl
+    volumes:
+      - medea-data:/data/medeadb:ro
+      - audit-data:/data/audit
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8093/runtime-contract', timeout=30).read()"]
+      interval: 30s
+      timeout: 35s
+      retries: 30
+      start_period: 60s
+
+  translume-api:
+    <<: *runtime
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      <<: [*common-environment, *openai-environment]
+      OPENAI_AUDIT_PATH: /data/audit/openai-api.jsonl
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - upload-data:/data/uploads
+      - audit-data:/data/audit
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
       docling-service:
         condition: service_healthy
       optimuskg-service:
@@ -200,95 +236,125 @@ services:
       dynamic-pathway-analyzer:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=10).read()"]
+      interval: 20s
+      timeout: 15s
       retries: 20
+      start_period: 120s
 
   translume-ui:
+    <<: *runtime
     build:
       context: .
       dockerfile: docker/ui.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
     environment:
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
       TRANSLUME_API_BASE_URL: http://translume-api:8080
       TRANSLUME_UI_HOST: 0.0.0.0
-      TRANSLUME_UI_PORT: 7860
-      TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS: 3600
-      TRANSLUME_UI_DOWNSTREAM_TIMEOUT_SECONDS: 7200
+      TRANSLUME_UI_PORT: "7860"
+      TRANSLUME_UI_API_TIMEOUT_SECONDS: "120"
+      TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS: ${TRANSLUME_UI_PROCESS_TIMEOUT_SECONDS:-21600}
+      TRANSLUME_UI_DOWNSTREAM_TIMEOUT_SECONDS: ${TRANSLUME_UI_DOWNSTREAM_TIMEOUT_SECONDS:-21600}
     ports:
-      - "7860:7860"
+      - "127.0.0.1:7860:7860"
     depends_on:
       translume-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7860', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7860', timeout=10).read()"]
+      interval: 20s
+      timeout: 15s
       retries: 20
 
   translume-worker:
+    <<: *runtime
+    profiles: ["worker"]
     build:
       context: .
       dockerfile: docker/worker.Dockerfile
-    env_file: ${TRANSLUME_ENV_FILE:-.env}
-    environment:
-      OPENAI_API_KEY: ""
-      DOWNSTREAM_OPENAI_API_KEY: ""
+    environment: *common-environment
     depends_on:
-      postgres:
-        condition: service_healthy
-      opensearch:
-        condition: service_healthy
+      data-init:
+        condition: service_completed_successfully
 
   precision-oncology-pipeline:
+    <<: *runtime
     build:
       context: .
       dockerfile: docker/precision-oncology-pipeline.Dockerfile
     environment:
-      OPENAI_API_KEY: ${DOWNSTREAM_OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
-      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-medium}
-      PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS: ${PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS:-900}
+      <<: *openai-environment
+      OPENAI_MODEL: ${OPENAI_REASONING_MODEL:-gpt-6-astra}
+      PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS: ${OPENAI_REQUEST_TIMEOUT_SECONDS:-900}
+      PRECISION_ONCOLOGY_RUN_TIMEOUT_SECONDS: "10800"
       PRECISION_ONCOLOGY_UID: ${PRECISION_ONCOLOGY_UID:-1000}
       PRECISION_ONCOLOGY_GID: ${PRECISION_ONCOLOGY_GID:-1000}
       PIPELINE_ARTIFACT_ROOT: /app/outputs
     volumes:
-      - "./precision_oncology_json_pipeline:/app"
-      - "./data/artifacts:/app/outputs"
+      - ./data/artifacts:/app/outputs
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8094/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8094/health', timeout=10).read()"]
+      interval: 20s
+      timeout: 15s
       retries: 20
 
   dynamic-pathway-analyzer:
+    <<: *runtime
     build:
       context: .
       dockerfile: docker/dynamic-pathway-analyzer.Dockerfile
     environment:
-      OPENAI_API_KEY: ${DOWNSTREAM_OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6}
-      OPENAI_NORMALIZER_MODEL: ${OPENAI_NORMALIZER_MODEL:-gpt-5.6}
+      <<: *openai-environment
+      OPENAI_MODEL: ${OPENAI_REASONING_MODEL:-gpt-6-astra}
+      OPENAI_NORMALIZER_MODEL: ${OPENAI_REASONING_MODEL:-gpt-6-astra}
       MAX_JSON_CHARS: ${MAX_JSON_CHARS:-180000}
-      MAX_FINDINGS: ${MAX_FINDINGS:-40}
+      MAX_FINDINGS: ${MAX_FINDINGS:-80}
       MAX_SOURCE_RECORDS: ${MAX_SOURCE_RECORDS:-40}
-      MAX_RESEARCH_PATHWAYS: ${MAX_RESEARCH_PATHWAYS:-5}
+      MAX_RESEARCH_PATHWAYS: ${MAX_RESEARCH_PATHWAYS:-10}
+      DYNAMIC_PATHWAY_RUN_TIMEOUT_SECONDS: "7200"
       DYNAMIC_PATHWAY_UID: ${DYNAMIC_PATHWAY_UID:-1000}
       DYNAMIC_PATHWAY_GID: ${DYNAMIC_PATHWAY_GID:-1000}
-      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-medium}
       PIPELINE_ARTIFACT_ROOT: /app/outputs
     volumes:
-      - "./dynamic_pathway_analyzer:/app"
-      - "./data/artifacts:/app/outputs"
+      - ./data/artifacts:/app/outputs
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8095/health', timeout=5).read()"]
-      interval: 15s
-      timeout: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8095/health', timeout=10).read()"]
+      interval: 20s
+      timeout: 15s
       retries: 20
+
+  verify:
+    profiles: ["verification"]
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      <<: [*common-environment, *openai-environment]
+      TRANSLUME_E2E_REPORT_PATH: /inputs/report.pdf
+      TRANSLUME_E2E_REPORT_TYPE: ${TRANSLUME_E2E_REPORT_TYPE:-NGS}
+      TRANSLUME_E2E_DIAGNOSIS: ${TRANSLUME_E2E_DIAGNOSIS:-}
+      TRANSLUME_API_URL: http://translume-api:8080
+      DOCLING_PUBLIC_URL: http://docling-service:8090
+      OPTIMUSKG_PUBLIC_URL: http://optimuskg-service:8091
+      TOOLUNIVERSE_PUBLIC_URL: http://tooluniverse-service:8092
+      MEDEA_PUBLIC_URL: http://medea-service:8093
+      OPENSEARCH_PUBLIC_URL: http://opensearch:9200
+      POSTGRES_PUBLIC_DSN: postgresql://translume:translume@postgres:5432/translume
+      OPENAI_AUDIT_PATH: /data/audit/openai-verification.jsonl
+    volumes:
+      - ./data/input:/inputs:ro
+      - ./data/artifacts:/app/data/artifacts
+      - medea-data:/data/medeadb:ro
+      - optimuskg-data:/data/optimuskg:ro
+      - audit-data:/data/audit
+    command: ["python", "scripts/run_full_stack_integration.py", "--api-timeout-seconds", "21600"]
+    depends_on:
+      translume-api:
+        condition: service_healthy
 
 volumes:
   postgres-data:
   opensearch-data:
+  medea-data:
+  optimuskg-data:
+  upload-data:
+  audit-data:

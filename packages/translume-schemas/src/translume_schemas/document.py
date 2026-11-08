@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pydantic import Field
+
 from translume_schemas.base import TranslumeBaseModel
+from translume_schemas.model_calls import ModelCallRecord
 
 
 class BoundingBox(TranslumeBaseModel):
@@ -33,16 +36,17 @@ class DocumentPage(TranslumeBaseModel):
     text: str
     blocks: list[DocumentBlock]
     tables: list[DocumentTable]
-    warnings: list[str] = []
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DocumentExtractionOutput(TranslumeBaseModel):
     source_file_id: str
     extraction_method: str
     pages: list[DocumentPage]
-    warnings: list[str] = []
+    warnings: list[str] = Field(default_factory=list)
     quality_score: float | None = None
     needs_human_review: bool = False
+    model_calls: list[ModelCallRecord] = Field(default_factory=list)
 
 
 class ExtractionQualityReport(TranslumeBaseModel):

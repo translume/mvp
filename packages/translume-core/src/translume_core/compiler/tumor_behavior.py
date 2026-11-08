@@ -9,7 +9,7 @@ class LegacyTumorBehaviorDisabledError(RuntimeError):
 
     Acceptance criteria:
         1. Prevents production code from using hardcoded tumor-state templates.
-        2. Directs callers to the local vLLM structured-output compiler.
+        2. Directs callers to the OpenAI structured-output compiler.
         3. Does not synthesize fallback tumor-state hypotheses.
     """
 
@@ -17,13 +17,13 @@ class LegacyTumorBehaviorDisabledError(RuntimeError):
 def generate_tumor_behavior_model_from_context(
     context: EvidenceContextBundle,
 ) -> TumorBehaviorModelOutput:
-    """Fail because tumor behavior must be generated from evidence by local vLLM.
+    """Fail because tumor behavior must be generated from evidence by OpenAI.
 
     The previous implementation always produced a fixed proliferative to
     stress-adapted-survival transition. That violated the PRIME_DIRECTIVES
     requirement that tumor-behavior states and transitions be case-derived from
     report text, normalized entities, OptimusKG evidence, ToolUniverse outputs,
-    Medea reasoning, and structured local vLLM artifacts.
+    Medea reasoning, and structured OpenAI artifacts.
 
     Args:
         context: Combined evidence context. Retained only for API compatibility
@@ -35,6 +35,6 @@ def generate_tumor_behavior_model_from_context(
     """
     raise LegacyTumorBehaviorDisabledError(
         "Legacy deterministic tumor-behavior generation is disabled. Use "
-        "generate_tumor_behavior_model_with_model with local vLLM structured "
+        "generate_tumor_behavior_model_with_model with OpenAI structured "
         "outputs and evidence-derived validation."
     )

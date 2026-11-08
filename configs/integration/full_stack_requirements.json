@@ -1,7 +1,9 @@
 {
   "required_environment": [
     "TRANSLUME_E2E_REPORT_PATH",
-    "VLLM_MODEL"
+    "TRANSLUME_E2E_DIAGNOSIS",
+    "OPENAI_API_KEY",
+    "OPENAI_REASONING_MODEL"
   ],
   "service_health": [
     {
@@ -20,7 +22,9 @@
       "path": "/health",
       "required_fields": {
         "status": "ok",
-        "docling_available": true
+        "provider": "openai",
+        "remote_model_configured": true,
+        "local_inference_enabled": false
       }
     },
     {
@@ -80,13 +84,15 @@
       "required_fields": {
         "status": "ok",
         "vendor_available": true,
-        "local_model_configured": true,
-        "remote_provider_blocked": true,
-        "local_chat_completion_patched": true,
         "literature_reasoning_available": true,
         "database_required": true,
         "database_available": true,
-        "database_parseable": true
+        "database_parseable": true,
+        "provider": "openai",
+        "remote_model_configured": true,
+        "local_inference_enabled": false,
+        "reasoning_mode": "pro",
+        "reranker": "openai_embeddings"
       }
     }
   ],
@@ -127,45 +133,6 @@
       "ledger_events",
       "review_packets"
     ]
-  },
-  "vllm": {
-    "base_url_env": "VLLM_PUBLIC_BASE_URL",
-    "default_base_url": "http://localhost:8000/v1",
-    "model_env": "VLLM_MODEL",
-    "model_id_disallowed_exact": [
-      "",
-      "local-clinical-model",
-      "placeholder",
-      "mock",
-      "dummy",
-      "test"
-    ],
-    "structured_schema": {
-      "name": "translume_preflight_result",
-      "strict": true,
-      "schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "ready"
-            ]
-          },
-          "service": {
-            "type": "string",
-            "enum": [
-              "translume"
-            ]
-          }
-        },
-        "required": [
-          "status",
-          "service"
-        ]
-      }
-    }
   },
   "review_packet_required_non_empty_paths": [
     "chunks",
@@ -222,5 +189,44 @@
       "hnsw",
       "knn"
     ]
+  },
+  "openai": {
+    "base_url_env": "OPENAI_BASE_URL",
+    "default_base_url": "https://api.openai.com/v1",
+    "model_env": "OPENAI_REASONING_MODEL",
+    "model_id_disallowed_exact": [
+      "",
+      "local-clinical-model",
+      "placeholder",
+      "mock",
+      "dummy",
+      "test"
+    ],
+    "structured_schema": {
+      "name": "translume_preflight_result",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "translume"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ]
+      }
+    }
   }
 }

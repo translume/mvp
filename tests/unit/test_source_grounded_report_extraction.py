@@ -111,8 +111,8 @@ async def test_report_extraction_recovers_from_truncated_batch() -> None:
 
     assert result.artifact.molecular_findings == []
     assert len(provider.calls) == 3
-    assert provider.calls[0]["max_tokens"] == 2500
-    assert provider.calls[1]["max_tokens"] == 5000
+    assert provider.calls[0]["max_tokens"] == 16384
+    assert provider.calls[1]["max_tokens"] == 32768
 
 
 @pytest.mark.asyncio

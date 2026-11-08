@@ -42,12 +42,15 @@ import random
 import re
 import tempfile
 import time
+import uuid
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Generic, Literal, TypeVar, cast
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError
 
 # ---------------------------------------------------------------------------
 # THIRD-PARTY IMPORTS
@@ -64,114 +67,24 @@ except ImportError as exc:  # pragma: no cover - dependency failure is explicit
 # ---------------------------------------------------------------------------
 # GLOBAL OPENAI CONFIGURATION
 # ---------------------------------------------------------------------------
-# The API key is intentionally loaded from an environment variable. For a
-# one-off local test you may replace the empty fallback with a literal key, but
-# never commit or log a real key.
+# Every learned inference call uses the official remote OpenAI service.
+# Credentials stay in the process environment and are never embedded in source.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-
-# Current OpenAI model choices (official model IDs as of 2026-07-10).
-# Re-check https://developers.openai.com/api/docs/models before deployment.
-#
-# RECOMMENDED DROP-IN MODELS FOR THIS PIPELINE
-# (Responses API + Structured Outputs + hosted web_search):
-#   "gpt-5.6-sol"   - latest flagship for highest-quality clinical synthesis.
-#   "gpt-5.6"       - alias that currently routes to GPT-5.6 Sol.
-#   "gpt-5.6-terra" - latest balanced intelligence/cost choice.
-#   "gpt-5.6-luna"  - latest cost-sensitive/high-volume choice; default here.
-#
-# OTHER CURRENT GENERAL / REASONING OPTIONS
-# (available catalog choices; newer frontier models above are preferred):
-#   "gpt-5.5"       - professional-work model; also suited to deep research.
-#   "gpt-5.5-pro"   - higher-compute GPT-5.5 variant.
-#   "gpt-5.4"       - affordable professional-work model.
-#   "gpt-5.4-pro"   - higher-compute GPT-5.4 variant.
-#   "gpt-5.4-mini"  - strongest current mini model for precise/subagent work.
-#   "gpt-5.4-nano"  - cheapest current GPT-5.4-class high-volume model.
-#   "gpt-5.2"       - previous frontier professional-work model.
-#   "gpt-5.2-pro"   - previous higher-compute GPT-5.2 variant.
-#   "gpt-5.1"       - previous coding/agentic general model.
-#   "gpt-5"         - previous GPT-5 reasoning model.
-#   "gpt-5-pro"     - higher-compute GPT-5 variant.
-#   "gpt-5-mini"    - prior cost-sensitive GPT-5 model.
-#   "gpt-5-nano"    - prior fastest/lowest-cost GPT-5 model.
-#   "o3-pro"        - prior high-compute o-series reasoning model.
-#   "o3"            - prior o-series reasoning model.
-#   "gpt-4.1"       - current non-reasoning large model.
-#   "gpt-4.1-mini"  - current smaller non-reasoning model.
-#   "gpt-4o-mini"   - inexpensive legacy multimodal model.
-#
-# CURRENT SPECIALIST MODEL FAMILIES — NOT DROP-IN REPLACEMENTS FOR THIS
-# TEXT/STRUCTURED-OUTPUT PIPELINE, but listed so the model global documents the
-# full current model-family menu. The first entry in each family is the latest
-# recommended model in that family as of 2026-07-10:
-#
-# CODING
-#   "gpt-5.3-codex"              - latest agentic coding model.
-#
-# IMAGE GENERATION / EDITING
-#   "gpt-image-2"                - latest image generation/editing model.
-#
-# REALTIME SPEECH / AUDIO
-#   "gpt-realtime-2.1"           - latest full realtime reasoning/tool model.
-#   "gpt-realtime-2.1-mini"      - latest lower-cost realtime reasoning model.
-#   "gpt-realtime-2"             - prior current realtime reasoning model.
-#   "gpt-realtime-translate"     - current streaming speech translation.
-#   "gpt-realtime-whisper"       - current streaming realtime transcription.
-#   "gpt-realtime-1.5"           - current audio-in/audio-out realtime model.
-#   "gpt-realtime"               - current general realtime model.
-#   "gpt-realtime-mini"          - current cost-efficient realtime model.
-#   "gpt-audio-1.5"              - latest Chat Completions audio model.
-#   "gpt-audio"                  - current general audio model.
-#
-# TRANSCRIPTION / SPEECH GENERATION
-#   "gpt-4o-transcribe-diarize"  - latest diarized transcription model.
-#   "gpt-4o-transcribe"          - current transcription model.
-#   "gpt-4o-mini-transcribe"     - current lower-cost transcription model.
-#   "tts-1"                      - current speed-optimized text-to-speech model.
-#   "tts-1-hd"                   - current quality-optimized text-to-speech model.
-#   "whisper-1"                  - current general speech-recognition model.
-#
-# EMBEDDINGS
-#   "text-embedding-3-large"     - latest highest-capability embedding model.
-#   "text-embedding-3-small"     - latest lower-cost embedding model.
-#   "text-embedding-ada-002"     - older, still-listed embedding model.
-#
-# MODERATION
-#   "omni-moderation-latest"     - latest multimodal moderation model.
-#
-# OPEN-WEIGHT MODELS (run through supported deployment paths, not this API call)
-#   "gpt-oss-120b"               - largest current OpenAI open-weight model.
-#   "gpt-oss-20b"                - lower-latency current open-weight model.
-#
-# VIDEO / DEEP-RESEARCH CATALOG NOTE
-#   "sora-2" / "sora-2-pro"      - latest listed video models, now deprecated.
-#   "o3-deep-research"           - latest listed large deep-research model,
-#                                   now deprecated.
-#   "o4-mini-deep-research"      - latest listed mini deep-research model,
-#                                   now deprecated.
-#
-# SPECIALIZED SEARCH-ONLY PATH
-#   "gpt-5-search-api"           - search-specific Chat Completions model. This
-#                                   tool deliberately uses Responses API plus the
-#                                   hosted web_search tool instead, so do not
-#                                   select this model for OPENAI_MODEL here.
-#
-# NOTE: Reasoning-effort values and tool support differ on older/specialist
-# models. The CLI validates only the format, not account availability.
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
-
-# Reasoning levels supported by current GPT-5.6 frontier models:
-# "none", "low", "medium", "high", "xhigh", "max"
-OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium")
+OPENAI_MODEL = os.getenv(
+    "OPENAI_REASONING_MODEL", os.getenv("OPENAI_MODEL", "gpt-6-astra")
+)
+OPENAI_REASONING_MODE = os.getenv("OPENAI_REASONING_MODE", "pro")
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "xhigh")
+OPENAI_BASE_URL = "https://api.openai.com/v1"
 
 
 # ---------------------------------------------------------------------------
 # VERSIONING AND STABLE SECTION IDS
 # ---------------------------------------------------------------------------
 
-TOOL_VERSION = "1.0.0"
-OUTPUT_SCHEMA_VERSION = "1.0.0"
-PROMPT_SET_VERSION = "2026-07-10.1"
+TOOL_VERSION = "1.1.0"
+OUTPUT_SCHEMA_VERSION = "1.1.0"
+PROMPT_SET_VERSION = "2026-11-08.openai-pro.1"
 
 SECTION_IDS: dict[str, str] = {
     "cover": "sec_00_cover",
@@ -1237,6 +1150,12 @@ class UsageRecord(StrictModel):
     usage: dict[str, Any] = Field(default_factory=dict)
     web_source_count: int = 0
     cache_hit: bool = False
+    provider: str = "openai"
+    request_id: str | None = None
+    reasoning_mode: str | None = None
+    reasoning_effort: str | None = None
+    wire_schema_sha256: str | None = None
+    attempts: int = 1
 
 
 class ArtifactEnvelope(StrictModel):
@@ -1262,6 +1181,7 @@ class FinalPacket(StrictModel):
     source_input_sha256: str
     model: str
     reasoning_effort: str
+    reasoning_mode: str = "pro"
     clinical_disclaimer: str
 
     # Complete typed pipeline state. These maps make the output independently
@@ -1311,6 +1231,12 @@ class ModelResult(Generic[T]):
     usage: dict[str, Any]
     web_sources: tuple[WebSource, ...]
     cache_hit: bool
+    request_id: str | None = None
+    reasoning_mode: str | None = None
+    reasoning_effort: str | None = None
+    wire_schema_sha256: str | None = None
+    attempts: int = 1
+    cacheable: bool = True
 
 
 @dataclass(frozen=True)
@@ -1319,9 +1245,10 @@ class PipelineConfig:
     model: str
     reasoning_effort: str
     output_dir: Path
+    reasoning_mode: str = "pro"
     max_concurrency: int = 4
     max_attempts: int = 5
-    request_timeout_seconds: float = 240.0
+    request_timeout_seconds: float = 900.0
     max_research_jobs: int = 24
     max_sources_per_job: int = 5
     max_sources_per_hypothesis: int = 10
@@ -2872,7 +2799,11 @@ class OpenAIParsedOutputError(RuntimeError):
     @property
     def retryable(self) -> bool:
         """Return whether another request can plausibly change the result."""
-        return self.refusal is None and self.incomplete_reason != "content_filter"
+        return (
+            self.refusal is None
+            and self.status == "incomplete"
+            and self.incomplete_reason == "max_output_tokens"
+        )
 
 
 def _parsed_response_value(
@@ -2937,30 +2868,126 @@ def _parsed_output_error(
     )
 
 
+def openai_wire_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a strict wire schema without changing the persisted domain model.
+
+    Acceptance criteria:
+        1. All generated object properties are required and objects are closed.
+        2. Existing nullability, array bounds, and field names are preserved.
+        3. Schema defaults are removed without removing a field named default.
+        4. Caller-owned schemas are not mutated; unconstrained maps are rejected.
+    """
+    result = copy.deepcopy(dict(schema))
+    result.pop("default", None)
+    for key in ("$defs", "definitions", "properties"):
+        mapping = result.get(key)
+        if isinstance(mapping, dict):
+            result[key] = {
+                name: openai_wire_schema(child) for name, child in mapping.items()
+            }
+    for key in ("items", "contains", "not", "if", "then", "else"):
+        child = result.get(key)
+        if isinstance(child, dict):
+            result[key] = openai_wire_schema(child)
+    for key in ("anyOf", "oneOf", "allOf", "prefixItems"):
+        children = result.get(key)
+        if isinstance(children, list):
+            result[key] = [openai_wire_schema(child) for child in children]
+    if result.get("type") == "object" or "properties" in result:
+        if result.get("additionalProperties") not in (False, None):
+            raise ValueError("Generated output schemas cannot contain open maps.")
+        properties = result.get("properties", {})
+        result["required"] = list(properties)
+        result["additionalProperties"] = False
+    return result
+
+
+def _api_error_code(error: APIError) -> str | None:
+    """Return only the provider's machine code, never its request body."""
+    body = getattr(error, "body", None)
+    if isinstance(body, Mapping):
+        nested = body.get("error", body)
+        if isinstance(nested, Mapping):
+            code = nested.get("code")
+            return str(code) if code else None
+    code = getattr(error, "code", None)
+    return str(code) if code else None
+
+
+def _retryable_api_error(error: APIError) -> bool:
+    """Retry transient transport/server failures, never quota or credentials.
+
+    Acceptance criteria:
+        1. Authentication, permissions, quota, and invalid requests do not retry.
+        2. Connection failures, timeout, conflict, and server errors may retry.
+        3. The function performs no I/O or mutation.
+    """
+    if isinstance(error, APIConnectionError):
+        return True
+    if not isinstance(error, APIStatusError):
+        return False
+    if _api_error_code(error) in {
+        "insufficient_quota",
+        "billing_hard_limit_reached",
+        "billing_not_active",
+        "billing_limit_reached",
+        "account_deactivated",
+        "invalid_api_key",
+    }:
+        return False
+    return error.status_code in {408, 409, 429} or error.status_code >= 500
+
+
+def _safe_api_error(stage: str, error: APIError) -> RuntimeError:
+    """Build a useful terminal diagnostic without echoing submitted content."""
+    return RuntimeError(
+        f"OpenAI request failed: stage={stage!r}, "
+        f"error={type(error).__name__}, "
+        f"status={getattr(error, 'status_code', None)!r}, "
+        f"code={_api_error_code(error)!r}, "
+        f"request_id={getattr(error, 'request_id', None)!r}"
+    )
+
+
 class OpenAIResponsesGateway:
-    """Synchronous OpenAI SDK adapter wrapped for async orchestration."""
+    """Use authenticated remote Responses requests with bounded, audited retries."""
 
     def __init__(self, config: PipelineConfig, store: ArtifactStore) -> None:
+        if config.reasoning_mode != "pro":
+            raise ValueError("This deployment requires OPENAI_REASONING_MODE=pro.")
+        if config.reasoning_effort not in {"low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported Astra reasoning effort.")
+        if not 1 <= config.max_attempts <= 10:
+            raise ValueError("max_attempts must be between 1 and 10.")
+        if not 1 <= config.max_concurrency <= 32:
+            raise ValueError("max_concurrency must be between 1 and 32.")
+        if not 1 <= config.request_timeout_seconds <= 7200:
+            raise ValueError("request_timeout_seconds must be in (0, 7200].")
+        configured_url = os.getenv("OPENAI_BASE_URL", OPENAI_BASE_URL).rstrip("/")
+        if configured_url != OPENAI_BASE_URL:
+            raise ValueError("OPENAI_BASE_URL must be https://api.openai.com/v1.")
         self.config = config
         self.store = store
         self._semaphore = asyncio.Semaphore(config.max_concurrency)
         self._client: Any | None = None
 
+    def __enter__(self) -> OpenAIResponsesGateway:
+        return self
+
+    def __exit__(self, *_error: Any) -> None:
+        if self._client is not None:
+            self._client.close()
+
     def _get_client(self) -> Any:
         if self._client is not None:
             return self._client
-        try:
-            from openai import OpenAI
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "Install the official OpenAI Python SDK: pip install 'openai>=2.0.0'."
-            ) from exc
-        if not self.config.api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY is empty. Set the environment variable or use --api-key."
-            )
+        from openai import OpenAI
+
+        if not self.config.api_key.strip():
+            raise RuntimeError("OPENAI_API_KEY is empty. Set it in the environment.")
         self._client = OpenAI(
             api_key=self.config.api_key,
+            base_url=OPENAI_BASE_URL,
             timeout=self.config.request_timeout_seconds,
             max_retries=0,
         )
@@ -2978,15 +3005,23 @@ class OpenAIResponsesGateway:
         allowed_domains: Sequence[str] = (),
         required_web: bool = False,
     ) -> ModelResult[T]:
+        wire_schema_hash = sha256_text(
+            canonical_json(openai_wire_schema(response_model.model_json_schema()))
+        )
+        effective_effort = prompt.reasoning_effort or self.config.reasoning_effort
         request_descriptor = {
+            "provider": "openai",
             "stage": stage,
             "artifact_id": artifact_id,
             "prompt_name": prompt.name,
             "prompt_version": prompt.version,
+            "system_prompt_sha256": sha256_text(prompt.system),
             "model": self.config.model,
-            "reasoning_effort": prompt.reasoning_effort or self.config.reasoning_effort,
+            "reasoning_mode": self.config.reasoning_mode,
+            "reasoning_effort": effective_effort,
+            "max_output_tokens": max(32_000, prompt.max_output_tokens),
             "payload": payload,
-            "response_schema": response_model.__name__,
+            "wire_schema_sha256": wire_schema_hash,
             "use_web": use_web,
             "allowed_domains": sorted(set(allowed_domains)),
             "required_web": required_web,
@@ -2996,71 +3031,111 @@ class OpenAIResponsesGateway:
         cache_key = stable_id("cache", request_descriptor, length=32)
         if self.config.resume:
             cached = self.store.load_cache(cache_key)
-            if cached:
-                parsed = response_model.model_validate(cached["parsed"])
-                web_sources = tuple(
-                    WebSource(**item) for item in cached.get("web_sources", [])
+            if cached and (
+                cached.get("reasoning_mode") == self.config.reasoning_mode
+                and cached.get("reasoning_effort") == effective_effort
+                and cached.get("wire_schema_sha256") == wire_schema_hash
+                and all(
+                    isinstance(cached.get(key), str) and cached[key].strip()
+                    for key in ("response_id", "model")
                 )
+            ):
                 return ModelResult(
-                    parsed=parsed,
+                    parsed=response_model.model_validate(cached["parsed"]),
                     response_id=cached.get("response_id"),
-                    model=cached.get("model", self.config.model),
+                    request_id=cached.get("request_id"),
+                    model=cached["model"],
                     usage=cached.get("usage", {}),
-                    web_sources=web_sources,
+                    web_sources=tuple(
+                        WebSource(**item) for item in cached.get("web_sources", [])
+                    ),
+                    reasoning_mode=cached["reasoning_mode"],
+                    reasoning_effort=cached["reasoning_effort"],
+                    wire_schema_sha256=wire_schema_hash,
+                    attempts=cached.get("attempts", 1),
                     cache_hit=True,
                 )
-
         if self.config.dry_run:
             raise RuntimeError(
-                f"Dry-run reached model stage '{stage}'. Use --stop-after canonical_input "
-                "to inspect parsed values without API calls."
+                f"Dry-run reached model stage {stage!r}. "
+                "Use --stop-after canonical_input for a no-API parsing check."
             )
-
-        call_id = stable_id("call", cache_key, stage, artifact_id)
+        # Construction happens before yielding, so concurrent stages share one pool.
+        self._get_client()
+        call_id = f"call_{uuid.uuid4().hex}"
         audit = {
-            "call_id": call_id,
-            "stage": stage,
-            "artifact_id": artifact_id,
-            "cache_key": cache_key,
-            "prompt_name": prompt.name,
-            "prompt_version": prompt.version,
-            "model": self.config.model,
-            "reasoning_effort": prompt.reasoning_effort or self.config.reasoning_effort,
-            "response_schema": response_model.__name__,
-            "use_web": use_web,
-            "allowed_domains": sorted(set(allowed_domains)),
-            "created_at": utc_now_iso(),
-            "payload_hash": sha256_text(canonical_json(payload)),
+            key: value for key, value in request_descriptor.items() if key != "payload"
         }
+        audit.update(
+            {
+                "call_id": call_id,
+                "cache_key": cache_key,
+                "created_at": utc_now_iso(),
+                "payload_hash": sha256_text(canonical_json(payload)),
+                "outcome": "started",
+            }
+        )
         if self.config.store_prompt_payloads:
             audit["payload"] = payload
         self.store.save_call_audit(call_id, audit)
-
-        async with self._semaphore:
-            result = await asyncio.to_thread(
-                self._call_with_retry,
-                stage,
-                prompt,
-                payload,
-                response_model,
-                use_web,
-                tuple(allowed_domains),
-                required_web,
+        try:
+            async with self._semaphore:
+                result = await asyncio.to_thread(
+                    self._call_with_retry,
+                    stage,
+                    prompt,
+                    payload,
+                    response_model,
+                    use_web,
+                    tuple(allowed_domains),
+                    required_web,
+                    call_id=call_id,
+                    artifact_id=artifact_id,
+                )
+        except (RuntimeError, ValueError, TypeError) as error:
+            self.store.save_call_audit(
+                call_id,
+                {
+                    **audit,
+                    "outcome": "failed",
+                    "error_type": type(error).__name__,
+                },
             )
-
-        self.store.save_cache(
-            cache_key,
+            raise
+        self.store.save_call_audit(
+            call_id,
             {
-                "parsed": result.parsed.model_dump(mode="json"),
+                **audit,
+                "outcome": "succeeded",
                 "response_id": result.response_id,
-                "model": result.model,
+                "request_id": result.request_id,
+                "actual_model": result.model,
+                "actual_reasoning_effort": result.reasoning_effort,
+                "attempts": result.attempts,
                 "usage": result.usage,
-                "web_sources": [
-                    dataclasses.asdict(item) for item in result.web_sources
-                ],
-                "created_at": utc_now_iso(),
             },
         )
+        # Adaptive retries change effort or payload. Never reuse them as a result
+        # for the original request identity on a later, full-quality invocation.
+        if result.cacheable:
+            self.store.save_cache(
+                cache_key,
+                {
+                    "parsed": result.parsed.model_dump(mode="json"),
+                    "response_id": result.response_id,
+                    "request_id": result.request_id,
+                    "model": result.model,
+                    "reasoning_mode": result.reasoning_mode,
+                    "reasoning_effort": result.reasoning_effort,
+                    "wire_schema_sha256": result.wire_schema_sha256,
+                    "attempts": result.attempts,
+                    "usage": result.usage,
+                    "web_sources": [
+                        dataclasses.asdict(item) for item in result.web_sources
+                    ],
+                    "created_at": utc_now_iso(),
+                },
+            )
         return result
 
     def _call_with_retry(
@@ -3072,25 +3147,26 @@ class OpenAIResponsesGateway:
         use_web: bool,
         allowed_domains: tuple[str, ...],
         required_web: bool,
+        *,
+        call_id: str | None = None,
+        artifact_id: str | None = None,
     ) -> ModelResult[T]:
-        last_error: Exception | None = None
+        call_id = call_id or f"call_{uuid.uuid4().hex}"
+        last_error: APIError | OpenAIParsedOutputError | None = None
+        adaptive_retry = False
+        report_timeout_retry = False
         for attempt in range(1, self.config.max_attempts + 1):
-            adaptive_retry = (
-                stage == "hypothesis_synthesis"
-                and isinstance(last_error, OpenAIParsedOutputError)
-            )
-            report_timeout_retry = (
-                stage == "report_compiler"
-                and last_error is not None
-                and last_error.__class__.__name__ == "APITimeoutError"
-            )
+            if isinstance(last_error, OpenAIParsedOutputError):
+                adaptive_retry = True
+            if stage == "report_compiler" and isinstance(last_error, APITimeoutError):
+                report_timeout_retry = True
             request_payload = (
                 compact_report_compiler_retry_payload(payload)
                 if report_timeout_retry
                 else payload
             )
             try:
-                return self._call_once(
+                result = self._call_once(
                     stage=stage,
                     prompt=prompt,
                     payload=request_payload,
@@ -3101,37 +3177,44 @@ class OpenAIResponsesGateway:
                     reasoning_effort=(
                         "low" if adaptive_retry or report_timeout_retry else None
                     ),
-                    max_output_tokens=30_000 if adaptive_retry else None,
+                    max_output_tokens=(
+                        max(64_000, prompt.max_output_tokens)
+                        if adaptive_retry
+                        else None
+                    ),
+                    call_id=call_id,
+                    artifact_id=artifact_id,
+                    attempt=attempt,
                 )
-            except Exception as exc:  # SDK exception classes change over time
-                last_error = exc
-                status = getattr(exc, "status_code", None)
+                return dataclasses.replace(
+                    result,
+                    attempts=attempt,
+                    cacheable=not (adaptive_retry or report_timeout_retry),
+                )
+            except (APIError, OpenAIParsedOutputError) as error:
+                last_error = error
                 retryable = (
-                    status in {408, 409, 429, 500, 502, 503, 504} or status is None
+                    _retryable_api_error(error)
+                    if isinstance(error, APIError)
+                    else error.retryable and not adaptive_retry
                 )
-                if isinstance(exc, OpenAIParsedOutputError):
-                    retryable = exc.retryable
-                if (
-                    stage == "report_compiler"
-                    and exc.__class__.__name__ == "APITimeoutError"
-                    and attempt >= 2
-                ):
+                if report_timeout_retry and isinstance(error, APITimeoutError):
                     retryable = False
                 if not retryable or attempt >= self.config.max_attempts:
+                    if isinstance(error, APIError):
+                        raise _safe_api_error(stage, error) from error
                     raise
-                delay = min(60.0, (2 ** (attempt - 1)) + random.uniform(0.0, 1.0))
+                delay = min(30.0, 2 ** (attempt - 1) + random.uniform(0.0, 1.0))
                 LOGGER.warning(
-                    "OpenAI call retry stage=%s attempt=%s/%s status=%s delay=%.2fs error=%s",
+                    "OpenAI retry stage=%s attempt=%s/%s error=%s delay=%.2fs",
                     stage,
                     attempt,
                     self.config.max_attempts,
-                    status,
+                    type(error).__name__,
                     delay,
-                    exc.__class__.__name__,
                 )
                 time.sleep(delay)
-        assert last_error is not None
-        raise last_error
+        raise RuntimeError("OpenAI retry policy exhausted without a response.")
 
     def _call_once(
         self,
@@ -3145,34 +3228,40 @@ class OpenAIResponsesGateway:
         required_web: bool,
         reasoning_effort: str | None = None,
         max_output_tokens: int | None = None,
+        call_id: str | None = None,
+        artifact_id: str | None = None,
+        attempt: int = 1,
     ) -> ModelResult[T]:
         client = self._get_client()
         request_timeout = (
             prompt.request_timeout_seconds or self.config.request_timeout_seconds
         )
-        request_client = (
-            client.with_options(timeout=request_timeout)
-            if hasattr(client, "with_options")
-            else client
+        request_client = client.with_options(timeout=request_timeout)
+        effective_effort = (
+            reasoning_effort or prompt.reasoning_effort or self.config.reasoning_effort
         )
+        wire_schema = openai_wire_schema(response_model.model_json_schema())
+        wire_schema_hash = sha256_text(canonical_json(wire_schema))
         kwargs: dict[str, Any] = {
             "model": self.config.model,
             "input": [
                 {"role": "system", "content": prompt.system},
-                {
-                    "role": "user",
-                    "content": prompt_payload(prompt.user_label, payload),
-                },
+                {"role": "user", "content": prompt_payload(prompt.user_label, payload)},
             ],
-            "text_format": response_model,
-            "reasoning": {
-                "effort": (
-                    reasoning_effort
-                    or prompt.reasoning_effort
-                    or self.config.reasoning_effort
-                )
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": response_model.__name__,
+                    "schema": wire_schema,
+                    "strict": True,
+                }
             },
-            "max_output_tokens": max_output_tokens or prompt.max_output_tokens,
+            "reasoning": {
+                "mode": self.config.reasoning_mode,
+                "effort": effective_effort,
+            },
+            "max_output_tokens": max_output_tokens
+            or max(32_000, prompt.max_output_tokens),
             "store": False,
             "metadata": {
                 "pipeline": "precision-oncology-json",
@@ -3189,45 +3278,117 @@ class OpenAIResponsesGateway:
             filtered = [
                 domain.removeprefix("www.") for domain in allowed_domains if domain
             ]
-            # Apply the blocked-domain policy for every discovery call. Add an
-            # allowlist only for exact official-source jobs. OpenAI currently
-            # accepts up to 100 domains per list.
             filters: dict[str, Any] = {
-                "blocked_domains": list(DEFAULT_BLOCKED_DOMAINS)[:100],
+                "blocked_domains": list(DEFAULT_BLOCKED_DOMAINS)[:100]
             }
             if filtered:
-                filters["allowed_domains"] = unique_preserve_order(filtered)[:100]
+                # An allowlist already excludes every unlisted domain. Send one
+                # filter policy rather than combining allow and block modes.
+                filters = {"allowed_domains": unique_preserve_order(filtered)[:100]}
             tool["filters"] = filters
             kwargs["tools"] = [tool]
             kwargs["tool_choice"] = "required" if required_web else "auto"
             kwargs["include"] = ["web_search_call.action.sources"]
 
-        response = request_client.responses.parse(**kwargs)
-        response_dump = (
-            response.model_dump(mode="json") if hasattr(response, "model_dump") else {}
+        attempt_id = f"{call_id or 'call_' + uuid.uuid4().hex}_attempt_{attempt}"
+        receipt: dict[str, Any] = {
+            "attempt_id": attempt_id,
+            "call_id": call_id,
+            "artifact_id": artifact_id,
+            "stage": stage,
+            "attempt": attempt,
+            "provider": "openai",
+            "requested_model": self.config.model,
+            "model": None,
+            "reasoning_mode": self.config.reasoning_mode,
+            "reasoning_effort": effective_effort,
+            "max_output_tokens": kwargs["max_output_tokens"],
+            "wire_schema_sha256": wire_schema_hash,
+            "request_sha256": sha256_text(canonical_json(kwargs)),
+            "created_at": utc_now_iso(),
+            "outcome": "started",
+        }
+        self.store.save_call_audit(attempt_id, receipt)
+        try:
+            response = request_client.responses.create(**kwargs)
+        except APIError as error:
+            self.store.save_call_audit(
+                attempt_id,
+                {
+                    **receipt,
+                    "outcome": "failed",
+                    "error_type": type(error).__name__,
+                    "status_code": getattr(error, "status_code", None),
+                    "error_code": _api_error_code(error),
+                    "request_id": getattr(error, "request_id", None),
+                },
+            )
+            raise
+        response_dump = response.model_dump(mode="json")
+        classified = _parsed_output_error(stage, response, response_dump)
+        receipt.update(
+            {
+                "response_id": getattr(response, "id", None),
+                "request_id": getattr(response, "_request_id", None),
+                "model": getattr(response, "model", None),
+                "status": classified.status,
+                "incomplete_reason": classified.incomplete_reason,
+                "refusal_present": bool(classified.refusal),
+                "completed_web_searches": sum(
+                    item.get("type") == "web_search_call"
+                    and item.get("status") == "completed"
+                    for item in response_dump.get("output", [])
+                    if isinstance(item, Mapping)
+                ),
+                "usage": response_dump.get("usage") or {},
+            }
         )
-        parsed = _parsed_response_value(response, response_dump)
-        if parsed is None:
-            output_text = getattr(response, "output_text", None)
-            if isinstance(output_text, str) and output_text.strip():
-                try:
-                    parsed = response_model.model_validate_json(output_text)
-                except (ValueError, TypeError):
-                    parsed = None
-        if parsed is None:
-            raise _parsed_output_error(stage, response, response_dump)
-        if not isinstance(parsed, response_model):
-            parsed = response_model.model_validate(parsed)
-
-        usage = response_dump.get("usage") or {}
-        web_sources = tuple(recursive_web_sources(response_dump))
+        try:
+            if classified.status != "completed" or classified.refusal:
+                raise classified
+            if not all(
+                isinstance(receipt[key], str) and receipt[key].strip()
+                for key in ("response_id", "model")
+            ):
+                raise ValueError("OpenAI omitted response/model identity.")
+            if required_web and not receipt["completed_web_searches"]:
+                raise ValueError("OpenAI did not complete the required web search.")
+            parsed = _parsed_response_value(response, response_dump)
+            if parsed is None:
+                output_text = getattr(response, "output_text", None)
+                if not isinstance(output_text, str) or not output_text.strip():
+                    raise classified
+                parsed = response_model.model_validate_json(output_text)
+            elif not isinstance(parsed, response_model):
+                parsed = response_model.model_validate(parsed)
+        except (OpenAIParsedOutputError, ValueError, TypeError) as error:
+            self.store.save_call_audit(
+                attempt_id,
+                {
+                    **receipt,
+                    "outcome": "failed",
+                    "error_type": type(error).__name__,
+                },
+            )
+            if isinstance(error, OpenAIParsedOutputError):
+                raise
+            raise RuntimeError(
+                f"OpenAI output failed domain validation: stage={stage!r}, "
+                f"response_id={receipt['response_id']!r}, "
+                f"error={type(error).__name__}"
+            ) from error
+        self.store.save_call_audit(attempt_id, {**receipt, "outcome": "succeeded"})
         return ModelResult(
             parsed=parsed,
-            response_id=getattr(response, "id", None),
-            model=getattr(response, "model", self.config.model) or self.config.model,
-            usage=usage,
-            web_sources=web_sources,
+            response_id=receipt["response_id"],
+            request_id=receipt["request_id"],
+            model=receipt["model"],
+            usage=receipt["usage"],
+            web_sources=tuple(recursive_web_sources(response_dump)),
             cache_hit=False,
+            reasoning_mode=self.config.reasoning_mode,
+            reasoning_effort=effective_effort,
+            wire_schema_sha256=wire_schema_hash,
         )
 
 
@@ -3320,6 +3481,11 @@ def append_usage(
         artifact_id=artifact_id,
         response_id=result.response_id,
         model=result.model,
+        request_id=result.request_id,
+        reasoning_mode=result.reasoning_mode,
+        reasoning_effort=result.reasoning_effort,
+        wire_schema_sha256=result.wire_schema_sha256,
+        attempts=result.attempts,
         usage=result.usage,
         web_source_count=len(result.web_sources),
         cache_hit=result.cache_hit,
@@ -3440,20 +3606,37 @@ def source_extraction_by_id(state: PipelineState, source_id: str) -> SourceExtra
 def build_minimal_patient_anchor(
     state: PipelineState, job: ResearchJob
 ) -> dict[str, Any]:
+    """Return biomedical search context without source text or identifiers.
+
+    Acceptance criteria:
+        1. Dates, specimen details, geography, and raw report quotes are excluded.
+        2. Disease and relevant molecular concepts are retained for evidence fit.
+        3. Input state is not mutated; full context remains in non-web stages.
+    """
     hypothesis = hypothesis_by_id(state, job.hypothesis_id)
     relevant = findings_for_hypothesis(state.canonical_input, hypothesis)
     return {
         "case": {
             "disease": state.canonical_input.case.disease.model_dump(mode="json"),
-            "specimen": state.canonical_input.case.specimen.model_dump(mode="json"),
-            "line_of_therapy": state.canonical_input.case.line_of_therapy,
-            "prior_therapies": state.canonical_input.case.prior_therapies,
-            "performance_status": state.canonical_input.case.performance_status,
-            "location": state.canonical_input.case.location,
-            "missing_context": state.canonical_input.case.missing_context,
         },
-        "hypothesis": hypothesis.model_dump(mode="json"),
-        "relevant_findings": [item.model_dump(mode="json") for item in relevant],
+        "hypothesis": {
+            "hypothesis_id": hypothesis.hypothesis_id,
+            "biological_theme": hypothesis.biological_theme,
+            "hypothesis_type": hypothesis.hypothesis_type,
+            "therapy_classes_to_research": hypothesis.therapy_classes_to_research,
+        },
+        "relevant_findings": [
+            {
+                "gene_or_marker": item.gene_or_marker,
+                "alteration": item.alteration,
+                "alteration_type": item.alteration_type,
+                "molecular_layers": item.molecular_layers,
+                "reported_category": item.reported_category,
+                "needs_human_review": item.needs_human_review,
+                "research_use_only": item.research_use_only,
+            }
+            for item in relevant
+        ],
     }
 
 
@@ -4071,7 +4254,21 @@ def research_planner_payload(state: PipelineState) -> dict[str, Any]:
 
 def source_discovery_payload(state: PipelineState, job: ResearchJob) -> dict[str, Any]:
     return {
-        "research_job": job.model_dump(mode="json"),
+        "research_job": job.model_dump(
+            mode="json",
+            include={
+                "job_id",
+                "hypothesis_id",
+                "question_type",
+                "search_concepts",
+                "source_roles_needed",
+                "preferred_sources",
+                "minimum_evidence_level",
+                "maximum_sources",
+                "required_report_sections",
+                "priority",
+            },
+        ),
         "minimal_patient_anchor": build_minimal_patient_anchor(state, job),
         "retrieval_requirements": {
             "fully_qualified_urls": True,
@@ -5748,6 +5945,7 @@ def assemble_final_packet(
         source_input_sha256=state.source_input_sha256,
         model=config.model,
         reasoning_effort=config.reasoning_effort,
+        reasoning_mode=config.reasoning_mode,
         clinical_disclaimer=(
             "Educational precision-oncology decision support only. This JSON does not "
             "diagnose disease, recommend treatment, or determine clinical-trial "
@@ -5861,6 +6059,7 @@ def build_initial_state(
         source_hash,
         canonical_hash,
         config.model,
+        config.reasoning_mode,
         config.reasoning_effort,
         config.enable_web_search,
         config.live_web_access,
@@ -5931,156 +6130,166 @@ async def run_pipeline(
             stopped_after="canonical_input",
         )
 
-    gateway = OpenAIResponsesGateway(config, store)
+    with OpenAIResponsesGateway(config, store) as gateway:
+        state = await stage_hypotheses(state, gateway, store)
+        save_stage_checkpoint(store, state, "hypotheses")
+        if should_stop(config, "hypotheses"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "hypotheses"
+            )
 
-    state = await stage_hypotheses(state, gateway, store)
-    save_stage_checkpoint(store, state, "hypotheses")
-    if should_stop(config, "hypotheses"):
-        return PipelineRunResult(state.run_id, store.run_dir, None, None, "hypotheses")
+        state = await stage_research_plan(state, gateway, store, config)
+        save_stage_checkpoint(store, state, "research_plan")
+        if should_stop(config, "research_plan"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "research_plan"
+            )
 
-    state = await stage_research_plan(state, gateway, store, config)
-    save_stage_checkpoint(store, state, "research_plan")
-    if should_stop(config, "research_plan"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "research_plan"
-        )
+        state = await stage_source_discovery(state, gateway, store, config)
+        save_stage_checkpoint(store, state, "sources")
+        if should_stop(config, "sources"):
+            return PipelineRunResult(state.run_id, store.run_dir, None, None, "sources")
 
-    state = await stage_source_discovery(state, gateway, store, config)
-    save_stage_checkpoint(store, state, "sources")
-    if should_stop(config, "sources"):
-        return PipelineRunResult(state.run_id, store.run_dir, None, None, "sources")
+        state = await stage_source_extractions(state, gateway, store)
+        save_stage_checkpoint(store, state, "source_extractions")
+        if should_stop(config, "source_extractions"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "source_extractions"
+            )
 
-    state = await stage_source_extractions(state, gateway, store)
-    save_stage_checkpoint(store, state, "source_extractions")
-    if should_stop(config, "source_extractions"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "source_extractions"
-        )
+        state = await stage_source_fit_assessments(state, gateway, store)
+        save_stage_checkpoint(store, state, "source_fit_assessments")
+        if should_stop(config, "source_fit_assessments"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "source_fit_assessments"
+            )
 
-    state = await stage_source_fit_assessments(state, gateway, store)
-    save_stage_checkpoint(store, state, "source_fit_assessments")
-    if should_stop(config, "source_fit_assessments"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "source_fit_assessments"
-        )
+        state = await stage_trial_prescreens(state, gateway, store)
+        save_stage_checkpoint(store, state, "trial_prescreens")
+        if should_stop(config, "trial_prescreens"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "trial_prescreens"
+            )
 
-    state = await stage_trial_prescreens(state, gateway, store)
-    save_stage_checkpoint(store, state, "trial_prescreens")
-    if should_stop(config, "trial_prescreens"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "trial_prescreens"
-        )
+        state = await stage_hypothesis_syntheses(state, gateway, store)
+        save_stage_checkpoint(store, state, "hypothesis_syntheses")
+        if should_stop(config, "hypothesis_syntheses"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "hypothesis_syntheses"
+            )
 
-    state = await stage_hypothesis_syntheses(state, gateway, store)
-    save_stage_checkpoint(store, state, "hypothesis_syntheses")
-    if should_stop(config, "hypothesis_syntheses"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "hypothesis_syntheses"
-        )
+        state = await stage_report_compiler(state, gateway, store)
+        save_stage_checkpoint(store, state, "report_draft")
+        if should_stop(config, "report_draft"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "report_draft"
+            )
 
-    state = await stage_report_compiler(state, gateway, store)
-    save_stage_checkpoint(store, state, "report_draft")
-    if should_stop(config, "report_draft"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "report_draft"
-        )
+        state = await stage_cross_source_synthesis(state, gateway, store)
+        save_stage_checkpoint(store, state, "cross_source_synthesis")
+        if should_stop(config, "cross_source_synthesis"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "cross_source_synthesis"
+            )
 
-    state = await stage_cross_source_synthesis(state, gateway, store)
-    save_stage_checkpoint(store, state, "cross_source_synthesis")
-    if should_stop(config, "cross_source_synthesis"):
-        return PipelineRunResult(
-            state.run_id, store.run_dir, None, None, "cross_source_synthesis"
-        )
+        state = await stage_llm_validations(state, gateway, store, config)
+        sections = build_renderer_sections(state)
+        deterministic_validation = deterministic_integrity_validation(state, sections)
+        validations = state.validations + (deterministic_validation,)
+        state = dataclasses.replace(state, validations=validations)
 
-    state = await stage_llm_validations(state, gateway, store, config)
-    sections = build_renderer_sections(state)
-    deterministic_validation = deterministic_integrity_validation(state, sections)
-    validations = state.validations + (deterministic_validation,)
-    state = dataclasses.replace(state, validations=validations)
-
-    validation_artifact = artifact_from_payload(
-        artifact_id=stable_id(
-            "artifact",
-            "deterministic_integrity_validation",
-            state.run_id,
-            deterministic_validation.validator_id,
-        ),
-        artifact_type="validation_output",
-        stage="deterministic_integrity",
-        payload=deterministic_validation,
-        parents=[
-            state.report_draft.report_draft_id if state.report_draft else "",
-            state.cross_source_synthesis.synthesis_id
-            if state.cross_source_synthesis
-            else "",
-        ],
-        input_value={
-            "sections": [item.model_dump(mode="json") for item in sections],
-            "state_hash": sha256_text(canonical_json(serialize_state(state))),
-        },
-    )
-    store.save_artifact(validation_artifact)
-    state = append_artifact(state, validation_artifact)
-    save_stage_checkpoint(store, state, "validations")
-
-    if should_stop(config, "validations"):
-        return PipelineRunResult(state.run_id, store.run_dir, None, None, "validations")
-
-    blocking = [
-        finding
-        for validation in validations
-        for finding in validation.findings
-        if finding.severity == "blocking"
-    ]
-    if blocking and not config.allow_blocking_validation:
-        atomic_write_json(
-            store.run_dir / "blocking_validation_findings.json",
-            [item.model_dump(mode="json") for item in blocking],
-        )
-        raise RuntimeError(
-            f"Final packet blocked by {len(blocking)} validation finding(s). "
-            "Review blocking_validation_findings.json or rerun with "
-            "--allow-blocking-validation for diagnostic output."
-        )
-
-    packet = assemble_final_packet(state, config, sections, validations)
-    final_path = store.save_final(packet)
-    schema_path = store.save_schema()
-    atomic_write_json(
-        store.run_dir / "run_manifest.json",
-        {
-            "run_id": state.run_id,
-            "packet_id": packet.packet_id,
-            "tool_version": TOOL_VERSION,
-            "schema_version": OUTPUT_SCHEMA_VERSION,
-            "prompt_set_version": PROMPT_SET_VERSION,
-            "model": config.model,
-            "reasoning_effort": config.reasoning_effort,
-            "input_path": str(input_path.resolve()),
-            "source_input_sha256": state.source_input_sha256,
-            "final_json": str(final_path),
-            "schema": str(schema_path),
-            "generated_at": packet.generated_at,
-            "counts": {
-                "actionable_findings": len(state.canonical_input.actionable_findings),
-                "secondary_findings": len(state.canonical_input.secondary_findings),
-                "hypotheses": len(state.hypotheses),
-                "research_jobs": len(state.research_jobs),
-                "sources": len(state.sources),
-                "source_fit_assessments": len(state.source_fit_assessments),
-                "trial_prescreens": len(state.trial_prescreens),
-                "sections": len(sections),
-                "api_calls": len(state.usage_records),
+        validation_artifact = artifact_from_payload(
+            artifact_id=stable_id(
+                "artifact",
+                "deterministic_integrity_validation",
+                state.run_id,
+                deterministic_validation.validator_id,
+            ),
+            artifact_type="validation_output",
+            stage="deterministic_integrity",
+            payload=deterministic_validation,
+            parents=[
+                state.report_draft.report_draft_id if state.report_draft else "",
+                state.cross_source_synthesis.synthesis_id
+                if state.cross_source_synthesis
+                else "",
+            ],
+            input_value={
+                "sections": [item.model_dump(mode="json") for item in sections],
+                "state_hash": sha256_text(canonical_json(serialize_state(state))),
             },
-        },
-    )
-    return PipelineRunResult(
-        run_id=state.run_id,
-        run_dir=store.run_dir,
-        final_json_path=final_path,
-        schema_path=schema_path,
-        stopped_after="final_packet",
-    )
+        )
+        store.save_artifact(validation_artifact)
+        state = append_artifact(state, validation_artifact)
+        save_stage_checkpoint(store, state, "validations")
+
+        if should_stop(config, "validations"):
+            return PipelineRunResult(
+                state.run_id, store.run_dir, None, None, "validations"
+            )
+
+        blocking = [
+            finding
+            for validation in validations
+            for finding in validation.findings
+            if finding.severity == "blocking"
+        ]
+        if blocking and not config.allow_blocking_validation:
+            atomic_write_json(
+                store.run_dir / "blocking_validation_findings.json",
+                [item.model_dump(mode="json") for item in blocking],
+            )
+            raise RuntimeError(
+                f"Final packet blocked by {len(blocking)} validation finding(s). "
+                "Review blocking_validation_findings.json or rerun with "
+                "--allow-blocking-validation for diagnostic output."
+            )
+
+        packet = assemble_final_packet(state, config, sections, validations)
+        final_path = store.save_final(packet)
+        schema_path = store.save_schema()
+        atomic_write_json(
+            store.run_dir / "run_manifest.json",
+            {
+                "run_id": state.run_id,
+                "packet_id": packet.packet_id,
+                "tool_version": TOOL_VERSION,
+                "schema_version": OUTPUT_SCHEMA_VERSION,
+                "prompt_set_version": PROMPT_SET_VERSION,
+                "model": config.model,
+                "reasoning_mode": config.reasoning_mode,
+                "reasoning_effort": config.reasoning_effort,
+                "input_path": str(input_path.resolve()),
+                "source_input_sha256": state.source_input_sha256,
+                "final_json": str(final_path),
+                "schema": str(schema_path),
+                "generated_at": packet.generated_at,
+                "counts": {
+                    "actionable_findings": len(
+                        state.canonical_input.actionable_findings
+                    ),
+                    "secondary_findings": len(state.canonical_input.secondary_findings),
+                    "hypotheses": len(state.hypotheses),
+                    "research_jobs": len(state.research_jobs),
+                    "sources": len(state.sources),
+                    "source_fit_assessments": len(state.source_fit_assessments),
+                    "trial_prescreens": len(state.trial_prescreens),
+                    "sections": len(sections),
+                    "model_results": len(state.usage_records),
+                    "cache_hits": sum(
+                        record.cache_hit for record in state.usage_records
+                    ),
+                    "api_attempts": len(list(store.call_dir.glob("*_attempt_*.json"))),
+                },
+            },
+        )
+        return PipelineRunResult(
+            run_id=state.run_id,
+            run_dir=store.run_dir,
+            final_json_path=final_path,
+            schema_path=schema_path,
+            stopped_after="final_packet",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -6130,17 +6339,23 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=OPENAI_MODEL,
-        help="OpenAI model ID (default from OPENAI_MODEL: %(default)s).",
+        help="Remote OpenAI model ID (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--reasoning-mode",
+        default=OPENAI_REASONING_MODE,
+        choices=("pro",),
+        help="Astra execution mode; this deployment requires Pro mode.",
     )
     parser.add_argument(
         "--reasoning-effort",
         default=OPENAI_REASONING_EFFORT,
-        choices=("none", "low", "medium", "high", "xhigh", "max"),
+        choices=("low", "medium", "high", "xhigh", "max"),
         help="Default reasoning effort for stages without a prompt-specific override.",
     )
     parser.add_argument("--max-concurrency", type=int, default=4)
     parser.add_argument("--max-attempts", type=int, default=5)
-    parser.add_argument("--request-timeout", type=float, default=240.0)
+    parser.add_argument("--request-timeout", type=float, default=900.0)
     parser.add_argument("--max-research-jobs", type=int, default=24)
     parser.add_argument("--max-sources-per-job", type=int, default=5)
     parser.add_argument("--max-sources-per-hypothesis", type=int, default=10)
@@ -6220,6 +6435,7 @@ def config_from_arguments(args: argparse.Namespace) -> PipelineConfig:
     return PipelineConfig(
         api_key=str(args.api_key or ""),
         model=str(args.model),
+        reasoning_mode=str(args.reasoning_mode),
         reasoning_effort=str(args.reasoning_effort),
         output_dir=args.output_dir,
         max_concurrency=max(1, int(args.max_concurrency)),

@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 
 import fitz
 import pytest
-
-from translume_adapters.graph_providers.optimuskg_graph_provider import OptimusKGGraphProvider
-from translume_adapters.reasoning_providers.medea_reasoning_provider import MedeaReasoningProvider
+from translume_adapters.graph_providers.optimuskg_graph_provider import (
+    OptimusKGGraphProvider,
+)
+from translume_adapters.reasoning_providers.medea_reasoning_provider import (
+    MedeaReasoningProvider,
+)
 from translume_adapters.tool_providers.tooluniverse_provider import ToolUniverseProvider
 from translume_core.provenance.coverage import expected_bundle_artifact_ids
 from translume_core.workflow import (
@@ -186,7 +190,7 @@ class RecordingLedgerStore:
 class FakeStructuredModelProvider:
     """Test-only provider that returns schema-valid outputs.
 
-    This is a test double only. Production workflow receives LocalVLLMProvider
+    This is a test double only. Production workflow receives OpenAIModelProvider
     from FastAPI settings.
     """
 
@@ -535,6 +539,63 @@ class FakeStructuredModelProvider:
                 ],
                 "unresolved_evidence": [],
             }
+        if schema_name == "TranslationalAssessmentOutput":
+            payload = _payload_json_from_prompt(user_prompt)
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            answers = {
+                "target_relevance": (
+                    "MTAP loss supports reviewing the staged methylation dependency context.",
+                    "partially_supported",
+                    "weak",
+                ),
+                "biomarker_evidence": (
+                    "MTAP copy-number loss is reported; its clinical significance still requires validation.",
+                    "weak_or_incomplete",
+                    "weak",
+                ),
+                "resistance_mechanisms": (
+                    "Bypass signaling remains a staged resistance watch item requiring longitudinal evidence.",
+                    "needs_validation",
+                    "weak",
+                ),
+                "patient_population_alignment": (
+                    "Population alignment is unresolved without disease setting, treatment history, and cohort eligibility.",
+                    "unresolved",
+                    "unresolved",
+                ),
+                "evidence_resolution": (
+                    "Confirm MTAP status and review tissue profiling at progression before changing management.",
+                    "needs_validation",
+                    "weak",
+                ),
+            }
+            assessments = {}
+            for question in payload["questions"]:
+                key = question["question_key"]
+                answer, status, strength = answers[key]
+                assessments[key] = {
+                    "question_key": key,
+                    "question": question["question"],
+                    "answer": answer,
+                    "status": status,
+                    "evidence_strength": strength,
+                    "supporting_evidence": [answer] if status != "unresolved" else [],
+                    "unresolved_evidence": [
+                        "This fixture provides no treatment cohort or longitudinal outcome evidence."
+                    ],
+                    "validation_next": [
+                        "Review the source report, confirm MTAP status, and establish treatment eligibility."
+                    ],
+                    "evidence_labels": [],
+                    "evidence_sentence_ids": [],
+                    "source_artifact_ids": source_ids,
+                    "confidence": "needs_review",
+                }
+            return {
+                "artifact_id": artifact_id,
+                **assessments,
+                "unresolved_evidence": ["Population alignment requires clinical review."],
+            }
         if schema_name == "OncologistDecisionBrief":
             payload = _payload_json_from_prompt(user_prompt)
             current = payload["current_state_stage"]["current_tumor_state"]
@@ -589,10 +650,14 @@ class FakeStructuredModelProvider:
             "ClinicalNarrativeCompilerOutput",
             "_BoundedClinicalNarrativeCompilerOutput",
         }:
+            source_ids = _artifact_source_ids_from_prompt(user_prompt)
+            source_limit = json_schema["properties"]["source_artifact_ids"].get("maxItems")
+            if source_limit is not None:
+                source_ids = source_ids[:source_limit]
             return {
                 "artifact_id": artifact_id,
                 "markdown": "# Translume Tumor Behavior Intelligence Brief\n\nThe decision brief summarizes source-backed tumor biology, treatment-pressure logic, resistance watch items, and re-testing triggers for clinician review.",
-                "source_artifact_ids": _artifact_source_ids_from_prompt(user_prompt),
+                "source_artifact_ids": source_ids,
                 "safety_note": "Clinician decision support only; no certain response, cure, survival benefit, or deterministic outcome is claimed.",
             }
         raise AssertionError(f"Unexpected schema: {schema_name}")
@@ -681,7 +746,7 @@ def _pdf_bytes() -> bytes:
 
 
 @pytest.mark.asyncio
-async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, monkeypatch) -> None:
+async def test_process_report_pdf_strict_mims_with_test_providers(tmp_path, monkeypatch) -> None:
     monkeypatch.delitem(sys.modules, "optimuskg", raising=False)
     optimuskg_repo, optimuskg_cache = _write_fake_optimuskg_repo(tmp_path)
     tool_workflows = [
@@ -733,11 +798,11 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
             storage_root=tmp_path / "uploads",
             require_mims=True,
             require_docling=False,
-            vllm_model="test-local-vllm-model",
+            reasoning_model="gpt-6-astra",
             tool_workflows=tuple(tool_workflows),
         ),
         providers=providers,
-        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     genes = {finding.gene for finding in packet.bundle.extraction.molecular_findings}
     assert {"CHEK2", "CDKN2A", "CDKN2B", "LYN", "MTAP", "AKT2"} <= genes
@@ -750,6 +815,14 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
     assert packet.bundle.decision_brief is not None
     assert packet.bundle.decision_brief.ranked_treatment_options
     assert packet.bundle.decision_brief.retesting_triggers
+    assessment = packet.bundle.decision_brief.translational_assessment
+    assert assessment is not None
+    assert assessment.target_relevance.source_artifact_ids
+    assert assessment.target_relevance.validation_next
+    assert assessment.patient_population_alignment.status == "unresolved"
+    assert assessment.patient_population_alignment.evidence_strength == "unresolved"
+    assert assessment.patient_population_alignment.supporting_evidence == []
+    assert assessment.patient_population_alignment.unresolved_evidence
     assert packet.bundle.claims
     assert packet.bundle.narrative is not None
     assert packet.bundle.narrative_containment is not None
@@ -772,12 +845,14 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
     assert all(claim.claim_id in provenance_by_id for claim in packet.bundle.claims)
     assert "Tumor Behavior Intelligence Brief" in packet.bundle.narrative.markdown
     assert "certain response" in packet.bundle.narrative.safety_note
-    assert model_provider.schema_calls == [
-        "ReportExtractionOutput",
+    # Claims and decision stages may interleave; each required generation must
+    # still execute once, and the narrative must follow the complete brief.
+    assert Counter(model_provider.schema_calls) == Counter([
+        "_BoundedReportExtractionOutput",
         "MolecularPhenotypeOutput",
         "TherapyEvidenceMatrixOutput",
         "MechanismSankeyOutput",
-        "ConfirmatoryTestingOutput",
+        "_BoundedConfirmatoryTestingOutput",
         "TumorBehaviorModelOutput",
         "CurrentTumorStateOutput",
         "ActionableBiologyOutput",
@@ -787,9 +862,13 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
         "BiomarkerWatchListOutput",
         "RetestingTriggersOutput",
         "NextTestRecommendationsOutput",
+        "TranslationalAssessmentOutput",
         "ClaimEvidenceListOutput",
-        "ClinicalNarrativeCompilerOutput",
-    ]
+        "_BoundedClinicalNarrativeCompilerOutput",
+    ])
+    assert model_provider.schema_calls.index("TranslationalAssessmentOutput") < (
+        model_provider.schema_calls.index("_BoundedClinicalNarrativeCompilerOutput")
+    )
     assert "translume_document_chunks" in vector_store.indexed
     assert "translume_evidence_claims" in vector_store.indexed
     event_types = [event.event_type for event in packet.bundle.ledger_events]
@@ -806,7 +885,7 @@ async def test_process_report_pdf_strict_mims_with_local_artifacts(tmp_path, mon
 
 
 @pytest.mark.asyncio
-async def test_process_report_pdf_fails_without_local_model_provider(tmp_path) -> None:
+async def test_process_report_pdf_fails_without_openai_model_provider(tmp_path) -> None:
     vector_store = RecordingVectorStore()
     ledger_store = RecordingLedgerStore()
     providers = TranslumeWorkflowProviders(
@@ -816,7 +895,7 @@ async def test_process_report_pdf_fails_without_local_model_provider(tmp_path) -
         vector_store=vector_store,
         ledger_store=ledger_store,
     )
-    with pytest.raises(RuntimeError, match="Local vLLM structured-output model provider is required"):
+    with pytest.raises(RuntimeError, match="OpenAI structured-output model provider is required"):
         await process_report_pdf(
             filename="report.pdf",
             content=_pdf_bytes(),
@@ -825,8 +904,8 @@ async def test_process_report_pdf_fails_without_local_model_provider(tmp_path) -
                 storage_root=tmp_path / "uploads",
                 require_mims=False,
                 require_docling=False,
-                vllm_model="test-local-vllm-model",
+                reasoning_model="gpt-6-astra",
             ),
             providers=providers,
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )

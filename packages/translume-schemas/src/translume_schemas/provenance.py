@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import Field
 
 from translume_schemas.base import TranslumeBaseModel
+from translume_schemas.model_calls import ModelCallRecord
 
 
 class ArtifactProvenance(TranslumeBaseModel):
@@ -22,3 +23,10 @@ class ArtifactProvenance(TranslumeBaseModel):
     created_at: datetime
     validation_status: str = "needs_review"
     generation_status: str = "generated"
+    provider_name: str | None = None
+    reasoning_mode: str | None = None
+    reasoning_effort: str | None = None
+    wire_schema_hash: str | None = None
+    model_calls: list[ModelCallRecord] = Field(default_factory=list)
+    model_call_ids: list[str] = Field(default_factory=list)
+    component_provenance: list[ArtifactProvenance] = Field(default_factory=list)

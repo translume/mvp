@@ -1,529 +1,99 @@
 # Precision Oncology JSON Pipeline
 
-A production-oriented Python tool that parses a Translume-style clinical review-packet JSON, enriches the already-actionable findings with OpenAI Responses API web research, and emits a deterministic, renderer-independent JSON representation of a Precision Oncology Actionable Packet.
+This service takes the persisted Translume review packet, retrieves current
+external evidence through OpenAI hosted web search, and compiles the existing
+structured precision-oncology report. Every model request goes to the official
+OpenAI Responses API. The container performs ordinary CPU data processing and
+filesystem I/O; it does not load model weights.
 
-The output contract follows the semantic flow and content types of the supplied 31-page reference PDF:
+## Run through the application
 
-1. cover, purpose, and case metadata;
-2. executive summary;
-3. key findings and other findings;
-4. cause-and-effect chains and plain-English explanations;
-5. therapy options and clinical rationale;
-6. practical readout;
-7. resistance and escape routes;
-8. follow-up testing;
-9. future phenotypic events and re-testing triggers;
-10. limitations and confidence boundaries;
-11. selected fully qualified reference and trial URLs;
-12. one structured candidate-fit assessment per selected URL;
-13. cross-source synthesis; and
-14. a final fully qualified URLs-assessed registry.
+1. Follow the repository-root `README.md` to install Docker, create `.env`, and
+   start the stack.
+2. Set `OPENAI_API_KEY` in the root `.env` to your actual OpenAI project key.
+   The same key is used by all model services. Do not create a separate
+   downstream key or put a key in source code.
+3. Open the Translume UI, enter the diagnosis, upload the real report, and
+   generate the persisted review packet. The API invokes this runner and then
+   the dynamic pathway analyzer automatically.
+4. Review the output in the UI. Generated files remain under
+   `data/artifacts/<session_id>/precision_oncology_outputs/<run_id>/`.
 
-The tool does **not** render a PDF. It produces a complete JSON document that can be rendered into PDF, HTML, DOCX, a web application, or another presentation layer without repeating clinical reasoning.
-
-> **Clinical boundary:** This is educational decision-support software. It is not a medical device, does not prescribe treatment, and does not establish clinical-trial eligibility. Outputs require review by qualified clinicians.
-
-## Design
-
-The implementation uses a functional-core / imperative-shell architecture:
-
-- **Pure functions** handle parsing, normalization, deterministic IDs, joins, source ranking, section assembly, and deterministic validation.
-- **Side-effect boundaries** are limited to OpenAI API calls and atomic filesystem writes.
-- **Pydantic models** define every intermediate and final artifact.
-- **Stable IDs** are SHA-256-derived from canonical content, making outputs addressable and reproducible.
-- **Resumable caching** prevents repeated API calls for identical stage inputs.
-- **Parallel fan-out** handles source discovery, source extraction, source-fit analysis, trial pre-screening, and hypothesis synthesis.
-- **Provenance** is preserved from patient evidence IDs through external source IDs and report claims.
-
-## Files
-
-```text
-precision_oncology_pipeline.py            Main CLI and library module
-pyproject.toml                            Package and tool configuration
-requirements.txt                          Runtime dependencies
-requirements-dev.txt                      Test/lint/type-check dependencies
-examples/minimal_translume_input.example.json
-examples/actionable_override.example.json
-examples/clinical_overlay.example.json
-examples/mock_precision_oncology_packet.example.json
-examples/run_as_library.py
-tests/                                    Unit and shape tests
-schemas/precision_oncology_packet.schema.json
-VALIDATION.md                           Build and dry-run verification record
-```
-
-## Requirements
-
-- Python 3.11 or newer
-- An OpenAI API key with access to the selected model and hosted `web_search`
-- Network access when live web research is enabled
-
-## Run with Docker Compose
-
-From the repository root, start the persistent command container:
+From the repository root, inspect this service with:
 
 ```bash
-docker compose up --build -d precision-oncology-pipeline
+docker compose logs --tail=200 precision-oncology-pipeline
 ```
 
-The service mounts the host path in `PRECISION_ONCOLOGY_INPUT_PATH` at
-`/inputs/review_packet.json` and writes to the host directory in
-`PRECISION_ONCOLOGY_OUTPUT_DIR`. Defaults are provided in the root
-`.env.example`.
-
-For a live cost-controlled run, set `OPENAI_API_KEY` and execute the installed
-CLI inside the running container:
+Display the standalone command's supported arguments inside Docker:
 
 ```bash
 docker compose exec --user pipeline precision-oncology-pipeline \
-  python /app/precision_oncology_pipeline.py \
-  --input /inputs/review_packet.json \
-  --output-dir /outputs \
-  --model gpt-5.6-luna \
-  --quick-test
+  python /app/precision_oncology_pipeline.py --help
 ```
-
-Compose passes `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT` through when set.
-Pass `--user pipeline` so generated files use the configured host UID/GID. The
-host pipeline directory is bind-mounted at `/app`, so local source changes are
-available inside the container without rebuilding. The service intentionally
-has no health check or dependencies on the main Translume stack.
-
-Install:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
-
-For development:
-
-```bash
-python -m pip install -r requirements-dev.txt
-```
-
-You can also install the project and CLI entry point:
-
-```bash
-python -m pip install -e .
-precision-oncology-pipeline --help
-```
-
-## Inspect a complete renderer-facing example without API calls
-
-`examples/mock_precision_oncology_packet.example.json` is a generic, fully mocked end-to-end output generated by the automated test suite. It contains every top-level registry, the fixed section flow, one dynamic URL-fit appendix section, a trial pre-screen, deterministic IDs, provenance, validation records, and usage records. It contains no supplied patient identifiers and is useful for building a renderer before the first live API run.
 
 ## OpenAI configuration
 
-The requested globals are located near the top of `precision_oncology_pipeline.py`:
-
-```python
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
-OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium")
-```
-
-The comments next to `OPENAI_MODEL` list current frontier, general-purpose, coding, image, realtime, audio, transcription, embedding, moderation, and search-specific model options. Specialist models are documented but are not necessarily drop-in replacements for this structured text-and-web-search pipeline.
-
-Set values through the environment rather than editing source:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-export OPENAI_MODEL="gpt-5.6-luna"
-export OPENAI_REASONING_EFFORT="medium"
-```
-
-Recommended choices for this workflow:
-
-| Goal | Model |
-|---|---|
-| Maximum report quality | `gpt-5.6-sol` or alias `gpt-5.6` |
-| Balance quality and cost | `gpt-5.6-terra` |
-| Cost-sensitive testing and scale | `gpt-5.6-luna` |
-
-## Test the supplied review-packet JSON in isolation
-
-Cost-controlled API integration test:
-
-```bash
-python precision_oncology_pipeline.py \
-  --input "/path/to/translume_review_packet.json" \
-  --output-dir ./precision_oncology_outputs \
-  --model gpt-5.6-luna \
-  --quick-test
-
-python /app/precision_oncology_pipeline.py \
-  --input ./translume_review_packet.json \
-  --output-dir ./outputs \
-  --model gpt-5.4-mini \
-  --quick-test
-```
-
-`--quick-test` limits the run to:
-
-- at most 6 research jobs;
-- at most 2 discovered sources per job;
-- at most 8 selected sources total; and
-- deterministic validation without the three extra model validator calls.
-
-Full run:
-
-```bash
-python precision_oncology_pipeline.py \
-  --input ./translume_review_packet.json \
-  --output-dir ./outputs/precision_oncology_outputs \
-  --model gpt-5.6-luna \
-  --reasoning-effort medium
-```
-
-The final command prints:
-
-```text
-run_id=run_...
-run_dir=...
-final_json=.../precision_oncology_packet.json
-schema=.../precision_oncology_packet.schema.json
-```
-
-## Parse-only test without API calls
-
-```bash
-python precision_oncology_pipeline.py \
-  --input "/path/to/translume_review_packet.json" \
-  --output-dir ./precision_oncology_outputs \
-  --dry-run
-```
-
-This writes:
-
-```text
-canonical_input.json
-canonical_input.schema.json
-checkpoint.json
-state_after_canonical_input.json
-```
-
-Use this first to verify the case metadata, actionable findings, technical limitations, evidence IDs, and existing trial mentions before spending on research calls.
-
-## Use your existing actionable plucker
-
-The preferred production integration is:
-
-```text
-raw review-packet JSON
-    -> your existing actionable-item plucker
-    -> --actionable-json override
-    -> OpenAI enrichment pipeline
-    -> final renderer-independent packet JSON
-```
-
-Run:
-
-```bash
-python precision_oncology_pipeline.py \
-  --input "/path/to/full_review_packet.json" \
-  --actionable-json examples/actionable_override.example.json \
-  --clinical-overlay examples/clinical_overlay.example.json \
-  --output-dir ./precision_oncology_outputs
-```
-
-The override accepts either:
-
-1. a bare list of primary actionable findings; or
-2. an object with these arrays:
-
-```json
-{
-  "actionable_findings": [],
-  "secondary_findings": [],
-  "context_findings": [],
-  "technical_limitations": []
-}
-```
-
-Unknown stage, setting, line of therapy, prior treatment, ECOG status, organ function, measurable disease, biopsy feasibility, and location remain `null` or empty unless supplied through the clinical overlay.
-
-## Pipeline stages
-
-```text
-canonical_input
-hypotheses
-research_plan
-source_discovery
-source_extractions
-source_fit_assessments
-trial_prescreens
-hypothesis_syntheses
-report_draft
-cross_source_synthesis
-validations
-final_packet
-```
-
-Stop after any stage for inspection:
-
-```bash
-python precision_oncology_pipeline.py \
-  --input input.json \
-  --output-dir outputs \
-  --stop-after sources
-```
-
-Each completed stage writes a checkpoint and deterministic artifact files.
-
-## Web research behavior
-
-The tool uses the Responses API hosted `web_search` tool.
-
-- Trial jobs are restricted to official ClinicalTrials.gov results.
-- Regulatory jobs are restricted to official FDA domains.
-- Variant jobs are restricted to selected primary variant/NCBI sources.
-- Broad clinical, mechanism, disease, resistance, and monitoring discovery remains open-web so a relevant journal or source is not suppressed by an incomplete allowlist.
-- Low-quality domains are blocked.
-- Model-proposed URLs are reconciled against source metadata returned by the web-search tool.
-- Exact source extraction is restricted to the selected source's hostname.
-- Fully qualified HTTPS URLs are canonicalized and validated.
-- NCT records are normalized to `https://clinicaltrials.gov/study/NCT########`.
-
-Production mode uses strict returned-source verification by default. Disable only for investigation:
-
-```bash
---no-strict-source-verification
-```
-
-Cache/index-only web search:
-
-```bash
---offline-web-cache
-```
-
-Disable external URL enrichment entirely:
-
-```bash
---no-web
-```
-
-## Final JSON contract
-
-`precision_oncology_packet.json` contains both the complete typed pipeline state and renderer-facing sections.
-
-Top-level maps:
-
-```text
-canonical_input
-hypotheses_by_id
-research_jobs_by_id
-sources_by_id
-source_extractions_by_id
-source_fit_assessments_by_id
-trial_prescreens_by_id
-hypothesis_syntheses_by_id
-report_draft
-cross_source_synthesis
-document_flow
-sections_by_id
-patient_evidence_by_id
-claims_by_id
-artifacts_by_id
-validations
-usage_records
-warnings
-```
-
-Renderer flow:
-
-```text
-sec_00_cover
-sec_01_executive_summary
-sec_02_key_findings
-sec_03_cause_and_effect
-sec_04_therapy_options
-sec_05_resistance_and_escape
-sec_06_follow_up_tests
-sec_07_future_phenotypic_events
-sec_08_limitations_and_confidence
-sec_09_selected_reference_and_trial_links
-sec_10_url_fit_assessments_overview
-sec_10_source_<deterministic suffix>
-sec_10_source_<deterministic suffix>
-...
-sec_11_cross_source_synthesis
-sec_12_urls_assessed
-```
-
-Each `SectionEnvelope` has:
-
-```json
-{
-  "section_id": "sec_...",
-  "section_number": "10.1",
-  "title": "...",
-  "content_type": "url_candidate_fit_assessment",
-  "display_order": 11,
-  "preferred_page_break_before": true,
-  "payload": {}
-}
-```
-
-A renderer should iterate `document_flow`, retrieve each object from `sections_by_id`, and dispatch on `content_type`.
-
-## Per-URL appendix shape
-
-Every selected source has one `SourceFitAssessment` containing the same content types as the PDF appendix:
-
-- fully qualified URL;
-- source type;
-- relevant marker/pathway;
-- opening assessment;
-- standardized molecular/population/evidence/standard-care/trial-screening scores;
-- question / strength / score-range / why rows;
-- why the fit is strong;
-- matching, mismatching, and unknown fields;
-- what would strengthen candidacy;
-- what weakens the case;
-- case-specific readout;
-- safe clinical framing;
-- `do_not_say` and `say_instead` language;
-- source-specific follow-up table; and
-- source-specific conclusion.
-
-Official trial records additionally receive a `TrialPrescreen` with current status, last update, biomarker match, tumor-type match, disease-setting match, criterion-by-criterion classification, missing data, site/geography, and a screening-priority flag.
-
-## Deterministic IDs
-
-IDs are generated from canonical JSON and SHA-256 content hashes, including:
-
-```text
-finding_...
-evidence_...
-hyp_...
-job_...
-src_...
-assessment_...
-prescreen_...
-synthesis_...
-claim_...
-row_...
-artifact_...
-section IDs
-packet_...
-run_...
-```
-
-A run ID includes the source hash, canonical input hash, model, reasoning effort, web mode, verification mode, tool version, prompt-set version, and schema version.
-
-Changing any clinically or operationally material input produces a different run ID. Re-running the same configuration reuses cached API responses unless `--no-resume` is passed.
-
-## Validation
-
-The pipeline always performs deterministic integrity checks for:
-
-- required section types;
-- unique section IDs;
-- fully qualified HTTPS URLs;
-- canonical NCT URLs;
-- source/extraction/assessment URL consistency;
-- score ranges;
-- unknown evidence/source references;
-- claim provenance; and
-- source IDs used in report rows.
-
-A full run also performs three model-based reviews:
-
-1. claim grounding;
-2. patient-population alignment; and
-3. clinical safety and contradiction review.
-
-Use `--skip-llm-validators` to omit the model validators. Blocking deterministic or model findings prevent final output unless explicitly overridden with:
-
-```bash
---allow-blocking-validation
-```
-
-That switch is for diagnosis and evaluation, not routine production.
-
-## Atomic persistence and privacy
-
-- JSON files are written atomically with a temporary file and `os.replace`.
-- The API key is never written to logs or artifacts.
-- Full prompt payloads are **not** stored by default.
-- `--store-prompt-payloads` writes payloads for debugging and may expose protected health information.
-- OpenAI requests set `store=False`.
-- Call audit files contain hashes and operational metadata by default.
-
-Do not place output directories in public object storage, shared logs, or source control. Apply the access controls, retention policy, audit policy, and contractual safeguards required for your clinical environment.
-
-## Structured-response recovery
-
-The hypothesis-synthesis stage uses medium reasoning with a 30,000-token output
-allowance. If the Responses API reports an incomplete result, the gateway
-classifies `incomplete_details`, refusal state, usage, and reasoning tokens,
-then retries once at low reasoning rather than repeating the same request.
-Parsed output is accepted from either the top-level SDK helper or message
-content. Completed JSON text is validated through the stage Pydantic model.
-Errors never include the clinical response body.
-
-The report-compiler stage uses a stage-specific request timeout controlled by
-`PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS` (900 seconds by default). Its
-first request uses medium reasoning. If that request times out, one bounded
-retry uses low reasoning and a compacted copy of the compiler payload while
-preserving required identifiers, evidence URLs, and report sections. The
-original pipeline state is not mutated.
-
-## Tests and static checks
-
-```bash
-make check
-```
-
-Equivalent commands:
-
-```bash
-ruff check precision_oncology_pipeline.py tests examples
-mypy --ignore-missing-imports precision_oncology_pipeline.py tests/test_pipeline.py examples/run_as_library.py
-python -m pytest
-```
-
-Generate the final schema:
-
-```bash
-make schema
-```
-
-## Useful CLI options
-
-```text
---quick-test                       Cost-controlled API integration test
---dry-run                          Parse only; no API calls
---actionable-json PATH             Supply your pre-plucked findings
---clinical-overlay PATH            Supply known clinical context
---model MODEL_ID                   Override global model
---reasoning-effort LEVEL           none/low/medium/high/xhigh/max
---max-concurrency N                Parallel API calls
---max-research-jobs N              Bound research fan-out
---max-sources-per-job N            Bound discovery results
---max-sources-per-hypothesis N     Bound appendix size per hypothesis
---max-sources-total N              Bound total appendix URLs
---offline-web-cache                Disable live web access
---no-web                           Disable source discovery
---no-resume                        Ignore deterministic response cache
---stop-after STAGE                 Persist and stop for inspection
---emit-schema-only                 Emit final JSON Schema and exit
---verbose                          Operational debug logs without patient payloads
-```
-
-Run `python precision_oncology_pipeline.py --help` for the complete list.
-
-## What has to remain outside this tool
-
-The following remain human or surrounding-system responsibilities:
-
-- deciding which upstream findings are truly actionable;
-- correcting source-report extraction errors;
-- verifying diagnosis, stage, line of therapy, prior treatment, and current clinical condition;
-- confirming variants, copy-number states, protein loss, and germline relevance;
-- interpreting licensed clinical guidelines not available to the tool;
-- final trial-site communication and protocol eligibility review;
-- clinician approval of all treatment and testing decisions; and
-- visual PDF rendering and layout QA.
+The defaults are `OPENAI_REASONING_MODEL=gpt-6-astra`,
+`OPENAI_REASONING_MODE=pro`, and `OPENAI_REASONING_EFFORT=xhigh`. The CLI accepts
+`--model`, `--reasoning-mode`, and `--reasoning-effort`; the runner forwards the
+same values from the environment. Pro mode is required. The official endpoint
+is `https://api.openai.com/v1`; local and third-party inference URLs are rejected.
+
+The existing prompts retain their deliberate per-stage effort choices:
+source extraction uses low effort, clinical generation uses medium effort,
+and validator stages use high effort. All of these run in Pro mode. Each call
+records its actual effort. On output-token exhaustion the gateway permits one
+larger output allowance at low effort. A report-compiler timeout permits one
+compacted low-effort request. Neither response can be cached as if it were the
+original request.
+
+`PRECISION_ONCOLOGY_REQUEST_TIMEOUT_SECONDS` controls the runner's request
+limit (900 seconds by default). The report compiler retains a 900-second
+stage limit. `PRECISION_ONCOLOGY_RUN_TIMEOUT_SECONDS` limits the complete
+subprocess (10,800 seconds by default). An exceeded limit fails the run and
+persists a diagnostic; it does not create a successful report.
+
+## Report, cache, and provenance
+
+The pipeline preserves canonical findings, hypotheses, research jobs, real
+consulted URLs, source extractions, evidence-fit assessments, trial prescreens,
+report sections, validations, and final renderer-independent JSON. The dynamic
+analyzer consumes `state_after_trial_prescreens.json` from the completed run.
+The final precision JSON is `precision_oncology_packet.json`.
+
+`calls/` contains a request summary and a separate receipt for every actual
+attempt, including failures. Receipts contain provider/model, mode, effective
+effort, wire-schema and request hashes, actual request/response IDs, completion
+state, and usage when OpenAI returned it. Input text and credentials are excluded
+from these receipts. The optional `--store-prompt-payloads` flag separately
+persists complete inputs and should be used only when intended.
+
+Cache identities include provider, model, mode, effective effort, prompt content,
+wire schema, output allowance, input payload, and web-search settings. Earlier
+standard-mode caches cannot satisfy Pro requests. Cache hits are explicitly
+marked and do not count as new API attempts.
+
+Public web-search requests receive an explicit biomedical subset of the case.
+Raw source quotations, specimen details, dates, location, and patient history
+remain out of the search payload. Full case context remains available to the
+non-web evidence-fit, prescreen, and final report stages. This field minimization
+is not a de-identification guarantee for free-text medical concepts.
+
+## Failures and validation
+
+Only transient network, rate-limit, and server failures are retried. Invalid
+credentials, exhausted quota, permissions, malformed requests, refusals,
+content filtering, and failed domain validation stop explicitly. Responses are
+checked for completed status before any JSON is accepted. Partial JSON is never
+used as a report.
+
+The production path has no simulated response mode. `--dry-run` only writes
+parsed canonical input and deliberately stops before model generation. Tests
+use isolated test fixtures and HTTP transports; those fixtures are never loaded
+by the product workflow. Live acceptance still requires a configured OpenAI
+account and a real source report.
+
+The outputs support qualified human review; clinical uncertainty, evidence
+boundaries, source provenance, and the existing clinician-review requirements
+remain part of the report.

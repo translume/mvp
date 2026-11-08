@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
+
+from translume_schemas.document import DocumentChunk
+from translume_schemas.evidence import EvidenceContextBundle
+from translume_schemas.export import (
+    ClinicalArtifactBundle,
+    NarrativeContainmentReport,
+    ReviewPacketExport,
+)
+from translume_schemas.graph import GraphEvidenceArtifact, GraphRetrievalMode
+from translume_schemas.ledger import LedgerEvent
+from translume_schemas.medea import MedeaReasoningArtifact
+from translume_schemas.provenance import ArtifactProvenance
+from translume_schemas.tools import ToolRunArtifact
 
 from translume_core.compiler.decision_brief import (
     DecisionBriefLatencyBudgets,
@@ -23,23 +37,40 @@ from translume_core.compiler.structured_model_artifacts import (
     generate_report_extraction_with_model,
     generate_tumor_behavior_model_with_model,
 )
-from translume_core.document.chunks import build_document_chunks, merge_small_adjacent_chunks
+from translume_core.document.chunks import (
+    build_document_chunks,
+    merge_small_adjacent_chunks,
+)
 from translume_core.document.pymupdf_adapter import extract_document_with_pymupdf
-from translume_core.document.quality import score_extraction_quality, select_best_document_extraction
+from translume_core.document.quality import (
+    score_extraction_quality,
+    select_best_document_extraction,
+)
 from translume_core.document.sections import detect_section_headers
 from translume_core.export.review_packet import build_review_packet_export
-from translume_core.ingestion.ledger_events import record_upload_ledger_event
-from translume_core.ingestion.sessions import create_case_session
-from translume_core.ingestion.storage import persist_uploaded_pdf
 from translume_core.indexing.documents import review_packet_to_index_batches
+from translume_core.indexing.persistence import persist_review_packet_to_opensearch
 from translume_core.indexing.retrieval import (
     index_document_chunks_for_retrieval,
     retrieve_indexed_document_chunks,
 )
-from translume_core.indexing.persistence import persist_review_packet_to_opensearch
+from translume_core.ingestion.ledger_events import record_upload_ledger_event
+from translume_core.ingestion.sessions import create_case_session
+from translume_core.ingestion.storage import persist_uploaded_pdf
+from translume_core.performance import (
+    AsyncInMemoryCache,
+    run_with_latency_budget,
+    stable_cache_key,
+)
 from translume_core.persistence.ledger_events import persistence_ledger_event
-from translume_core.persistence.postgres_persistence import append_ledger_event_to_postgres, persist_ingestion_metadata_to_postgres, persist_review_packet_to_postgres
-from translume_core.persistence.postgres_records import review_packet_to_postgres_records
+from translume_core.persistence.postgres_persistence import (
+    append_ledger_event_to_postgres,
+    persist_ingestion_metadata_to_postgres,
+    persist_review_packet_to_postgres,
+)
+from translume_core.persistence.postgres_records import (
+    review_packet_to_postgres_records,
+)
 from translume_core.provenance.coverage import (
     provenance_for_claim,
     provenance_for_evidence_context,
@@ -50,21 +81,7 @@ from translume_core.provenance.coverage import (
     require_bundle_provenance_complete,
 )
 from translume_core.provenance.provenance import build_artifact_provenance
-from translume_core.performance import (
-    AsyncInMemoryCache,
-    run_with_latency_budget,
-    stable_cache_key,
-)
 from translume_core.safety.containment import require_narrative_fact_containment
-from translume_schemas.document import DocumentChunk
-from translume_schemas.evidence import EvidenceContextBundle
-from translume_schemas.export import ClinicalArtifactBundle, NarrativeContainmentReport, ReviewPacketExport
-from translume_schemas.graph import GraphEvidenceArtifact, GraphRetrievalMode
-from translume_schemas.ledger import LedgerEvent
-from translume_schemas.medea import MedeaReasoningArtifact
-from translume_schemas.provenance import ArtifactProvenance
-from translume_schemas.tools import ToolRunArtifact
-
 
 _DEFAULT_PROVIDER_CACHE = AsyncInMemoryCache()
 
@@ -108,7 +125,7 @@ class TranslumeWorkflowProviders:
         vector_store: Optional OpenSearch-compatible persistence boundary.
         ledger_store: Optional Postgres-compatible metadata boundary.
         document_extractor: Optional Docling-compatible extractor boundary.
-        model_provider: Required local structured-output model provider.
+        model_provider: Required remote structured-output model provider.
     """
 
     graph_provider: object | None = None
@@ -137,8 +154,8 @@ class TranslumeWorkflowConfig:
         retrieval_mode: OpenSearch retrieval scope. The MVP supports lexical only.
         vector_dimension: Reserved for a future real embedding provider.
         require_docling: Whether Docling layout extraction must run.
-        require_local_vllm: Whether local vLLM structured outputs are required.
-        vllm_model: Model identifier served by local vLLM.
+        require_model_provider: Whether the remote model provider is required.
+        reasoning_model: OpenAI reasoning model identifier.
         prompts_root: Directory containing structured-output prompt files.
         report_extraction_batch_max_chunks: Maximum source chunks per
             page-ordered report-extraction request.
@@ -152,17 +169,17 @@ class TranslumeWorkflowConfig:
     retrieval_mode: str = "lexical"
     vector_dimension: int | None = None
     require_docling: bool = True
-    require_local_vllm: bool = True
-    vllm_model: str = ""
+    require_model_provider: bool = True
+    reasoning_model: str = "gpt-6-astra"
     prompts_root: Path = Path("configs/prompts")
     report_extraction_batch_max_chunks: int = 5
-    report_extraction_input_token_budget: int = 2200
-    report_extraction_initial_max_tokens: int = 2500
-    report_extraction_retry_max_tokens: int = 5000
+    report_extraction_input_token_budget: int = 80000
+    report_extraction_initial_max_tokens: int = 16384
+    report_extraction_retry_max_tokens: int = 32768
     report_extraction_max_split_depth: int = 6
     report_extraction_min_segment_chars: int = 400
-    confirmatory_testing_input_token_budget: int = 8000
-    tumor_behavior_input_token_budget: int = 24000
+    confirmatory_testing_input_token_budget: int = 80000
+    tumor_behavior_input_token_budget: int = 80000
     tool_workflows: tuple[str, ...] = (
         "literature_validation",
         "pathway_context",
@@ -231,8 +248,11 @@ async def process_report_pdf(
     Returns:
         Review packet export.
     """
-    now = created_at or datetime.now(timezone.utc)
+    now = created_at or datetime.now(UTC)
     session = create_case_session(report_type, "research_support_only", now)
+    bind_correlation = getattr(providers.model_provider, "bind_correlation_id", None)
+    if callable(bind_correlation):
+        bind_correlation(session.session_id)
     stored_file = persist_uploaded_pdf(session, filename, content, config.storage_root)
     upload_event = record_upload_ledger_event(session, stored_file, now)
     ledger_events: list[LedgerEvent] = [upload_event]
@@ -255,6 +275,24 @@ async def process_report_pdf(
             config,
             lambda: _extract_best_document(stored_file, providers, config),
         )
+        document_calls = getattr(extraction_output, "model_calls", ())
+        if document_calls:
+            await _record_workflow_event(
+                "document_model_calls_recorded",
+                ledger_events,
+                session,
+                stored_file,
+                now,
+                providers,
+                config,
+                details={
+                    "extraction_method": extraction_output.extraction_method,
+                    "model_calls": json.dumps(
+                        [call.model_dump(mode="json") for call in document_calls],
+                        separators=(",", ":"),
+                    ),
+                },
+            )
         sections = await _run_sync_workflow_stage(
             "section_detection",
             ledger_events,
@@ -274,7 +312,9 @@ async def process_report_pdf(
             providers,
             config,
             lambda: merge_small_adjacent_chunks(
-                build_document_chunks(extraction_output, sections, session, stored_file),
+                build_document_chunks(
+                    extraction_output, sections, session, stored_file
+                ),
                 max_chars=config.max_chunk_chars,
             ),
         )
@@ -319,7 +359,7 @@ async def process_report_pdf(
                 report_type=session.report_type,
                 source_file_id=stored_file.source_file_id,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
                 batch_max_chunks=config.report_extraction_batch_max_chunks,
@@ -429,7 +469,9 @@ async def process_report_pdf(
             config,
             lambda: combine_evidence_sources(report, graph, tools, medea),
         )
-        model_provenance.append(provenance_for_evidence_context(context, created_at=now))
+        model_provenance.append(
+            provenance_for_evidence_context(context, created_at=now)
+        )
         phenotype_result = await _run_async_workflow_stage(
             "molecular_phenotype",
             ledger_events,
@@ -441,7 +483,7 @@ async def process_report_pdf(
             lambda: generate_molecular_phenotype_with_model(
                 context=context,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
             ),
@@ -460,7 +502,7 @@ async def process_report_pdf(
                 context=context,
                 phenotype=phenotype,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
             ),
@@ -480,7 +522,7 @@ async def process_report_pdf(
                 phenotype=phenotype,
                 matrix=matrix,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
             ),
@@ -501,12 +543,10 @@ async def process_report_pdf(
                 matrix=matrix,
                 sankey=sankey,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
-                input_token_budget=(
-                    config.confirmatory_testing_input_token_budget
-                ),
+                input_token_budget=(config.confirmatory_testing_input_token_budget),
             ),
         )
         confirmatory = confirmatory_result.artifact
@@ -526,7 +566,7 @@ async def process_report_pdf(
                 sankey=sankey,
                 confirmatory=confirmatory,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
                 input_token_budget=config.tumor_behavior_input_token_budget,
@@ -534,7 +574,7 @@ async def process_report_pdf(
         )
         tumor_behavior = tumor_behavior_result.artifact
         model_provenance.append(tumor_behavior_result.provenance)
-        decision_brief_result, claims_result = await asyncio.gather(
+        decision_brief_result, claims_result = await _gather_workflow_stages(
             _run_async_workflow_stage(
                 "oncologist_decision_brief",
                 ledger_events,
@@ -551,7 +591,7 @@ async def process_report_pdf(
                     confirmatory=confirmatory,
                     tumor_behavior=tumor_behavior,
                     model_provider=_require_model_provider(providers, config),
-                    model_name=_require_vllm_model(config),
+                    model_name=_require_reasoning_model(config),
                     prompts_root=config.prompts_root,
                     created_at=now,
                     latency_budgets=_decision_brief_latency_budgets(config),
@@ -573,7 +613,7 @@ async def process_report_pdf(
                     confirmatory=confirmatory,
                     tumor_behavior=tumor_behavior,
                     model_provider=_require_model_provider(providers, config),
-                    model_name=_require_vllm_model(config),
+                    model_name=_require_reasoning_model(config),
                     prompts_root=config.prompts_root,
                     created_at=now,
                 ),
@@ -583,7 +623,13 @@ async def process_report_pdf(
         model_provenance.append(decision_brief_result.provenance)
         claims = claims_result.artifact.claims
         model_provenance.extend(
-            provenance_for_claim(claim, report, created_at=now) for claim in claims
+            provenance_for_claim(
+                claim,
+                report,
+                created_at=now,
+                generation_provenance=claims_result.provenance,
+            )
+            for claim in claims
         )
         provenance = await _run_sync_workflow_stage(
             "artifact_provenance",
@@ -622,7 +668,7 @@ async def process_report_pdf(
             lambda: generate_clinical_narrative_with_model(
                 bundle=bundle,
                 model_provider=_require_model_provider(providers, config),
-                model_name=_require_vllm_model(config),
+                model_name=_require_reasoning_model(config),
                 prompts_root=config.prompts_root,
                 created_at=now,
             ),
@@ -658,7 +704,9 @@ async def process_report_pdf(
         packet = build_review_packet_export(bundle, chunks, stored_file.source_file_id)
         if providers.vector_store is None:
             if config.require_opensearch:
-                raise RuntimeError("OpenSearch vector store is required but not configured")
+                raise RuntimeError(
+                    "OpenSearch vector store is required but not configured"
+                )
             return packet
         packet = await _persist_packet_to_opensearch_stage(
             packet,
@@ -677,10 +725,14 @@ async def process_report_pdf(
         )
         if providers.ledger_store is None:
             if config.require_postgres:
-                raise RuntimeError("Postgres ledger store is required but not configured")
+                raise RuntimeError(
+                    "Postgres ledger store is required but not configured"
+                )
             return final_packet
         try:
-            await persist_review_packet_to_postgres(final_packet, providers.ledger_store)
+            await persist_review_packet_to_postgres(
+                final_packet, providers.ledger_store
+            )
         except Exception as error:
             await _record_workflow_failure(
                 "postgres_packet_persistence",
@@ -698,22 +750,21 @@ async def process_report_pdf(
         raise
 
 
-
 def _require_model_provider(
     providers: TranslumeWorkflowProviders,
     config: TranslumeWorkflowConfig,
 ):
-    """Return the required local structured-output model provider.
+    """Return the required remote structured-output model provider.
 
     Acceptance criteria:
-        1. Production/default mode fails if no local model provider exists.
+        1. Production/default mode fails if no remote model provider exists.
         2. Does not create a fallback model provider.
         3. Keeps clinical artifact generation on the configured provider path.
     """
     if providers.model_provider is None:
-        if config.require_local_vllm:
+        if config.require_model_provider:
             raise RuntimeError(
-                "Local vLLM structured-output model provider is required "
+                "OpenAI structured-output model provider is required "
                 "for clinical artifact generation"
             )
         raise RuntimeError(
@@ -722,11 +773,32 @@ def _require_model_provider(
     return providers.model_provider
 
 
-def _require_vllm_model(config: TranslumeWorkflowConfig) -> str:
-    """Return the configured local vLLM model or fail loudly."""
-    if not config.vllm_model.strip():
-        raise RuntimeError("VLLM_MODEL is required for clinical artifact generation")
-    return config.vllm_model
+async def _gather_workflow_stages(*operations):
+    """Cancel and drain sibling stages before their shared API client closes.
+
+    Acceptance criteria:
+        1. Successful stages retain the caller's result order.
+        2. A failure or cancellation stops and awaits every sibling task.
+        3. The original exception propagates without starting fallback calls.
+    """
+    tasks = [asyncio.create_task(operation) for operation in operations]
+    try:
+        return await asyncio.gather(*tasks)
+    except (Exception, asyncio.CancelledError):
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
+def _require_reasoning_model(config: TranslumeWorkflowConfig) -> str:
+    """Return the configured OpenAI model or fail loudly."""
+    if not config.reasoning_model.strip():
+        raise RuntimeError(
+            "OPENAI_REASONING_MODEL is required for clinical artifact generation"
+        )
+    return config.reasoning_model
 
 
 async def _persist_ingestion_metadata_before_processing(
@@ -749,7 +821,9 @@ async def _persist_ingestion_metadata_before_processing(
     """
     if providers.ledger_store is None:
         if config.require_postgres:
-            raise RuntimeError("Postgres ledger store is required before clinical processing")
+            raise RuntimeError(
+                "Postgres ledger store is required before clinical processing"
+            )
         return
     await persist_ingestion_metadata_to_postgres(
         session,
@@ -789,7 +863,7 @@ async def _run_sync_workflow_stage(
         details={"stage": stage_name, "status": "started"},
     )
     try:
-        result = operation()
+        result = await asyncio.to_thread(operation)
     except Exception as error:
         await _record_workflow_failure(
             stage_name,
@@ -902,7 +976,10 @@ async def _persist_packet_to_opensearch_stage(
         created_at,
         providers,
         config,
-        details={index_name: str(len(documents)) for index_name, documents in planned_batches.items()},
+        details={
+            index_name: str(len(documents))
+            for index_name, documents in planned_batches.items()
+        },
     )
     try:
         packet_with_current_ledger = packet.model_copy(
@@ -938,7 +1015,10 @@ async def _persist_packet_to_opensearch_stage(
         created_at,
         providers,
         config,
-        details={index_name: str(len(documents)) for index_name, documents in planned_batches.items()},
+        details={
+            index_name: str(len(documents))
+            for index_name, documents in planned_batches.items()
+        },
     )
     await _record_workflow_event(
         "opensearch_persisted",
@@ -948,7 +1028,10 @@ async def _persist_packet_to_opensearch_stage(
         created_at,
         providers,
         config,
-        details={index_name: str(len(documents)) for index_name, documents in planned_batches.items()},
+        details={
+            index_name: str(len(documents))
+            for index_name, documents in planned_batches.items()
+        },
     )
     return packet.model_copy(
         update={
@@ -982,7 +1065,9 @@ async def _record_workflow_event(
     if providers.ledger_store is not None:
         await append_ledger_event_to_postgres(event, providers.ledger_store)
     elif config.require_postgres:
-        raise RuntimeError("Postgres ledger store is required for workflow event persistence")
+        raise RuntimeError(
+            "Postgres ledger store is required for workflow event persistence"
+        )
     return event
 
 
@@ -1029,7 +1114,6 @@ def _safe_error_message(error: Exception, max_chars: int = 500) -> str:
     return message[: max_chars - 3] + "..."
 
 
-
 def _narrative_containment_provenance(
     containment_report: NarrativeContainmentReport,
     narrative,
@@ -1051,7 +1135,10 @@ def _narrative_containment_provenance(
         model_name="translume_narrative_containment_validator_v1",
         prompt_text="Validate generated narrative against source-backed clinical artifact bundle before export.",
         schema_json=NarrativeContainmentReport.model_json_schema(),
-        source_artifact_ids=[narrative.artifact_id, *containment_report.source_artifact_ids],
+        source_artifact_ids=[
+            narrative.artifact_id,
+            *containment_report.source_artifact_ids,
+        ],
         source_chunk_ids=[
             finding.source_chunk_id
             for finding in extraction.molecular_findings
@@ -1092,14 +1179,14 @@ def _extract_best_document(
     providers: TranslumeWorkflowProviders,
     config: TranslumeWorkflowConfig,
 ):
-    """Run Docling plus PyMuPDF extraction and select the best output.
+    """Run remote document extraction and compare it to CPU native PDF text.
 
     Acceptance criteria:
-        1. Runs Docling service extraction when configured.
-        2. Fails explicitly when Docling is required but unavailable.
+        1. Runs OpenAI document service extraction when configured.
+        2. Fails explicitly when the required extractor is unavailable.
         3. Runs PyMuPDF baseline extraction for quality comparison.
         4. Scores every extraction candidate using explicit quality rules.
-        5. Returns the highest-quality extraction, preferring Docling on ties.
+        5. Returns the highest-quality extraction with all actual call receipts.
         6. Does not perform clinical interpretation.
 
     Args:
@@ -1116,28 +1203,36 @@ def _extract_best_document(
         try:
             candidates.append(providers.document_extractor.extract(stored_file))
         except Exception as error:
-            errors.append(f"docling_extraction_failed:{error}")
+            errors.append(f"remote_document_extraction_failed:{error}")
             if config.require_docling:
                 raise RuntimeError(errors[-1]) from error
     elif config.require_docling:
-        raise RuntimeError("Docling document extractor is required but not configured")
+        raise RuntimeError("Remote document extractor is required but not configured")
     try:
         candidates.append(extract_document_with_pymupdf(stored_file))
     except Exception as error:
         errors.append(f"pymupdf_extraction_failed:{error}")
         if not candidates:
-            raise RuntimeError("no document extraction succeeded: " + ";".join(errors)) from error
+            raise RuntimeError(
+                "no document extraction succeeded: " + ";".join(errors)
+            ) from error
     quality_reports = [score_extraction_quality(candidate) for candidate in candidates]
     selected = select_best_document_extraction(candidates, quality_reports)
     selected_quality = quality_reports[candidates.index(selected)]
     return selected.model_copy(
         update={
             "quality_score": selected_quality.quality_score,
-            "needs_human_review": selected_quality.needs_human_review,
+            "needs_human_review": (
+                selected.needs_human_review or selected_quality.needs_human_review
+            ),
             "warnings": [*selected.warnings, *selected_quality.warnings, *errors],
+            "model_calls": [
+                call
+                for candidate in candidates
+                for call in getattr(candidate, "model_calls", ())
+            ],
         }
     )
-
 
 
 async def _index_document_chunks_before_artifact_generation(
@@ -1210,6 +1305,7 @@ async def _retrieve_chunks_for_report_extraction(
         retrieval_mode=config.retrieval_mode,
     )
 
+
 async def _get_graph_evidence(
     entities,
     providers: TranslumeWorkflowProviders,
@@ -1242,7 +1338,9 @@ async def _get_graph_evidence(
     except Exception as error:
         if config.require_mims:
             raise
-        return _missing_graph_evidence(entities, str(error), config.graph_retrieval_modes)
+        return _missing_graph_evidence(
+            entities, str(error), config.graph_retrieval_modes
+        )
 
 
 async def _get_tool_outputs(
@@ -1360,7 +1458,6 @@ def _missing_medea_reasoning(seed: str, warning: str) -> MedeaReasoningArtifact:
         decision_support_role="hypothesis_support_only",
         downstream_uses=["evidence_limitations"],
     )
-
 
 
 def _workflow_event(

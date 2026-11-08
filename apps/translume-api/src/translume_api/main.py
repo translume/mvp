@@ -1,41 +1,44 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Literal
 import os
+import re
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Annotated, Literal
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
-
-from translume_api.config import Settings, get_settings
+from translume_adapters.model_providers.openai_provider import OpenAIModelProvider
 from translume_clients.docling import DoclingClientConfig, DoclingServiceClient
 from translume_clients.downstream import (
     DownstreamRunnerConfig,
     DynamicPathwayRunnerClient,
     PrecisionOncologyRunnerClient,
 )
-from translume_adapters.model_providers.local_vllm_provider import LocalVLLMProvider
-from translume_clients.local_vllm import LocalVLLMClient
 from translume_clients.mims import (
     MedeaServiceClient,
     MimsServiceClientConfig,
     OptimusKGServiceClient,
     ToolUniverseServiceClient,
 )
+from translume_clients.openai_client import OpenAIClient
 from translume_clients.opensearch import OpenSearchClientConfig, OpenSearchVectorStore
 from translume_clients.postgres import PostgresClientConfig, PostgresLedgerStore
-from translume_core.indexing.persistence import persist_review_packet_to_opensearch
-from translume_core.validation.review import (
-    apply_validation_decision_to_packet,
-    build_validation_decision,
-    validation_cards_from_packet,
+from translume_core.indexing.persistence import (
+    ensure_mvp_indexes,
+    persist_review_packet_to_opensearch,
 )
 from translume_core.prime_directives import (
     PrimeDirectiveViolation,
     assert_prime_directives,
     find_project_root,
+)
+from translume_core.validation.review import (
+    apply_validation_decision_to_packet,
+    build_validation_decision,
+    validation_cards_from_packet,
 )
 from translume_core.workflow import (
     TranslumeWorkflowConfig,
@@ -46,6 +49,9 @@ from translume_schemas.downstream import (
     DownstreamAnalysisRequest,
     DownstreamAnalysisResult,
 )
+from translume_schemas.model_calls import ModelProviderError
+
+from translume_api.config import Settings, get_settings
 
 
 @asynccontextmanager
@@ -55,7 +61,7 @@ async def lifespan(_: FastAPI):
     Acceptance criteria:
         1. Local development mode can start without production dependencies.
         2. Production/demo/enforced mode fails before accepting requests if
-           required real services, vendor Git clones, or local-model routing are
+           required real services, verified sources, or OpenAI routing are
            missing.
         3. The gate does not fabricate readiness or silently downgrade missing
            dependencies.
@@ -65,6 +71,16 @@ async def lifespan(_: FastAPI):
         assert_prime_directives(environment=os.environ, root=root, force=False)
     except PrimeDirectiveViolation as error:
         raise RuntimeError(str(error)) from error
+    settings = get_settings()
+    await _validate_openai_access(settings)
+    if settings.postgres_required:
+        await _postgres_store(settings).ensure_schema()
+    if settings.opensearch_required:
+        await ensure_mvp_indexes(
+            _opensearch_store(settings),
+            retrieval_mode=settings.retrieval_mode,
+            vector_dimension=settings.vector_dimension,
+        )
     yield
 
 
@@ -81,13 +97,18 @@ class ValidationDecisionRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "translume-api"}
+    return {
+        "status": "ok",
+        "service": "translume-api",
+        "model_provider": "openai",
+        "reasoning_mode": "pro",
+    }
 
 
 @app.post("/api/v1/reports/process")
 async def process_report(
-    file: UploadFile = File(...),
-    report_type: str = Form("NGS"),
+    file: Annotated[UploadFile, File()],
+    report_type: Annotated[str, Form()] = "NGS",
 ) -> dict[str, object]:
     """Process one oncology PDF into a review packet.
 
@@ -99,18 +120,39 @@ async def process_report(
         5. No mock data is inserted by the API layer.
     """
     settings = get_settings()
-    content = await file.read()
+    content = await _read_pdf_upload(file)
     try:
-        packet = await process_report_pdf(
-            filename=file.filename or "uploaded.pdf",
-            content=content,
-            report_type=report_type,
-            config=_workflow_config(settings),
-            providers=_workflow_providers(settings),
-        )
+        async with _openai_client(settings) as model_client:
+            packet = await process_report_pdf(
+                filename=file.filename or "uploaded.pdf",
+                content=content,
+                report_type=report_type,
+                config=_workflow_config(settings),
+                providers=_workflow_providers(settings, model_client=model_client),
+            )
     except Exception as error:
-        raise HTTPException(status_code=422, detail=_http_error_detail(error)) from error
+        raise HTTPException(
+            status_code=_http_status_code(error), detail=_http_error_detail(error)
+        ) from error
     return packet.model_dump(mode="json")
+
+
+async def _read_pdf_upload(file: UploadFile, *, max_bytes: int = 100_000_000) -> bytes:
+    """Read a bounded PDF before any model or persistence operation.
+
+    Reject empty, non-PDF, and oversized uploads explicitly. Reading is bounded
+    independently of the client's Content-Length header.
+    """
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=413, detail="PDF upload exceeds 100 MB size limit"
+        )
+    if not content:
+        raise HTTPException(status_code=400, detail="uploaded file is empty")
+    if b"%PDF-" not in content[:1024]:
+        raise HTTPException(status_code=415, detail="uploaded file must be a PDF")
+    return content
 
 
 @app.get("/api/v1/review-packets/{session_id}/validation-cards")
@@ -127,7 +169,9 @@ async def get_validation_cards(session_id: str) -> dict[str, object]:
     try:
         packet = await store.fetch_review_packet_by_session_id(session_id)
     except Exception as error:
-        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
+        raise HTTPException(
+            status_code=404, detail=_http_error_detail(error)
+        ) from error
     cards = validation_cards_from_packet(packet)
     return {
         "case_id": packet.case_id,
@@ -149,7 +193,9 @@ async def get_review_packet_export(session_id: str) -> dict[str, object]:
     try:
         packet = await store.fetch_review_packet_by_session_id(session_id)
     except Exception as error:
-        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
+        raise HTTPException(
+            status_code=404, detail=_http_error_detail(error)
+        ) from error
     return packet.model_dump(mode="json")
 
 
@@ -195,9 +241,9 @@ async def run_downstream_analysis(
             diagnosis=diagnosis,
         )
     except Exception as error:
-        raise HTTPException(status_code=422, detail=_http_error_detail(error)) from error
-
-
+        raise HTTPException(
+            status_code=422, detail=_http_error_detail(error)
+        ) from error
 
 
 @app.get("/api/v1/review-packets/{session_id}/decision-brief")
@@ -214,7 +260,9 @@ async def get_oncologist_decision_brief(session_id: str) -> dict[str, object]:
     try:
         packet = await store.fetch_review_packet_by_session_id(session_id)
     except Exception as error:
-        raise HTTPException(status_code=404, detail=_http_error_detail(error)) from error
+        raise HTTPException(
+            status_code=404, detail=_http_error_detail(error)
+        ) from error
     if packet.bundle.decision_brief is None:
         raise HTTPException(
             status_code=404,
@@ -243,7 +291,7 @@ async def validate_claim(
     settings = get_settings()
     postgres = _postgres_store(settings)
     vector_store = _opensearch_store(settings)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     try:
         packet = await postgres.fetch_review_packet_by_session_id(session_id)
         decision = build_validation_decision(
@@ -266,7 +314,9 @@ async def validate_claim(
             vector_dimension=settings.vector_dimension,
         )
     except Exception as error:
-        raise HTTPException(status_code=422, detail=_http_error_detail(error)) from error
+        raise HTTPException(
+            status_code=422, detail=_http_error_detail(error)
+        ) from error
     return {
         "case_id": updated_packet.case_id,
         "session_id": updated_packet.session_id,
@@ -288,8 +338,8 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         vector_dimension=settings.vector_dimension,
         require_postgres=settings.postgres_required,
         require_docling=settings.docling_required,
-        require_local_vllm=settings.require_local_vllm,
-        vllm_model=settings.vllm_model,
+        require_model_provider=settings.require_model_provider,
+        reasoning_model=settings.reasoning_model,
         prompts_root=settings.prompts_root,
         report_extraction_batch_max_chunks=(
             settings.report_extraction_batch_max_chunks
@@ -301,18 +351,14 @@ def _workflow_config(settings: Settings) -> TranslumeWorkflowConfig:
         report_extraction_retry_max_tokens=(
             settings.report_extraction_retry_max_tokens
         ),
-        report_extraction_max_split_depth=(
-            settings.report_extraction_max_split_depth
-        ),
+        report_extraction_max_split_depth=(settings.report_extraction_max_split_depth),
         report_extraction_min_segment_chars=(
             settings.report_extraction_min_segment_chars
         ),
         confirmatory_testing_input_token_budget=(
             settings.confirmatory_testing_input_token_budget
         ),
-        tumor_behavior_input_token_budget=(
-            settings.tumor_behavior_input_token_budget
-        ),
+        tumor_behavior_input_token_budget=(settings.tumor_behavior_input_token_budget),
         tool_workflows=settings.tool_workflows,
         enable_provider_cache=settings.enable_provider_cache,
         graph_cache_ttl_seconds=settings.graph_cache_ttl_seconds,
@@ -345,11 +391,13 @@ def _http_error_detail(error: Exception) -> str:
     """
     message = str(error).strip()
     if message:
-        return message
+        return re.sub(r"sk-[A-Za-z0-9_-]+", "[REDACTED]", message)
     return f"{type(error).__name__}: no error message"
 
 
-def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:
+def _workflow_providers(
+    settings: Settings, *, model_client: OpenAIClient
+) -> TranslumeWorkflowProviders:
     return TranslumeWorkflowProviders(
         graph_provider=OptimusKGServiceClient(
             MimsServiceClientConfig(
@@ -378,19 +426,17 @@ def _workflow_providers(settings: Settings) -> TranslumeWorkflowProviders:
                 extraction_method=settings.docling_extraction_method,
             )
         ),
-        model_provider=LocalVLLMProvider(
-            LocalVLLMClient(
-                base_url=settings.vllm_base_url,
-                timeout_seconds=settings.vllm_timeout_seconds,
-            ),
-            structured_output_max_tokens=(
-                settings.vllm_structured_output_max_tokens
-            ),
-            structured_output_retry_max_tokens=(
-                settings.vllm_structured_output_retry_max_tokens
-            ),
+        model_provider=OpenAIModelProvider(
+            model_client,
+            reasoning_mode=settings.reasoning_mode,
+            reasoning_effort=settings.reasoning_effort,
+            structured_output_max_tokens=settings.structured_output_max_tokens,
+            structured_output_retry_max_tokens=settings.structured_output_retry_max_tokens,
             report_extraction_max_tokens=settings.report_extraction_max_tokens,
             tumor_behavior_max_tokens=settings.tumor_behavior_max_tokens,
+            context_window_tokens=settings.model_context_tokens,
+            input_token_budget=settings.model_input_token_budget,
+            safety_margin_tokens=settings.report_extraction_context_safety_tokens,
         ),
     )
 
@@ -411,3 +457,58 @@ def _opensearch_store(settings: Settings) -> OpenSearchVectorStore:
             timeout_seconds=settings.opensearch_timeout_seconds,
         )
     )
+
+
+def _openai_client(settings: Settings) -> OpenAIClient:
+    """Create one audited connection pool per report, closed by its caller."""
+    return OpenAIClient(
+        api_key=settings.openai_api_key.get_secret_value(),
+        base_url=settings.openai_base_url,
+        timeout_seconds=settings.openai_timeout_seconds,
+        max_retries=settings.openai_max_retries,
+        audit_path=settings.openai_audit_path,
+    )
+
+
+async def _validate_openai_access(settings: Settings) -> None:
+    """Verify credentials and configured model access before accepting uploads.
+
+    Acceptance criteria:
+        1. Checks the actual OpenAI Models API without generating content.
+        2. A missing credential or inaccessible model prevents readiness.
+        3. Response bodies and credentials are never included in errors.
+    """
+    key = settings.openai_api_key.get_secret_value().strip()
+    if not key:
+        raise RuntimeError("Set OPENAI_API_KEY in .env before starting Docker")
+    models = {
+        settings.reasoning_model,
+        os.getenv("OPENAI_DOCUMENT_MODEL", settings.reasoning_model),
+        os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),
+    }
+    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
+        for model in sorted(models):
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", model):
+                raise ValueError("OpenAI model identifiers must be valid API IDs")
+            response = await client.get(
+                f"{settings.openai_base_url}/models/{model}",
+                headers={"Authorization": f"Bearer {key}"},
+            )
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"OpenAI access check failed for {model} "
+                    f"(HTTP {response.status_code}); verify API key, billing "
+                    "and model access in your OpenAI project"
+                )
+
+
+def _http_status_code(error: Exception) -> int:
+    """Distinguish failed remote inference from invalid report input."""
+    current: BaseException | None = error
+    visited: set[int] = set()
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+        if isinstance(current, ModelProviderError):
+            return 502
+        current = current.__cause__
+    return 422

@@ -22,9 +22,7 @@ class OptimusKGRuntimeError(RuntimeError):
     """Raised when the real OptimusKG runtime cannot provide graph context."""
 
 
-DEFAULT_GRAPH_RETRIEVAL_MODES: tuple[GraphRetrievalMode, ...] = (
-    "general_context",
-)
+DEFAULT_GRAPH_RETRIEVAL_MODES: tuple[GraphRetrievalMode, ...] = ("general_context",)
 SUPPORTED_GRAPH_RETRIEVAL_MODES: tuple[GraphRetrievalMode, ...] = (
     "general_context",
     "therapy_pressure",
@@ -183,7 +181,10 @@ def _optimuskg_parquet_paths(
 ) -> tuple[Path, Path]:
     """Return OptimusKG node and edge parquet paths through its client API."""
     nodes_rel, edges_rel = (
-        ("largest_connected_component_nodes.parquet", "largest_connected_component_edges.parquet")
+        (
+            "largest_connected_component_nodes.parquet",
+            "largest_connected_component_edges.parquet",
+        )
         if use_lcc
         else ("nodes.parquet", "edges.parquet")
     )
@@ -214,10 +215,9 @@ def _graph_artifact_from_parquet(
 ) -> GraphEvidenceArtifact:
     """Build graph evidence from OptimusKG node/edge parquet tables."""
     pl = _require_polars()
-    nodes_df = pl.scan_parquet(nodes_path).collect()
-    _require_columns(nodes_df.columns, {"id", "label", "properties"}, "nodes parquet")
     labels = _entity_lookup_labels(entities)
-    matched_node_ids = _matched_node_ids(nodes_df, labels)
+    nodes_df = _collect_matching_nodes(nodes_path, labels)
+    matched_node_ids = {str(value) for value in nodes_df["id"]}
     if not matched_node_ids:
         return GraphEvidenceArtifact(
             artifact_id=_artifact_id(entities.artifact_id),
@@ -268,6 +268,14 @@ def _graph_artifact_from_parquet(
             ),
         )
     endpoint_ids = _edge_endpoint_ids(edges_df)
+    nodes_df = (
+        pl.scan_parquet(nodes_path)
+        .select("id", "label", "properties")
+        .filter(
+            pl.col("id").cast(pl.String).is_in(sorted(endpoint_ids | matched_node_ids))
+        )
+        .collect(engine="streaming")
+    )
     nodes = _graph_nodes_from_node_ids(
         nodes_df,
         endpoint_ids | matched_node_ids,
@@ -292,7 +300,6 @@ def _graph_artifact_from_parquet(
             entity_terms=_entity_terms(entities),
         ),
     )
-
 
 
 def _normalize_retrieval_modes(
@@ -376,12 +383,12 @@ def _subgraph_for_mode(
             query_terms=list(entity_terms),
             node_ids=list(all_node_ids),
             edge_ids=list(all_edge_ids),
-            warnings=[] if all_node_ids or all_edge_ids else ["empty_general_graph_context"],
+            warnings=[]
+            if all_node_ids or all_edge_ids
+            else ["empty_general_graph_context"],
         )
     matching_edges = [
-        edge
-        for edge in edges
-        if _edge_matches_mode(edge, labels_by_id, mode)
+        edge for edge in edges if _edge_matches_mode(edge, labels_by_id, mode)
     ]
     matching_node_ids = sorted(
         {
@@ -463,6 +470,7 @@ def _unique_nonempty(values: Iterable[str]) -> list[str]:
         result.append(text)
     return result
 
+
 def _require_polars() -> Any:
     try:
         import polars as pl  # type: ignore[import-not-found]
@@ -498,6 +506,39 @@ def _matched_node_ids(nodes_df: Any, labels: set[str]) -> set[str]:
         if aliases & labels:
             matched.add(str(row["id"]))
     return matched
+
+
+def _collect_matching_nodes(nodes_path: Path, labels: set[str]) -> Any:
+    """Match the original aliases while keeping only bounded node batches in RAM.
+
+    Acceptance criteria:
+        1. Every input node is considered; no top-k prefilter drops source matches.
+        2. Alias semantics are identical to the original node matcher.
+        3. At most 32,768 unmatched rows are materialized at a time.
+        4. Only matching rows are retained for endpoint retrieval and provenance.
+    """
+    from pyarrow import parquet
+
+    pl = _require_polars()
+    matches = []
+    with parquet.ParquetFile(nodes_path) as source:
+        _require_columns(
+            source.schema_arrow.names, {"id", "label", "properties"}, "nodes parquet"
+        )
+        for batch in source.iter_batches(
+            batch_size=32768, columns=["id", "label", "properties"]
+        ):
+            frame = pl.from_arrow(batch)
+            mask = [
+                bool(_node_aliases(row) & labels) for row in frame.iter_rows(named=True)
+            ]
+            if any(mask):
+                matches.append(frame.filter(pl.Series(mask)))
+    if matches:
+        return pl.concat(matches, how="vertical_relaxed")
+    return pl.DataFrame(
+        schema={"id": pl.String, "label": pl.String, "properties": pl.String}
+    )
 
 
 def _node_aliases(row: dict[str, Any]) -> set[str]:
@@ -541,7 +582,9 @@ def _casefold_many(value: Any) -> set[str]:
     return {_casefold(value)}
 
 
-def _collect_matching_edges(edges_path: Path, matched_node_ids: set[str], max_edges: int) -> Any:
+def _collect_matching_edges(
+    edges_path: Path, matched_node_ids: set[str], max_edges: int
+) -> Any:
     pl = _require_polars()
     edge_scan = pl.scan_parquet(edges_path)
     columns = edge_scan.collect_schema().names()
@@ -638,7 +681,10 @@ def _missing_entity_ids(
             matched_labels |= _node_aliases(row)
     missing: list[str] = []
     for entity in entities.entities:
-        entity_aliases = {_casefold(entity.normalized_label), _casefold(entity.original_text)}
+        entity_aliases = {
+            _casefold(entity.normalized_label),
+            _casefold(entity.original_text),
+        }
         if not (entity_aliases & matched_labels):
             missing.append(entity.entity_id)
     return missing

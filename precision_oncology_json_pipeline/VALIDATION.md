@@ -1,38 +1,47 @@
 # Validation record
 
-Validation date: 2026-07-10
+Validation date: 2026-11-08
 
-## Static and automated checks
+## Checks executed
 
-```text
-python -m py_compile precision_oncology_pipeline.py     PASS
-ruff check precision_oncology_pipeline.py tests examples PASS
-mypy --ignore-missing-imports ...                       PASS
-python -m pytest                                        10 passed
+The precision-oncology suite was run against OpenAI SDK 2.54.0 and Pydantic
+2.14.3:
+
+```sh
+python -m pytest tests/test_pipeline.py tests/test_runner.py tests/test_openai_remote_runtime.py -q -o addopts='' --tb=short
 ```
 
-The automated suite includes a fully mocked end-to-end OpenAI Responses API run. It verifies that the pipeline emits a complete `FinalPacket`, preserves a canonical ClinicalTrials.gov URL, creates a trial pre-screen, and generates a dynamic URL-candidate-fit appendix section.
+Result: **38 passed**. Ruff checks also passed for both runtime modules and
+their tests. Schema generation using `--emit-schema-only` succeeded.
 
-## Supplied JSON parse-only test
+The companion dynamic-pathway and tumor-board suite passed **21 tests**, and
+the repository's downstream container contract checks passed **3 tests**.
 
-The tool was run in `--dry-run` mode against the supplied Translume review-packet JSON. It completed successfully with deterministic run ID:
+## What these checks establish
 
-```text
-run_413db6bd63b56e57045f266ce591
-```
+The tests use the actual OpenAI SDK with an HTTPX mock transport at the network
+boundary. They verify the serialized request's official endpoint, API-key
+header, Astra model, Pro reasoning mode, effective reasoning effort,
+`store=False`, strict JSON schema, and finite output limit. They exercise
+successful pipeline assembly, domain validation, per-attempt usage receipts,
+cache identity, bounded transient retries, and terminal handling of
+authentication errors, insufficient quota, refusals, and incomplete responses.
 
-The conservative fallback parser recovered:
+The runner tests cover model-setting propagation, process deadlines, persisted
+precision-pipeline failure diagnostics, and safe health responses. The container
+contract tests inspect the deployment files; they do not execute Docker.
 
-```text
-Disease/histology: Dedifferentiated chondrosarcoma
-Specimen: Soft tissue / chest wall
-Primary actionable findings: CDKN2A, CHEK2, MTAP
-Secondary/context findings: AKT2, CDKN2B, LYN, TP53
-Primary technical finding: TAF1 low coverage
-```
+Mock API responses are test fixtures only. The production pipeline has no fake
+provider, sample-response substitution, or local-model fallback.
 
-This parse-only result is intended to validate the adapter and does not replace the user's production actionable-item plucker.
+## Verification still required on the deployment machine
 
-## Live API status
+No live OpenAI request or Docker build was executed in this environment: it
+contained neither an OpenAI API key nor a Docker CLI/daemon. These checks do not
+establish account model access, billing availability, provider latency, image
+build success, or scientific accuracy of a generated report.
 
-No live OpenAI API request was executed in the build environment because no `OPENAI_API_KEY` was available. Use `--quick-test` for the first live run, inspect the resulting JSON, and then run without that flag for the full evidence fan-out and validator passes.
+Follow the root README to build the containers, configure a real API key, upload
+a real report, and run the full-stack verification command. Preserve the emitted
+response IDs, usage receipts, and verification output as the evidence for that
+live run. Do not treat `--dry-run` or `--quick-test` as full workflow verification.

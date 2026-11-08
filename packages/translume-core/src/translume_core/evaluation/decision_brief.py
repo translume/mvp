@@ -19,7 +19,10 @@ from translume_schemas.export import ReviewPacketExport
 
 
 DECISION_BRIEF_UNSUPPORTED_CERTAINTY_PHRASES: Final[tuple[str, ...]] = (
-    "will be cured"
+    "will respond",
+    "will be cured",
+    "guaranteed response",
+    "definitive cure",
 )
 _REQUIRED_DECISION_SECTIONS: Final[tuple[str, ...]] = (
     "clinical_decision_summary",

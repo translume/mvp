@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import os
 import sys
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -26,16 +25,6 @@ MEDEADB_REQUIRED_FILES = {
         "depmap_24q2/p_adj_matrix.npy",
         "depmap_24q2/gene_idx_array.npy",
         "depmap_24q2/gene_names.txt",
-    ),
-    "pinnacle_embeds": (
-        "pinnacle_embeds/pinnacle_protein_embed.pth",
-        "pinnacle_embeds/pinnacle_mg_embed.pth",
-        "pinnacle_embeds/ppi_embed_dict.pth",
-        "pinnacle_embeds/pinnacle_labels_dict.txt",
-    ),
-    "compass_checkpoints": (
-        "compass/checkpoint/pretrainer.pt",
-        "compass/checkpoint/pft_leave_IMVigor210.pt",
     ),
 }
 
@@ -89,9 +78,9 @@ def _is_nonempty_file(path: Path) -> bool:
 def inspect_medeadb(path: Path) -> MedeaDBInspection:
     """Inspect the MedeaDB resources consumed by upstream Medea tools.
 
-    This checks the concrete resource paths used by Medea's DepMap, PINNACLE,
-    TranscriptFormer, and COMPASS tool implementations. It does not load the
-    large matrices or model checkpoints.
+    The report workflow consumes DepMap correlations only. PINNACLE, COMPASS
+    and TranscriptFormer are not executed and their checkpoints are not
+    provisioned. File contents remain the original upstream dataset.
     """
     root = path.expanduser().resolve()
     resources: dict[str, bool] = {}
@@ -104,33 +93,6 @@ def inspect_medeadb(path: Path) -> MedeaDBInspection:
         ]
         resources[resource] = not resource_missing
         missing.extend(resource_missing)
-
-    embedding_store = root / "transcriptformer_embedding" / "embedding_store"
-    transcriptformer_files = (
-        tuple(embedding_store.rglob("*.npy")) if embedding_store.is_dir() else ()
-    )
-    usable_transcriptformer_files = tuple(
-        path for path in transcriptformer_files if _is_nonempty_file(path)
-    )
-    resources["transcriptformer_embeddings"] = bool(usable_transcriptformer_files)
-    if not usable_transcriptformer_files:
-        missing.append("transcriptformer_embedding/embedding_store/**/*.npy")
-
-    transcriptformer_metadata = (
-        tuple(embedding_store.rglob("metadata.json.gz"))
-        if embedding_store.is_dir()
-        else ()
-    )
-    usable_transcriptformer_metadata = tuple(
-        path for path in transcriptformer_metadata if _is_nonempty_file(path)
-    )
-    resources["transcriptformer_metadata"] = bool(
-        usable_transcriptformer_metadata
-    )
-    if not usable_transcriptformer_metadata:
-        missing.append(
-            "transcriptformer_embedding/embedding_store/**/metadata.json.gz"
-        )
 
     return MedeaDBInspection(
         path=str(root),
@@ -147,9 +109,9 @@ def download_medeadb(
     revision: str | None = None,
     max_workers: int = 8,
 ) -> MedeaDBInspection:
-    """Download the complete official MedeaDB dataset snapshot."""
+    """Download the original DepMap resources consumed by the report workflow."""
     try:
-        from huggingface_hub import snapshot_download
+        from huggingface_hub import HfApi, snapshot_download
     except ImportError as error:
         raise MimsDataError(
             "huggingface-hub is required; run this command through `make medea-data`"
@@ -157,15 +119,24 @@ def download_medeadb(
 
     destination = destination.expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
+    inspection = inspect_medeadb(destination)
+    marker = destination / MEDEADB_MARKER
+    if inspection.available and marker.is_file() and not force:
+        return inspection
+    resolved_revision = (
+        HfApi().dataset_info(MEDEADB_REPO_ID, revision=revision or "main").sha
+    )
+    if not resolved_revision:
+        raise MimsDataError("MedeaDB did not return an immutable dataset revision")
     kwargs: dict[str, Any] = {
         "repo_id": MEDEADB_REPO_ID,
         "repo_type": "dataset",
         "local_dir": destination,
         "force_download": force,
         "max_workers": max_workers,
+        "allow_patterns": list(MEDEADB_REQUIRED_FILES["depmap_24q2"]),
+        "revision": resolved_revision,
     }
-    if revision:
-        kwargs["revision"] = revision
     snapshot_download(**kwargs)
 
     inspection = inspect_medeadb(destination)
@@ -178,7 +149,8 @@ def download_medeadb(
         destination / MEDEADB_MARKER,
         {
             "repository": MEDEADB_REPO_ID,
-            "revision": revision or "latest",
+            "revision": resolved_revision,
+            "runtime_profile": "depmap_correlations",
             "validated_at": _utc_now(),
             "inspection": asdict(inspection),
         },
@@ -326,9 +298,12 @@ def download_optimuskg(
         raise MimsDataError(
             f"could not import the OptimusKG client from {repo_path}: {error}"
         ) from error
-    if not hasattr(optimuskg, "get_file") or not hasattr(optimuskg, "set_cache_dir"):
+    if not all(
+        callable(getattr(optimuskg, name, None))
+        for name in ("get_file", "set_cache_dir", "get_doi", "get_server")
+    ):
         raise MimsDataError(
-            "the vendored OptimusKG client must expose get_file and set_cache_dir"
+            "the vendored OptimusKG client must expose get_file, set_cache_dir, get_doi and get_server"
         )
 
     optimuskg.set_cache_dir(cache_dir)
@@ -352,7 +327,8 @@ def download_optimuskg(
         {
             "downloaded_at": _utc_now(),
             "use_lcc": use_lcc,
-            "doi": os.getenv("OPTIMUSKG_DOI", "upstream-default"),
+            "doi": optimuskg.get_doi(),
+            "server": optimuskg.get_server(),
             "files": [str(nodes_path), str(edges_path)],
         },
     )
@@ -385,7 +361,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     medea = subparsers.add_parser(
-        "medea", help="download the complete MedeaDB snapshot"
+        "medea", help="download the active MedeaDB DepMap correlation data"
     )
     medea.add_argument("--destination", type=Path, default=DEFAULT_MEDEA_DATA_DIR)
     medea.add_argument("--revision")

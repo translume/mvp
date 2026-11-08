@@ -6,7 +6,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from translume_core.indexing.retrieval_scope import RetrievalScopeError, require_lexical_retrieval_scope
+from translume_core.indexing.retrieval_scope import (
+    RetrievalScopeError,
+    require_lexical_retrieval_scope,
+)
 from translume_core.vendor.repositories import (
     VendorRepositoryError,
     load_vendor_repo_specs,
@@ -57,13 +60,14 @@ REQUIRED_TRUE_FLAGS: tuple[str, ...] = (
     "TRANSLUME_REQUIRE_DOCLING",
     "TRANSLUME_REQUIRE_OPENSEARCH",
     "TRANSLUME_REQUIRE_POSTGRES",
-    "BLOCK_REMOTE_MODEL_PROVIDERS",
     "REACTOME_LOCAL_ENABLED",
 )
 
 REQUIRED_NONEMPTY_ENV: tuple[str, ...] = (
-    "VLLM_BASE_URL",
-    "VLLM_MODEL",
+    "OPENAI_BASE_URL",
+    "OPENAI_API_KEY",
+    "OPENAI_REASONING_MODEL",
+    "OPENAI_EMBEDDING_MODEL",
     "DOCLING_SERVICE_URL",
     "OPTIMUSKG_SERVICE_URL",
     "TOOLUNIVERSE_SERVICE_URL",
@@ -95,7 +99,6 @@ REQUIRED_TOOLUNIVERSE_WORKFLOWS: tuple[str, ...] = (
 )
 
 REMOTE_PROVIDER_SECRET_ENV: tuple[str, ...] = (
-    "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",
     "ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
@@ -155,8 +158,8 @@ def validate_prime_directives(
     Acceptance criteria:
         1. Inactive local mode returns an inactive OK report.
         2. Forced/production/demo mode validates required runtime flags.
-        3. MIMS upstream repositories must be real updateable Git clones.
-        4. Remote model provider credentials must not be active.
+        3. MIMS source is verified against locked archives or clean Git clones.
+        4. All model inference uses authenticated OpenAI Pro requests.
         5. UI Docker entrypoint must run real Gradio, not Uvicorn ASGI shim.
         6. Report does not mutate filesystem, environment, or vendor repos.
     """
@@ -168,8 +171,7 @@ def validate_prime_directives(
     findings: list[PrimeDirectiveFinding] = []
     findings.extend(validate_required_true_flags(environment))
     findings.extend(validate_required_nonempty_environment(environment))
-    findings.extend(validate_vllm_model(environment))
-    findings.extend(validate_vllm_local_endpoint(environment))
+    findings.extend(validate_openai_runtime(environment))
     findings.extend(validate_remote_provider_environment(environment))
     findings.extend(validate_vendor_repositories(root))
     findings.extend(validate_ui_docker_entrypoint(root))
@@ -212,7 +214,7 @@ def validate_required_true_flags(
                     message=(
                         f"{name} must be true in production/demo mode. "
                         "The MVP may not silently bypass required services or "
-                        "remote-provider blocking."
+                        "evidence and persistence checks."
                     ),
                     next_actions=(
                         f"Set {name}=true in .env or deployment configuration.",
@@ -283,8 +285,7 @@ def validate_local_reactome_runtime(
         findings.append(
             _reactome_finding(
                 "reactome:image_release_pinned",
-                "Reactome image tag must be pinned and match "
-                "REACTOME_RELEASE.",
+                "Reactome image tag must be pinned and match REACTOME_RELEASE.",
                 "Use matching values such as Release97 and 97.",
             )
         )
@@ -404,60 +405,74 @@ def _reactome_finding(
     )
 
 
-def validate_vllm_model(environment: Mapping[str, str]) -> tuple[PrimeDirectiveFinding, ...]:
-    """Validate local vLLM clinical model identifier is real, not placeholder."""
-    model = env_value("VLLM_MODEL", environment)
-    if model.casefold() in {value.casefold() for value in DISALLOWED_MODEL_IDS}:
-        return (
-            PrimeDirectiveFinding(
-                rule_id="vllm_model:not_placeholder",
-                severity="error",
-                message=(
-                    "VLLM_MODEL must be a real local/Hugging Face model id. "
-                    f"Observed disallowed value: {model!r}."
-                ),
-                next_actions=(
-                    "Set VLLM_MODEL to the real clinical structured-output model id.",
-                    "Rerun `make validate-prime-directives` and the live VM validator.",
-                ),
-            ),
+def validate_openai_runtime(
+    environment: Mapping[str, str],
+) -> tuple[PrimeDirectiveFinding, ...]:
+    """Require official OpenAI endpoints and reject local inference.
+
+    Acceptance criteria:
+        1. A configured backend API key is required and never echoed.
+        2. Only official HTTPS OpenAI routing, Astra and Pro mode pass.
+        3. Local inference and other model-provider credentials fail.
+    """
+    problems: list[tuple[str, str]] = []
+    if env_value("TRANSLUME_MODEL_PROVIDER", environment) != "openai":
+        problems.append(("provider", "TRANSLUME_MODEL_PROVIDER must be openai"))
+    if env_value("TRANSLUME_ALLOW_LOCAL_INFERENCE", environment).casefold() not in {
+        "false",
+        "0",
+    }:
+        problems.append(
+            ("local_inference", "TRANSLUME_ALLOW_LOCAL_INFERENCE must be false")
         )
-    return ()
-
-
-
-
-def validate_vllm_local_endpoint(environment: Mapping[str, str]) -> tuple[PrimeDirectiveFinding, ...]:
-    """Validate VLLM_BASE_URL is not a hosted model-provider endpoint."""
-    base_url = env_value("VLLM_BASE_URL", environment).casefold()
-    remote_tokens = (
-        "api.openai.com",
-        "openrouter.ai",
-        "api.anthropic.com",
-        "generativelanguage.googleapis.com",
-        "integrate.api.nvidia.com",
+    if (
+        env_value("OPENAI_BASE_URL", environment).rstrip("/")
+        != "https://api.openai.com/v1"
+    ):
+        problems.append(
+            ("endpoint", "OPENAI_BASE_URL must be https://api.openai.com/v1")
+        )
+    key = env_value("OPENAI_API_KEY", environment)
+    if (
+        not key
+        or key.casefold() in DISALLOWED_MODEL_IDS
+        or "<" in key
+        or key.casefold().startswith(("your", "replace"))
+    ):
+        problems.append(("credential", "Set OPENAI_API_KEY to a real project API key"))
+    model = env_value("OPENAI_REASONING_MODEL", environment)
+    if not model.startswith("gpt-6-astra"):
+        problems.append(("model", "OPENAI_REASONING_MODEL must identify GPT-6 Astra"))
+    if env_value("OPENAI_REASONING_MODE", environment) != "pro":
+        problems.append(("reasoning_mode", "OPENAI_REASONING_MODE must be pro"))
+    if env_value("OPENAI_REASONING_EFFORT", environment) not in {
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    }:
+        problems.append(("effort", "OPENAI_REASONING_EFFORT is unsupported for Astra"))
+    if env_value("OPENAI_EMBEDDING_MODEL", environment) not in {
+        "text-embedding-3-large",
+        "text-embedding-3-small",
+    }:
+        problems.append(("embeddings", "Configure an OpenAI text-embedding-3 model"))
+    return tuple(
+        PrimeDirectiveFinding(
+            rule_id=f"openai:{rule}",
+            severity="error",
+            message=message,
+            next_actions=("Update .env and recreate the Docker services.",),
+        )
+        for rule, message in problems
     )
-    if any(token in base_url for token in remote_tokens):
-        return (
-            PrimeDirectiveFinding(
-                rule_id="vllm_base_url:local_only",
-                severity="error",
-                message=(
-                    "VLLM_BASE_URL points at a hosted model provider. Production/demo "
-                    "runtime must route model calls to local vLLM."
-                ),
-                next_actions=(
-                    "Set VLLM_BASE_URL to the local vLLM OpenAI-compatible endpoint, such as http://vllm-clinical:8000/v1.",
-                    "Rerun `make validate-prime-directives`.",
-                ),
-            ),
-        )
-    return ()
+
 
 def validate_remote_provider_environment(
     environment: Mapping[str, str],
 ) -> tuple[PrimeDirectiveFinding, ...]:
-    """Validate remote model provider credentials are not active."""
+    """Reject credentials for unapproved model providers; OpenAI is allowed."""
     findings: list[PrimeDirectiveFinding] = []
     for name in REMOTE_PROVIDER_SECRET_ENV:
         value = env_value(name, environment)
@@ -467,13 +482,11 @@ def validate_remote_provider_environment(
                     rule_id=f"remote_provider_blocked:{name}",
                     severity="error",
                     message=(
-                        f"{name} is active. Production/demo mode must route model "
-                        "calls to local vLLM and must not expose remote provider "
-                        "credentials."
+                        f"{name} is active. Model inference is restricted to OpenAI."
                     ),
                     next_actions=(
                         f"Unset {name} for the Translume runtime.",
-                        "If a third-party package requires this key syntactically, set it to local-not-used and route the provider to VLLM_BASE_URL.",
+                        "Keep only OPENAI_API_KEY in the inference service configuration.",
                     ),
                 )
             )
@@ -481,24 +494,28 @@ def validate_remote_provider_environment(
 
 
 def validate_vendor_repositories(root: Path) -> tuple[PrimeDirectiveFinding, ...]:
-    """Validate required MIMS upstream repos are updateable Git clones."""
+    """Validate locked source archives, or clean Git clones for development."""
     config_path = root / "third_party" / "vendor_repos.json"
     try:
-        specs = load_vendor_repo_specs(config_path, root)
-        require_updateable_vendor_repos(specs)
+        if (root / "third_party/vendor_archives.lock.json").is_file():
+            from translume_core.vendor.packaged import require_packaged_vendor_sources
+
+            require_packaged_vendor_sources(root)
+        else:
+            specs = load_vendor_repo_specs(config_path, root)
+            require_updateable_vendor_repos(specs)
     except (FileNotFoundError, VendorRepositoryError) as error:
         return (
             PrimeDirectiveFinding(
-                rule_id="mims_vendors:updateable_git_clones",
+                rule_id="mims_vendors:verified_sources",
                 severity="error",
                 message=(
-                    "MIMS upstream repositories must be real updateable Git clones. "
+                    "MIMS upstream source integrity validation failed. "
                     f"Details: {error}"
                 ),
                 next_actions=(
-                    "Run `make vendor-repos` on a networked VM.",
-                    "Run `make vendor-status` and confirm every repository is OK.",
-                    "Do not use zip-extracted vendor directories for production/demo validation.",
+                    "Rebuild the Docker images to reinstall the SHA256-locked source archives.",
+                    "Do not modify upstream files or substitute unverified archives.",
                 ),
             ),
         )
@@ -534,7 +551,11 @@ def validate_ui_docker_entrypoint(root: Path) -> tuple[PrimeDirectiveFinding, ..
                 ),
             )
         )
-    if "python" not in content or "-m" not in content or "translume_ui.app" not in content:
+    if (
+        "python" not in content
+        or "-m" not in content
+        or "translume_ui.app" not in content
+    ):
         findings.append(
             PrimeDirectiveFinding(
                 rule_id="ui_dockerfile:gradio_module_entrypoint",
@@ -627,7 +648,9 @@ def validate_required_tool_workflows(
             )
         )
         return tuple(findings)
-    missing_configured = sorted(set(REQUIRED_TOOLUNIVERSE_WORKFLOWS) - set(workflows.keys()))
+    missing_configured = sorted(
+        set(REQUIRED_TOOLUNIVERSE_WORKFLOWS) - set(workflows.keys())
+    )
     if missing_configured:
         findings.append(
             PrimeDirectiveFinding(
@@ -654,7 +677,9 @@ def validate_required_tool_workflows(
                     rule_id=f"tooluniverse:workflow_steps:{workflow_name}",
                     severity="error",
                     message=f"ToolUniverse workflow has no executable steps: {workflow_name}",
-                    next_actions=("Add at least one step with a real ToolUniverse tool_name.",),
+                    next_actions=(
+                        "Add at least one step with a real ToolUniverse tool_name.",
+                    ),
                 )
             )
             continue
@@ -665,7 +690,9 @@ def validate_required_tool_workflows(
                         rule_id=f"tooluniverse:workflow_tool_name:{workflow_name}:{index}",
                         severity="error",
                         message=f"ToolUniverse workflow step missing tool_name: {workflow_name}[{index}]",
-                        next_actions=("Set tool_name to an actual ToolUniverse registry tool.",),
+                        next_actions=(
+                            "Set tool_name to an actual ToolUniverse registry tool.",
+                        ),
                     )
                 )
     return tuple(findings)
@@ -749,14 +776,16 @@ def find_project_root(start: Path) -> Path:
     if candidate.is_file():
         candidate = candidate.parent
     for path in (candidate, *candidate.parents):
-        if (path / "docker-compose.yml").exists() and (path / "pyproject.toml").exists():
+        if (path / "docker-compose.yml").exists() and (
+            path / "pyproject.toml"
+        ).exists():
             return path
-    raise PrimeDirectiveViolation(
-        f"could not find Translume project root from {start}"
-    )
+    raise PrimeDirectiveViolation(f"could not find Translume project root from {start}")
 
 
-def prime_directives_report_to_dict(report: PrimeDirectiveGateReport) -> dict[str, object]:
+def prime_directives_report_to_dict(
+    report: PrimeDirectiveGateReport,
+) -> dict[str, object]:
     """Return a JSON-serializable production gate report."""
     return {
         "ok": report.ok,

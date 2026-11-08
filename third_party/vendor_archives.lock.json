@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "source": "Original user-supplied mvp-main(1).zip vendor snapshots",
+  "archives": [
+    {
+      "name": "Medea",
+      "root": "Medea-main",
+      "sha256": "6bb7617b2cf09ab36d242e27a57671d25f5ae0a39bfb29129b01a11e155f9086"
+    },
+    {
+      "name": "OptimusKG",
+      "root": "OptimusKG-main",
+      "sha256": "2ce0ae8acf9d35b55d4490a633352ba8709ca55ab95cc55804cca042165ead06"
+    },
+    {
+      "name": "ToolUniverse",
+      "root": "ToolUniverse-main",
+      "sha256": "f1bd7a92854f8a42102f4f401ff8badc8a1dadf932b3b4647caa3aab5a4c35c7"
+    }
+  ]
+}

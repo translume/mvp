@@ -140,7 +140,7 @@ def provenance_for_medea_reasoning(
 
     Acceptance criteria:
         1. Links Medea reasoning to the evidence context it reviewed.
-        2. Uses a concrete local-vLLM Medea provider label.
+        2. Names the remote Medea reasoning provider truthfully.
         3. Uses MedeaReasoningArtifact schema hash.
         4. Does not claim Medea runtime validation by itself.
     """
@@ -148,8 +148,8 @@ def provenance_for_medea_reasoning(
     return build_artifact_provenance(
         artifact_type="MedeaReasoningArtifact",
         schema_name="MedeaReasoningArtifact",
-        model_name="medea_service_local_vllm_bounded_reasoning",
-        prompt_text="Run bounded Medea literature/omics reasoning over the current EvidenceContextBundle using local vLLM routing.",
+        model_name="medea_service_openai_bounded_reasoning",
+        prompt_text="Run bounded Medea literature/omics reasoning over the current EvidenceContextBundle using OpenAI Responses and remote embeddings.",
         schema_json=MedeaReasoningArtifact.model_json_schema(),
         source_artifact_ids=[
             context_without_medea.extraction.artifact_id,
@@ -160,6 +160,8 @@ def provenance_for_medea_reasoning(
         source_file_id=extraction.source_file_id,
         created_at=created_at,
         artifact_id=medea.artifact_id,
+        model_call_ids=getattr(medea, "model_call_ids", []),
+        model_calls=getattr(medea, "model_calls", []),
     )
 
 
@@ -195,6 +197,7 @@ def provenance_for_claim(
     extraction: ReportExtractionOutput,
     *,
     created_at: datetime,
+    generation_provenance: ArtifactProvenance | None = None,
 ) -> ArtifactProvenance:
     """Return provenance for one reviewable claim card.
 
@@ -207,14 +210,17 @@ def provenance_for_claim(
     return build_artifact_provenance(
         artifact_type="ClaimEvidenceOutput",
         schema_name="ClaimEvidenceOutput",
-        model_name="local_vllm_claim_evidence_compiler",
-        prompt_text="Classify one major clinical-translational statement as fact, inference, hypothesis, missing evidence, or needs review using structured source artifacts.",
+        model_name="translume_claim_projection_v1",
+        prompt_text=None,
         schema_json=ClaimEvidenceOutput.model_json_schema(),
         source_artifact_ids=list(claim.source_artifact_ids),
         source_chunk_ids=source_chunk_ids_from_report_extraction(extraction),
         source_file_id=extraction.source_file_id,
         created_at=created_at,
         artifact_id=claim.claim_id,
+        generation_status="deterministic_claim_projection",
+        component_provenance=([generation_provenance] if generation_provenance else []),
+        model_call_ids=(generation_provenance.model_call_ids if generation_provenance else []),
     )
 
 

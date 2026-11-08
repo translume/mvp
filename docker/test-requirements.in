@@ -1,0 +1,4 @@
+-r runtime-requirements.in
+pytest==8.4.2
+pytest-asyncio==1.4.1.post1
+ruff==0.17.4

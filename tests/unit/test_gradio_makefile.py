@@ -1,76 +1,56 @@
-"""Tests for the root Gradio Docker Compose workflow."""
+"""Validate the CPU-only Compose contract without claiming a Docker run."""
 
-import re
 from pathlib import Path
+import tomllib
+
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_gradio_targets_start_downstream_runner_services() -> None:
-    """The Gradio targets should start UI, API, and both runners.
-
-    Acceptance criteria:
-        1. Determinism: The target definitions are checked as static text.
-        2. Coverage: Both startup and rebuild targets name all services.
-        3. Scope: No Docker daemon is required for this unit test.
-    """
-    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-    required_services = (
-        "precision-oncology-pipeline",
-        "dynamic-pathway-analyzer",
-        "translume-api",
-        "translume-ui",
-    )
-
-    for target_name in ("gradio-up", "gradio-rebuild"):
-        target_start = makefile.index(f"{target_name}:")
-        target_end = makefile.find("\n\n", target_start)
-        target_body = makefile[target_start:target_end]
-
-        for service_name in required_services:
-            assert service_name in target_body
+def _services():
+    return yaml.safe_load((ROOT / "docker-compose.yml").read_text())["services"]
 
 
-def test_compose_scopes_remote_key_to_downstream_runners() -> None:
-    """The API should not receive the downstream remote-provider credential.
+def test_default_compose_includes_complete_report_workflow():
+    services = _services()
+    for name in ("translume-ui", "translume-api", "precision-oncology-pipeline", "dynamic-pathway-analyzer"):
+        assert name in services
+        assert not services[name].get("profiles")
+    assert services["translume-api"]["depends_on"]["data-init"]["condition"] == "service_completed_successfully"
+    assert "docker compose up --build -d" in (ROOT / "Makefile").read_text()
 
-    Acceptance criteria:
-        1. Service safety: Non-runner services override remote key values.
-        2. Runner wiring: Both downstream runners receive the dedicated key.
-        3. Scope: The test validates Compose source without a Docker daemon.
-    """
-    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-    precision_start = compose.index("\n  precision-oncology-pipeline:")
-    dynamic_start = compose.index("\n  dynamic-pathway-analyzer:")
-    precision_section = compose[precision_start:dynamic_start]
-    dynamic_section = compose[dynamic_start:]
 
-    non_runner_services = (
-        "docling-service",
-        "optimuskg-service",
-        "tooluniverse-service",
-        "medea-service",
-        "translume-api",
-        "translume-ui",
-        "translume-worker",
-    )
-    for service_name in non_runner_services:
-        marker = f"\n  {service_name}:"
-        service_start = compose.index(marker)
-        following_services = re.search(
-            r"\n  [a-z][a-z0-9-]*:",
-            compose[service_start + 1:],
-        )
-        service_end = (
-            service_start + 1 + following_services.start()
-            if following_services is not None
-            else len(compose)
-        )
-        service_section = compose[service_start:service_end]
+def test_credentials_reach_only_inference_services():
+    services = _services()
+    inference = {"translume-api", "docling-service", "medea-service", "precision-oncology-pipeline", "dynamic-pathway-analyzer", "verify"}
+    for name, service in services.items():
+        environment = service.get("environment", {})
+        if name in inference:
+            assert "${OPENAI_API_KEY:?" in environment["OPENAI_API_KEY"]
+            assert environment["OPENAI_BASE_URL"] == "https://api.openai.com/v1"
+            assert environment["OPENAI_REASONING_MODE"] == "pro"
+        else:
+            assert "OPENAI_API_KEY" not in environment
+        assert "env_file" not in service
 
-        assert 'OPENAI_API_KEY: ""' in service_section
-        assert 'DOWNSTREAM_OPENAI_API_KEY: ""' in service_section
 
-    assert "OPENAI_API_KEY: ${DOWNSTREAM_OPENAI_API_KEY:-}" in precision_section
-    assert "OPENAI_API_KEY: ${DOWNSTREAM_OPENAI_API_KEY:-}" in dynamic_section
+def test_compose_and_dependencies_cannot_start_local_inference():
+    services = _services()
+    for name, service in services.items():
+        assert not name.startswith("vllm")
+        assert "gpus" not in service
+        assert "runtime" not in service
+    packages = {package["name"] for package in tomllib.loads((ROOT / "uv.lock").read_text())["package"]}
+    banned = {"torch", "transformers", "sentence-transformers", "flagembedding", "docling", "ollama", "vllm"}
+    assert packages.isdisjoint(banned)
+    assert not any(name.startswith(("nvidia-", "cuda-")) for name in packages)
+
+
+def test_only_the_browser_ui_and_api_are_exposed_to_loopback():
+    services = _services()
+    for name, service in services.items():
+        for port in service.get("ports", []):
+            assert name in {"translume-ui", "translume-api"}
+            assert port.startswith("127.0.0.1:")

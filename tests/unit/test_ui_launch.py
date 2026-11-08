@@ -3,14 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
+import yaml
 from translume_ui.app import (
     DEFAULT_API_BASE_URL,
     TranslumeUIConfigError,
     api_base_url_from_environment,
     ui_server_config_from_environment,
 )
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,7 +54,8 @@ def test_ui_dockerfile_runs_gradio_module_directly() -> None:
 
 def test_compose_sets_internal_api_url_and_ui_healthcheck() -> None:
     """Docker Compose should wire Gradio to FastAPI inside the network."""
-    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-    assert "TRANSLUME_API_BASE_URL=http://translume-api:8080" in compose
-    assert "http://localhost:7860" in compose
-    assert "condition: service_healthy" in compose
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    ui = compose["services"]["translume-ui"]
+    assert ui["environment"]["TRANSLUME_API_BASE_URL"] == "http://translume-api:8080"
+    assert "http://localhost:7860" in " ".join(ui["healthcheck"]["test"])
+    assert ui["depends_on"]["translume-api"]["condition"] == "service_healthy"

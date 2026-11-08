@@ -40,14 +40,18 @@ def score_extraction_quality(
         )
     pages_with_text = sum(1 for page in pages if page.text.strip())
     sparse_pages = [
-        page.page_number for page in pages if len(page.text.strip()) < sparse_page_threshold
+        page.page_number
+        for page in pages
+        if len(page.text.strip()) < sparse_page_threshold
     ]
     if sparse_pages:
         warnings.append(f"sparse pages: {','.join(str(p) for p in sparse_pages)}")
     pages_with_warnings = sum(1 for page in pages if page.warnings)
     table_count = sum(len(page.tables) for page in pages)
     text_score = pages_with_text / len(pages)
-    warning_penalty = min(0.5, (pages_with_warnings + len(sparse_pages)) / (2 * len(pages)))
+    warning_penalty = min(
+        0.5, (pages_with_warnings + len(sparse_pages)) / (2 * len(pages))
+    )
     quality_score = max(0.0, min(1.0, text_score - warning_penalty))
     return ExtractionQualityReport(
         source_file_id=extraction.source_file_id,
@@ -70,7 +74,7 @@ def select_best_document_extraction(
         1. Candidate/report lengths must match.
         2. Empty candidates raise `ValueError`.
         3. Highest quality score wins.
-        4. Ties prefer Docling/Granite Docling extraction.
+        4. Ties prefer the remote layout-aware extraction.
         5. Function is deterministic.
 
     Args:
@@ -91,7 +95,7 @@ def select_best_document_extraction(
         zip(candidates, quality_reports, strict=True),
         key=lambda item: (
             item[1].quality_score,
-            item[0].extraction_method in {"docling", "granite_docling"},
+            item[0].extraction_method in {"openai", "docling", "granite_docling"},
         ),
         reverse=True,
     )

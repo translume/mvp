@@ -1,24 +1,20 @@
 FROM python:3.12.13-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
-COPY pyproject.toml uv.lock* ./
-COPY apps ./apps
+COPY docker/runtime-requirements.txt /tmp/runtime-requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/runtime-requirements.txt
+COPY pyproject.toml uv.lock docker-compose.yml ./
 COPY packages ./packages
+COPY apps ./apps
 COPY services ./services
-COPY third_party ./third_party
 COPY configs ./configs
-COPY docker/medea-service-overrides.txt ./docker/medea-service-overrides.txt
-RUN pip install --no-cache-dir uv \
-    && uv pip install --system pydantic fastapi uvicorn httpx gradio pytest numpy h5py \
-    && for repo in /app/third_party/upstream/*; do \
-        if [ -f "$repo/pyproject.toml" ] || [ -f "$repo/setup.py" ]; then \
-          if [ "$repo" = "/app/third_party/upstream/Medea" ]; then \
-            uv pip install --system \
-              --overrides /app/docker/medea-service-overrides.txt \
-              -e "$repo"; \
-          else \
-            uv pip install --system -e "$repo"; \
-          fi; \
-        fi; \
-      done
-ENV PYTHONPATH=/app/packages/translume-schemas/src:/app/packages/translume-ports/src:/app/packages/translume-core/src:/app/packages/translume-clients/src:/app/packages/translume-adapters/src:/app/apps/translume-api/src:/app/apps/translume-ui/src:/app/services/docling-service/src:/app/services/optimuskg-service/src:/app/services/tooluniverse-service/src:/app/services/medea-service/src:/app/services/worker/src
-CMD ["sh", "-lc", "uvicorn medea_service.main:app --host 0.0.0.0 --port 8093"]
+COPY scripts ./scripts
+COPY docker ./docker
+COPY third_party ./third_party
+RUN python scripts/install_packaged_vendors.py \
+    && useradd --create-home --uid 1000 translume \
+    && mkdir -p /data/uploads /data/audit \
+    && chown translume:translume /data/uploads /data/audit
+ENV PYTHONPATH=/app:/app/packages/translume-adapters/src:/app/packages/translume-clients/src:/app/packages/translume-core/src:/app/packages/translume-ports/src:/app/packages/translume-schemas/src:/app/apps/translume-api/src:/app/apps/translume-ui/src:/app/services/docling-service/src:/app/services/medea-service/src:/app/services/optimuskg-service/src:/app/services/tooluniverse-service/src:/app/services/worker/src
+USER translume
+CMD ["python", "-m", "uvicorn", "medea_service.main:app", "--host", "0.0.0.0", "--port", "8093"]

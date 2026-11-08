@@ -14,15 +14,24 @@ import json
 import os
 import re
 import sys
-import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from openai import OpenAI
 
+if __package__:
+    from . import openai_runtime as remote
+else:
+    import openai_runtime as remote
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6")
+OPENAI_MODEL = os.getenv(
+    "OPENAI_REASONING_MODEL", os.getenv("OPENAI_MODEL", "gpt-6-astra")
+)
+OPENAI_REASONING_MODE = os.getenv("OPENAI_REASONING_MODE", "pro")
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "xhigh")
 DEFAULT_PROMPT_NAME = "tumor_board_causal_synthesis_prompt.md"
 
 # The supplied attachment remains a fallback until it is copied beside this
@@ -119,12 +128,12 @@ def build_user_message(
     index = {
         "diagnosis": diagnosis,
         "pathway_analysis": {
-            "path": str(pathway_path.resolve()),
+            "document": "pathway_analysis",
             "sha256": sha256_text(pathway_text),
             "headings": [item["heading"] for item in pathway_sections],
         },
         "research_memo": {
-            "path": str(research_path.resolve()),
+            "document": "research_memo",
             "sha256": sha256_text(research_text),
             "headings": [item["heading"] for item in research_sections],
         },
@@ -166,31 +175,31 @@ def call_with_retries(
     user_message: str,
     attempts: int,
     reasoning_effort: str,
+    reasoning_mode: str = "pro",
+    max_output_tokens: int = 32_000,
+    audit_dir: Path | None = None,
 ) -> Any:
-    last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        try:
-            return client.responses.create(
-                model=model,
-                reasoning={"effort": reasoning_effort},
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-            )
-        except Exception as exc:
-            last_error = exc
-            if attempt == attempts:
-                break
-            delay = 2 ** attempt
-            print(
-                f"API call failed; retrying {attempt}/{attempts} in {delay}s "
-                f"({exc.__class__.__name__})...",
-                file=sys.stderr,
-                flush=True,
-            )
-            time.sleep(delay)
-    raise RuntimeError(f"OpenAI synthesis failed after {attempts} attempts: {last_error}")
+    """Synthesize remotely with explicit storage policy and bounded retries."""
+    settings = remote.RemoteSettings(
+        reasoning_mode=reasoning_mode,
+        reasoning_effort=reasoning_effort,
+        max_attempts=attempts,
+        max_output_tokens=max_output_tokens,
+        max_retry_output_tokens=max(max_output_tokens, 64_000),
+    )
+    return remote.request_response(
+        client,
+        stage="tumor_board_synthesis",
+        settings=settings,
+        audit_dir=audit_dir,
+        request={
+            "model": model,
+            "input": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        },
+    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -215,12 +224,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-name", default="onco_board_summary")
     parser.add_argument("--model", default=OPENAI_MODEL)
     parser.add_argument(
+        "--reasoning-mode", choices=("pro",), default=OPENAI_REASONING_MODE
+    )
+    parser.add_argument(
         "--reasoning-effort",
-        choices=("low", "medium", "high", "xhigh"),
-        default="high",
+        choices=("low", "medium", "high", "xhigh", "max"),
+        default=OPENAI_REASONING_EFFORT,
     )
     parser.add_argument("--max-attempts", type=int, default=2)
-    parser.add_argument("--request-timeout", type=float, default=600.0)
+    parser.add_argument(
+        "--request-timeout",
+        type=float,
+        default=float(os.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "900")),
+    )
+    parser.add_argument("--max-output-tokens", type=int, default=32_000)
     return parser.parse_args(argv)
 
 
@@ -246,33 +263,48 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
         print("[1/2] Parsed both Markdown source documents.", flush=True)
-        print("[2/2] Generating tumor-board report (web search disabled)...", flush=True)
-        client = OpenAI(
-            api_key=OPENAI_API_KEY,
-            timeout=max(30.0, args.request_timeout),
-            max_retries=0,
+        print(
+            "[2/2] Generating tumor-board report (web search disabled)...", flush=True
         )
-        response = call_with_retries(
-            client,
-            model=args.model,
-            system_prompt=system_prompt,
-            user_message=user_message,
-            attempts=max(1, args.max_attempts),
+        settings = remote.RemoteSettings(
+            reasoning_mode=args.reasoning_mode,
             reasoning_effort=args.reasoning_effort,
+            request_timeout_seconds=args.request_timeout,
+            max_attempts=args.max_attempts,
+            max_output_tokens=args.max_output_tokens,
+            max_retry_output_tokens=max(args.max_output_tokens, 64_000),
         )
+        with remote.build_client(OPENAI_API_KEY, settings) as client:
+            response = call_with_retries(
+                client,
+                model=args.model,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                attempts=args.max_attempts,
+                reasoning_effort=args.reasoning_effort,
+                reasoning_mode=args.reasoning_mode,
+                max_output_tokens=args.max_output_tokens,
+                audit_dir=args.output_dir / "openai_calls",
+            )
         report = (response.output_text or "").strip()
         if not report:
             raise RuntimeError("The model returned an empty report.")
 
         report_path = args.output_dir / f"{args.output_name}.md"
         manifest_path = args.output_dir / f"{args.output_name}.manifest.json"
-        report_path.write_text(report + "\n", encoding="utf-8")
-        usage = response.usage.model_dump(mode="json") if response.usage else {}
+        remote.write_text_atomic(report_path, report + "\n")
+        metadata = remote.response_metadata(response)
+        usage = metadata["usage"]
         manifest = {
             "generated_at": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
             "diagnosis": args.diagnosis,
             "model": getattr(response, "model", args.model),
             "response_id": getattr(response, "id", None),
+            "request_id": metadata["request_id"],
+            "provider": "openai",
+            "reasoning_mode": args.reasoning_mode,
+            "store": False,
+            "status": metadata["status"],
             "reasoning_effort": args.reasoning_effort,
             "web_search_enabled": False,
             "system_prompt": str(prompt_path.resolve()),
@@ -282,12 +314,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "research_memo": str(args.research_memo.resolve()),
             "research_memo_sha256": sha256_text(research_text),
             "report": str(report_path.resolve()),
+            "report_sha256": sha256_text(report + "\n"),
+            "audit_directory": str((args.output_dir / "openai_calls").resolve()),
             "usage": usage,
         }
-        manifest_path.write_text(
-            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        remote.write_json_atomic(manifest_path, manifest)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

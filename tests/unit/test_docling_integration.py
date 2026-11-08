@@ -3,25 +3,22 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from docling.datamodel.base_models import InputFormat
-from docling_service.converter import build_docling_format_options
+from docling_service.openai_converter import document_config_from_environment
 from translume_clients.docling import DoclingClientConfig, DoclingServiceClient
 from translume_core.document.docling_json import docling_dict_to_document_extraction
-from translume_core.workflow import TranslumeWorkflowConfig, TranslumeWorkflowProviders, _extract_best_document
+from translume_core.workflow import (
+    TranslumeWorkflowConfig,
+    TranslumeWorkflowProviders,
+    _extract_best_document,
+)
 from translume_schemas.session import StoredFile
 
 
-def test_docling_pdf_format_options_disable_ocr() -> None:
-    first_options = build_docling_format_options()
-    second_options = build_docling_format_options()
-
-    pdf_options = first_options[InputFormat.PDF]
-
-    assert first_options is not second_options
-    assert pdf_options.pipeline_options is not None
-    assert pdf_options.pipeline_options.do_ocr is False
-    assert pdf_options.pipeline_options.do_table_structure is True
+def test_document_service_defaults_to_remote_astra_pro() -> None:
+    settings = document_config_from_environment({})
+    assert settings.model_name == "gpt-6-astra"
+    assert settings.reasoning_mode == "pro"
+    assert settings.max_page_bytes < 50_000_000
 
 
 def test_docling_dict_to_document_extraction_preserves_layout() -> None:
@@ -80,7 +77,7 @@ def test_docling_required_without_provider_fails(tmp_path: Path) -> None:
         sha256="abc",
     )
     stored_file.path.write_bytes(b"%PDF-1.4")
-    with pytest.raises(RuntimeError, match="Docling document extractor is required"):
+    with pytest.raises(RuntimeError, match="Remote document extractor is required"):
         _extract_best_document(
             stored_file,
             TranslumeWorkflowProviders(),
@@ -98,6 +95,8 @@ def test_docling_client_requires_existing_file(tmp_path: Path) -> None:
         size_bytes=1,
         sha256="abc",
     )
-    client = DoclingServiceClient(DoclingClientConfig(base_url="http://docling-service:8090"))
+    client = DoclingServiceClient(
+        DoclingClientConfig(base_url="http://docling-service:8090")
+    )
     with pytest.raises(FileNotFoundError):
         client.extract(stored_file)

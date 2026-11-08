@@ -12,7 +12,7 @@ class LegacyReportExtractionDisabledError(RuntimeError):
     Acceptance criteria:
         1. Prevents deterministic clinical extraction from entering the product
            path.
-        2. Directs callers to the local vLLM structured-output extraction path.
+        2. Directs callers to the OpenAI structured-output extraction path.
         3. Fails loudly instead of returning source-shaped but model-free
            findings.
     """
@@ -24,11 +24,11 @@ def generate_report_extraction_from_chunks(
     report_type: str,
     source_file_id: str,
 ) -> ReportExtractionOutput:
-    """Fail because report extraction must be local-vLLM structured output.
+    """Fail because report extraction must be OpenAI structured output.
 
     This function previously contained deterministic clinical/document rules.
     Under PRIME_DIRECTIVES, production ReportExtractionOutput must be generated
-    by the local structured-output model provider from retrieved OpenSearch
+    by the remote OpenAI structured-output model provider from retrieved OpenSearch
     chunks and then source-aligned back to those chunks. Deterministic helpers
     may validate or align source text, but they must not create clinical
     findings.

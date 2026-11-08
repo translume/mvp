@@ -1,287 +1,160 @@
 {
-  "report_output_dir": "data/exports/runtime_diagnostics",
+  "report_output_dir": "data/runtime_validation",
   "secret_environment_names": [
+    "OPENAI_API_KEY",
     "POSTGRES_DSN",
     "POSTGRES_PUBLIC_DSN",
-    "OPENSEARCH_INITIAL_ADMIN_PASSWORD",
-    "OPENAI_API_KEY",
-    "OPENROUTER_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "GEMINI_API_KEY"
+    "POSTGRES_PASSWORD",
+    "REACTOME_NEO4J_PASSWORD"
   ],
   "commands": [
     {
-      "name": "prime_directives_gate",
-      "argv": [
-        "python",
-        "scripts/validate_prime_directives.py",
-        "--force"
-      ],
+      "name": "docker_compose_version",
+      "argv": ["docker", "compose", "version"],
       "required": true,
-      "timeout_seconds": 180
-    },
-    {
-      "name": "preflight",
-      "argv": [
-        "python",
-        "scripts/full_stack_preflight.py",
-        "--require-docker",
-        "--require-gpu"
-      ],
-      "required": true,
-      "timeout_seconds": 180
+      "timeout_seconds": 60
     },
     {
       "name": "docker_compose_config",
-      "argv": [
-        "docker",
-        "compose",
-        "config"
-      ],
+      "argv": ["docker", "compose", "config", "--quiet"],
       "required": true,
       "timeout_seconds": 120
     },
     {
       "name": "docker_compose_up",
-      "argv": [
-        "docker",
-        "compose",
-        "--profile",
-        "gpu",
-        "--profile",
-        "docling",
-        "up",
-        "--build",
-        "-d"
-      ],
+      "argv": ["docker", "compose", "up", "--build", "--detach", "--wait", "--wait-timeout", "10800"],
       "required": true,
-      "timeout_seconds": 1800
+      "timeout_seconds": 14400
+    },
+    {
+      "name": "prime_directives_gate",
+      "argv": ["docker", "compose", "exec", "-T", "translume-api", "python", "scripts/validate_prime_directives.py", "--force", "--output-dir", "/data/audit/runtime_diagnostics"],
+      "required": true,
+      "timeout_seconds": 180
+    },
+    {
+      "name": "preflight",
+      "argv": ["docker", "compose", "--profile", "verification", "run", "--build", "--rm", "--no-deps", "verify", "python", "scripts/full_stack_preflight.py"],
+      "required": true,
+      "timeout_seconds": 300
     },
     {
       "name": "ui_health",
-      "argv": [
-        "python",
-        "scripts/check_ui_health.py"
-      ],
+      "argv": ["docker", "compose", "exec", "-T", "translume-ui", "python", "scripts/check_ui_health.py", "--url", "http://localhost:7860"],
       "required": true,
-      "timeout_seconds": 120
+      "timeout_seconds": 90
     },
     {
       "name": "integration_full_stack",
-      "argv": [
-        "python",
-        "scripts/run_full_stack_integration.py"
-      ],
+      "argv": ["docker", "compose", "--profile", "verification", "run", "--rm", "--no-deps", "verify"],
       "required": true,
-      "timeout_seconds": 1800
+      "timeout_seconds": 45000
     },
     {
       "name": "docker_compose_ps",
-      "argv": [
-        "docker",
-        "compose",
-        "--profile",
-        "gpu",
-        "--profile",
-        "docling",
-        "ps"
-      ],
+      "argv": ["docker", "compose", "ps", "--all", "--format", "json"],
       "required": false,
       "timeout_seconds": 120
     },
     {
       "name": "docker_compose_logs",
-      "argv": [
-        "docker",
-        "compose",
-        "--profile",
-        "gpu",
-        "--profile",
-        "docling",
-        "logs",
-        "--tail=300"
-      ],
+      "argv": ["docker", "compose", "logs", "--no-color", "--tail=300"],
       "required": false,
       "timeout_seconds": 240
-    },
-    {
-      "name": "gpu_state",
-      "argv": [
-        "nvidia-smi"
-      ],
-      "required": false,
-      "timeout_seconds": 120
     }
   ],
   "failure_patterns": [
     {
       "category": "prime_directives_gate_failure",
-      "patterns": [
-        "PRIME_DIRECTIVES gate: FAILED",
-        "required_true:",
-        "remote_provider_blocked:",
-        "mims_vendors:updateable_git_clones",
-        "ui_dockerfile:",
-        "vllm_model:not_placeholder"
-      ],
-      "explanation": "The PRIME_DIRECTIVES production/demo gate rejected the runtime because a required real dependency, configuration, local-model boundary, or vendor Git checkout is missing.",
+      "patterns": ["PRIME_DIRECTIVES gate: FAILED", "PrimeDirectiveViolation", "OpenAI Pro reasoning mode is required"],
+      "explanation": "The runtime configuration or bundled source validation failed.",
       "next_actions": [
-        "Run `make validate-prime-directives` and fix the first reported error.",
-        "Do not bypass the gate by disabling required services in production/demo mode.",
-        "Run `make vendor-repos && make vendor-status` before live validation."
+        "Run docker compose exec -T translume-api python scripts/validate_prime_directives.py --force --output-dir /data/audit/runtime_diagnostics.",
+        "Restore the supplied Compose configuration and bundled source archives if their hashes or provider settings were modified."
       ]
     },
     {
       "category": "docker_unavailable",
-      "patterns": [
-        "docker executable is required",
-        "cannot connect to the docker daemon",
-        "docker compose is unavailable"
-      ],
-      "explanation": "Docker or Docker Compose is unavailable on the VM.",
+      "patterns": ["Could not execute Docker Compose", "cannot connect to the docker daemon", "docker compose is unavailable", "permission denied while trying to connect to the Docker daemon"],
+      "explanation": "Docker Engine or Docker Compose could not be used by the current account.",
       "next_actions": [
-        "Install Docker Engine and Docker Compose v2.",
-        "Add the user to the docker group or run with appropriate permissions.",
-        "Run `docker compose version` before rerunning validation."
+        "Install and start Docker Desktop, or Docker Engine with the Compose plugin on Linux.",
+        "Confirm docker compose version and docker info succeed with the same user account."
       ]
     },
     {
-      "category": "gpu_unavailable",
-      "patterns": [
-        "nvidia-smi is required",
-        "gpu probe failed",
-        "could not select device driver",
-        "no nvidia gpu"
-      ],
-      "explanation": "The GPU is not visible to Docker or the host runtime.",
+      "category": "openai_access_failure",
+      "patterns": ["OpenAI access check failed", "AuthenticationError", "PermissionDeniedError", "insufficient_quota", "invalid_api_key", "model_not_found"],
+      "explanation": "OpenAI rejected the credentials, model access, or account quota.",
       "next_actions": [
-        "Run `nvidia-smi` on the VM host.",
-        "Install or repair NVIDIA Container Toolkit.",
-        "Verify Docker Compose GPU syntax with the configured NVIDIA runtime."
+        "Check the real OPENAI_API_KEY in .env and the OpenAI project's billing and Astra model access.",
+        "Recreate the affected services after changing .env using docker compose up -d.",
+        "Inspect docker compose logs --tail=300 translume-api docling-service medea-service precision-oncology-pipeline dynamic-pathway-analyzer."
       ]
     },
     {
-      "category": "vllm_model_failure",
-      "patterns": [
-        "vllm structured output failed",
-        "cuda out of memory",
-        "outofmemoryerror",
-        "failed to load model",
-        "model does not exist"
-      ],
-      "explanation": "The local vLLM clinical model did not load or did not produce schema-valid output.",
+      "category": "openai_generation_failure",
+      "patterns": ["OpenAI output failed domain validation", "OpenAI request failed", "OpenAI response was not usable", "incomplete_reason='max_output_tokens'", "content_filter"],
+      "explanation": "A remote inference request failed, was refused, or did not produce a complete valid result.",
       "next_actions": [
-        "Set VLLM_MODEL to a real model that fits the GPU memory.",
-        "Inspect `docker compose logs vllm-clinical`.",
-        "Use a smaller model or lower GPU memory utilization if the model is too large."
+        "Inspect the failing stage's actual response ID, usage receipt, and completion reason in its audit artifacts.",
+        "Resolve the reported provider or input failure before rerunning verification; an incomplete output is not a successful report."
       ]
     },
     {
-      "category": "mims_vendor_failure",
-      "patterns": [
-        "vendored mims repos are required",
-        "vendor_available",
-        "OptimusKG",
-        "ToolUniverse",
-        "Medea",
-        "not a Git repository",
-        "not updateable",
-        ".git",
-        "remote model-provider configuration is not allowed for Medea",
-        "local_chat_completion_patched",
-        "data_available",
-        "database_parseable",
-        "MedeaDB",
-        "OptimusKG cache",
-        "Medea bounded reasoning failed",
-        "local vLLM chat completion failed",
-        "VLLM_BASE_URL host is not in"
-      ],
-      "explanation": "One or more Harvard MIMS vendored repositories or services are unavailable.",
+      "category": "reference_data_failure",
+      "patterns": ["MIMS source verification failed", "MedeaDB is incomplete", "OptimusKG cache is incomplete", "OptimusKG client download failed", "database_parseable=false", "Reference data download failed", "403 Client Error", "SHA256 mismatch"],
+      "explanation": "A bundled source archive or the required real reference dataset could not be verified or downloaded.",
       "next_actions": [
-        "Run `make vendor-repos` on a networked VM to clone or fast-forward pull real Git repositories.",
-        "Run `make vendor-status` and confirm every MIMS repo reports OK.",
-        "Run `make mims-data` and `make mims-data-status` to provision and validate MedeaDB and OptimusKG data.",
-        "Do not use zip-extracted vendor folders for production/demo validation.",
-        "Inspect service logs for optimuskg-service, tooluniverse-service, and medea-service.",
-        "Run `curl -fsS http://localhost:8093/runtime-contract` to validate Medea local-vLLM routing and patching."
+        "Inspect docker compose logs --tail=300 data-init.",
+        "Verify network access to Hugging Face and Harvard Dataverse; resolve any actual access restriction with the data provider.",
+        "Run docker compose run --rm data-init after correcting the reported failure, then docker compose up -d.",
+        "Keep the exact supplied source archives; do not replace required data with sample files."
       ]
     },
     {
       "category": "opensearch_failure",
-      "patterns": [
-        "OpenSearch",
-        "opensearch",
-        "index missing",
-        "cluster health"
-      ],
-      "explanation": "OpenSearch is unhealthy, unavailable, or missing required indexes.",
+      "patterns": ["OpenSearch unavailable", "OpenSearch health", "index missing", "cluster health failed"],
+      "explanation": "The internal OpenSearch service or required index is unavailable.",
       "next_actions": [
-        "Run `make init-opensearch` after OpenSearch is healthy.",
-        "Inspect `docker compose logs opensearch`.",
-        "Confirm OPENSEARCH_PUBLIC_URL points to the VM service port."
+        "Inspect docker compose logs --tail=300 opensearch data-init.",
+        "Run docker compose run --rm data-init after OpenSearch is healthy."
       ]
     },
     {
       "category": "postgres_failure",
-      "patterns": [
-        "Postgres",
-        "postgres",
-        "table(s) missing",
-        "connection refused",
-        "psycopg"
-      ],
-      "explanation": "Postgres is unavailable or the required metadata schema is missing.",
+      "patterns": ["Postgres unavailable", "table(s) missing", "psycopg.OperationalError", "could not connect to server"],
+      "explanation": "The internal Postgres service or required schema is unavailable.",
       "next_actions": [
-        "Run `make init-postgres` after Postgres is healthy.",
-        "Inspect `docker compose logs postgres`.",
-        "Confirm POSTGRES_PUBLIC_DSN points to the VM database port."
+        "Inspect docker compose logs --tail=300 postgres data-init.",
+        "Run docker compose run --rm data-init after Postgres is healthy."
       ]
     },
     {
-      "category": "docling_failure",
-      "patterns": [
-        "docling",
-        "docling_available",
-        "DocumentConverter",
-        "extraction failed"
-      ],
-      "explanation": "Docling document extraction is unavailable or failed on the integration report.",
+      "category": "document_extraction_failure",
+      "patterns": ["extraction failed", "integration report does not exist", "integration report must be a PDF", "integration report is empty"],
+      "explanation": "The real integration PDF is missing, unreadable, or failed remote document extraction.",
       "next_actions": [
-        "Inspect `docker compose logs docling-service`.",
-        "Confirm docling dependencies installed successfully in the service image.",
-        "Run the integration against a valid, readable oncology PDF."
+        "Place the actual report PDF at data/input/report.pdf and set TRANSLUME_E2E_DIAGNOSIS to its actual diagnosis in .env.",
+        "Inspect docker compose logs --tail=300 docling-service translume-api."
       ]
     },
     {
-      "category": "unsafe_or_incomplete_packet",
-      "patterns": [
-        "unsafe clinical phrase",
-        "empty response path",
-        "missing response path",
-        "no validation cards"
-      ],
-      "explanation": "The review packet did not meet the Translume MVP completeness or safety contract.",
+      "category": "incomplete_packet",
+      "patterns": ["unsafe clinical phrase", "empty response path", "missing response path", "no validation cards", "Packet has no actual OpenAI generation receipts", "missing actual response IDs"],
+      "explanation": "The real review packet did not satisfy its completeness or provenance contract.",
       "next_actions": [
-        "Inspect the generated review packet export.",
-        "Fix the first missing artifact or unsafe phrase upstream.",
-        "Rerun `make live-vm-validate` after the artifact path is corrected."
+        "Inspect the generated artifacts and the first failing validation message.",
+        "Correct the reported stage and rerun docker compose --profile verification run --rm verify."
       ]
     },
     {
       "category": "gradio_ui_failure",
-      "patterns": [
-        "ui_health=failed",
-        "connection refused",
-        "translume_ui.app:app",
-        "uvicorn translume_ui",
-        "UI returned"
-      ],
-      "explanation": "The Gradio Oncologist Cockpit did not start or did not return a real HTTP response.",
+      "patterns": ["ui_health=failed", "UI returned HTTP", "UI returned an empty response body", "UI request failed"],
+      "explanation": "The Gradio application did not return a successful real HTTP response.",
       "next_actions": [
-        "Inspect `docker compose logs translume-ui`.",
-        "Confirm docker/ui.Dockerfile runs `python -m translume_ui.app` rather than Uvicorn.",
-        "Confirm TRANSLUME_API_BASE_URL points to http://translume-api:8080 inside Docker."
+        "Inspect docker compose logs --tail=300 translume-ui translume-api.",
+        "Confirm the API container is healthy and Docker has sufficient allocated RAM."
       ]
     }
   ]

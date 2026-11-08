@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
+from openai import APITimeoutError
 
 import precision_oncology_pipeline as p
 
@@ -309,7 +311,8 @@ def test_openai_gateway_builds_structured_web_search_request(tmp_path: Path) -> 
 
     class FakeResponse:
         id = "resp_test"
-        model = "gpt-5.6-luna"
+        status = "completed"
+        model = "gpt-6-astra"
         output_parsed = Echo(value="ok")
 
         def model_dump(self, *, mode: str = "json") -> dict[str, object]:
@@ -319,6 +322,7 @@ def test_openai_gateway_builds_structured_web_search_request(tmp_path: Path) -> 
                 "output": [
                     {
                         "type": "web_search_call",
+                        "status": "completed",
                         "action": {
                             "sources": [
                                 {
@@ -335,16 +339,19 @@ def test_openai_gateway_builds_structured_web_search_request(tmp_path: Path) -> 
     captured: dict[str, object] = {}
 
     class FakeResponses:
-        def parse(self, **kwargs: object) -> FakeResponse:
+        def create(self, **kwargs: object) -> FakeResponse:
             captured.update(kwargs)
             return FakeResponse()
 
     class FakeClient:
         responses = FakeResponses()
 
+        def with_options(self, **kwargs: object) -> FakeClient:
+            return self
+
     config = p.PipelineConfig(
         api_key="sk-test",
-        model="gpt-5.6-luna",
+        model="gpt-6-astra",
         reasoning_effort="medium",
         output_dir=tmp_path,
     )
@@ -365,8 +372,12 @@ def test_openai_gateway_builds_structured_web_search_request(tmp_path: Path) -> 
     )
 
     assert result.parsed.value == "ok"
-    assert captured["model"] == "gpt-5.6-luna"
-    assert captured["text_format"] is Echo
+    assert captured["model"] == "gpt-6-astra"
+    assert captured["text"]["format"]["schema"] == p.openai_wire_schema(
+        Echo.model_json_schema()
+    )
+    assert captured["reasoning"]["mode"] == "pro"
+    assert captured["store"] is False
     assert captured["tool_choice"] == "required"
     assert captured["include"] == ["web_search_call.action.sources"]
     tools = captured["tools"]
@@ -375,7 +386,7 @@ def test_openai_gateway_builds_structured_web_search_request(tmp_path: Path) -> 
     assert web_tool["type"] == "web_search"
     assert web_tool["external_web_access"] is True
     assert web_tool["filters"]["allowed_domains"] == ["clinicaltrials.gov"]
-    assert "wikipedia.org" in web_tool["filters"]["blocked_domains"]
+    assert "blocked_domains" not in web_tool["filters"]
     assert result.web_sources[0].url == ("https://clinicaltrials.gov/study/NCT05094336")
 
 
@@ -391,7 +402,7 @@ def test_openai_gateway_accepts_content_level_parsed_output(tmp_path: Path) -> N
 
     class FakeResponse:
         id = "resp_content"
-        model = "gpt-5.4-mini"
+        model = "gpt-6-astra"
         output_parsed = None
         output = [message]
         output_text = ""
@@ -402,20 +413,27 @@ def test_openai_gateway_accepts_content_level_parsed_output(tmp_path: Path) -> N
             return {"status": "completed", "usage": {}, "output": []}
 
     class FakeResponses:
-        def parse(self, **kwargs: object) -> FakeResponse:
+        def create(self, **kwargs: object) -> FakeResponse:
             del kwargs
             return FakeResponse()
 
     gateway = p.OpenAIResponsesGateway(
         p.PipelineConfig(
             api_key="sk-test",
-            model="gpt-5.4-mini",
+            model="gpt-6-astra",
             reasoning_effort="medium",
             output_dir=tmp_path,
         ),
         p.ArtifactStore(tmp_path, "run_content"),
     )
-    gateway._client = type("Client", (), {"responses": FakeResponses()})()
+    gateway._client = type(
+        "Client",
+        (),
+        {
+            "responses": FakeResponses(),
+            "with_options": lambda self, **kwargs: self,
+        },
+    )()
 
     result = gateway._call_once(
         stage="hypothesis_synthesis",
@@ -444,7 +462,7 @@ def test_hypothesis_synthesis_adapts_after_incomplete_response(
     class FakeResponse:
         def __init__(self, *, complete: bool) -> None:
             self.id = "resp_complete" if complete else "resp_incomplete"
-            self.model = "gpt-5.4-mini"
+            self.model = "gpt-6-astra"
             self.output_parsed = Echo(value="ok") if complete else None
             self.output = []
             self.output_text = ""
@@ -472,7 +490,7 @@ def test_hypothesis_synthesis_adapts_after_incomplete_response(
             }
 
     class FakeResponses:
-        def parse(self, **kwargs: object) -> FakeResponse:
+        def create(self, **kwargs: object) -> FakeResponse:
             calls.append(dict(kwargs))
             return FakeResponse(complete=len(calls) > 1)
 
@@ -480,14 +498,21 @@ def test_hypothesis_synthesis_adapts_after_incomplete_response(
     gateway = p.OpenAIResponsesGateway(
         p.PipelineConfig(
             api_key="sk-test",
-            model="gpt-5.4-mini",
+            model="gpt-6-astra",
             reasoning_effort="medium",
             output_dir=tmp_path,
             max_attempts=2,
         ),
         p.ArtifactStore(tmp_path, "run_retry"),
     )
-    gateway._client = type("Client", (), {"responses": FakeResponses()})()
+    gateway._client = type(
+        "Client",
+        (),
+        {
+            "responses": FakeResponses(),
+            "with_options": lambda self, **kwargs: self,
+        },
+    )()
 
     result = gateway._call_with_retry(
         "hypothesis_synthesis",
@@ -502,7 +527,7 @@ def test_hypothesis_synthesis_adapts_after_incomplete_response(
     assert result.parsed.value == "ok"
     assert calls[0]["reasoning"]["effort"] == "medium"
     assert calls[1]["reasoning"]["effort"] == "low"
-    assert calls[1]["max_output_tokens"] == 30_000
+    assert calls[1]["max_output_tokens"] == 64_000
 
 
 def test_report_compiler_uses_stage_timeout_and_compacts_timeout_retry(
@@ -514,15 +539,13 @@ def test_report_compiler_uses_stage_timeout_and_compacts_timeout_retry(
     class Echo(p.StrictModel):
         value: str
 
-    class APITimeoutError(Exception):
-        pass
-
     calls: list[dict[str, object]] = []
     timeouts: list[float] = []
 
     class FakeResponse:
         id = "resp_report"
-        model = "gpt-5.4-mini"
+        status = "completed"
+        model = "gpt-6-astra"
         output_parsed = Echo(value="ok")
 
         def model_dump(self, *, mode: str = "json") -> dict[str, object]:
@@ -530,10 +553,12 @@ def test_report_compiler_uses_stage_timeout_and_compacts_timeout_retry(
             return {"usage": {}, "output": []}
 
     class FakeResponses:
-        def parse(self, **kwargs: object) -> FakeResponse:
+        def create(self, **kwargs: object) -> FakeResponse:
             calls.append(dict(kwargs))
             if len(calls) == 1:
-                raise APITimeoutError("timed out")
+                raise APITimeoutError(
+                    request=httpx.Request("POST", "https://api.openai.com/v1/responses")
+                )
             return FakeResponse()
 
     class FakeClient:
@@ -547,7 +572,7 @@ def test_report_compiler_uses_stage_timeout_and_compacts_timeout_retry(
     gateway = p.OpenAIResponsesGateway(
         p.PipelineConfig(
             api_key="sk-test",
-            model="gpt-5.4-mini",
+            model="gpt-6-astra",
             reasoning_effort="medium",
             output_dir=tmp_path,
             max_attempts=2,
@@ -1071,7 +1096,7 @@ def test_mocked_end_to_end_run_emits_renderable_final_packet(
         return p.ModelResult(
             parsed=parsed,
             response_id=f"resp_{stage}",
-            model="gpt-5.6-luna",
+            model="gpt-6-astra",
             usage={"input_tokens": 10, "output_tokens": 10},
             web_sources=web_sources,
             cache_hit=False,
@@ -1085,7 +1110,7 @@ def test_mocked_end_to_end_run_emits_renderable_final_packet(
 
     config = p.PipelineConfig(
         api_key="sk-test",
-        model="gpt-5.6-luna",
+        model="gpt-6-astra",
         reasoning_effort="medium",
         output_dir=tmp_path,
         max_concurrency=2,

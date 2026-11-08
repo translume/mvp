@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 import json
 import re
 import sys
 from collections.abc import Mapping
-from datetime import date, timedelta
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol
@@ -95,9 +96,7 @@ class ToolUniverseRuntime:
         self._repo_path = repo_path
         self._workflow_config_path = workflow_config_path
         self._module_names = module_names
-        self._local_tool_overrides = MappingProxyType(
-            dict(local_tool_overrides or {})
-        )
+        self._local_tool_overrides = MappingProxyType(dict(local_tool_overrides or {}))
         validate_local_tool_overrides(self._local_tool_overrides)
 
     def health_report(self) -> dict[str, object]:
@@ -196,6 +195,21 @@ class ToolUniverseRuntime:
             5. Missing workflow context returns skipped artifacts.
             6. Missing configuration and tool execution failures fail loudly.
         """
+        return await asyncio.to_thread(
+            self._run_workflows_sync,
+            workflows=workflows,
+            entities=entities,
+            graph=graph,
+        )
+
+    def _run_workflows_sync(
+        self,
+        *,
+        workflows: list[str],
+        entities: NormalizedEntitySet,
+        graph: GraphEvidenceArtifact,
+    ) -> list[ToolRunArtifact]:
+        """Execute blocking scientific HTTP calls away from the ASGI event loop."""
         catalog = load_workflow_catalog(self._workflow_config_path)
         validate_override_names_in_catalog(
             catalog=catalog,
@@ -246,9 +260,13 @@ def add_tooluniverse_repo_to_path(repo_path: Path) -> None:
         4. Does not create synthetic packages.
     """
     if not repo_path.exists() or not repo_path.is_dir():
-        raise ToolUniverseWorkflowError(f"vendored ToolUniverse repo missing: {repo_path}")
+        raise ToolUniverseWorkflowError(
+            f"vendored ToolUniverse repo missing: {repo_path}"
+        )
     if not any(repo_path.iterdir()):
-        raise ToolUniverseWorkflowError(f"vendored ToolUniverse repo is empty: {repo_path}")
+        raise ToolUniverseWorkflowError(
+            f"vendored ToolUniverse repo is empty: {repo_path}"
+        )
     candidates = [repo_path, repo_path / "src"]
     for candidate in candidates:
         if candidate.exists():
@@ -291,13 +309,21 @@ def load_workflow_catalog(path: Path) -> ToolUniverseWorkflowCatalog:
             f"ToolUniverse workflow config is invalid JSON: {path}: {error}"
         ) from error
     if not isinstance(payload, dict):
-        raise ToolUniverseWorkflowError("ToolUniverse workflow config must be a JSON object")
+        raise ToolUniverseWorkflowError(
+            "ToolUniverse workflow config must be a JSON object"
+        )
     workflows = payload.get("workflows")
     if not isinstance(workflows, dict):
-        raise ToolUniverseWorkflowError("ToolUniverse workflow config missing workflows object")
+        raise ToolUniverseWorkflowError(
+            "ToolUniverse workflow config missing workflows object"
+        )
     required_raw = payload.get("required_workflows", list(REQUIRED_MVP_WORKFLOWS))
-    if not isinstance(required_raw, list) or not all(isinstance(item, str) for item in required_raw):
-        raise ToolUniverseWorkflowError("ToolUniverse required_workflows must be a string list")
+    if not isinstance(required_raw, list) or not all(
+        isinstance(item, str) for item in required_raw
+    ):
+        raise ToolUniverseWorkflowError(
+            "ToolUniverse required_workflows must be a string list"
+        )
     required = tuple(item.strip() for item in required_raw if item.strip())
     missing_required = sorted(set(required) - set(workflows))
     if missing_required:
@@ -313,23 +339,33 @@ def load_workflow_catalog(path: Path) -> ToolUniverseWorkflowCatalog:
 def validate_workflow_spec(workflow: str, spec: Any) -> None:
     """Validate one workflow spec without executing tools."""
     if not isinstance(spec, dict):
-        raise ToolUniverseWorkflowError(f"ToolUniverse workflow spec must be an object: {workflow}")
+        raise ToolUniverseWorkflowError(
+            f"ToolUniverse workflow spec must be an object: {workflow}"
+        )
     steps = spec.get("steps")
     if not isinstance(steps, list) or not steps:
-        raise ToolUniverseWorkflowError(f"ToolUniverse workflow has no executable steps: {workflow}")
+        raise ToolUniverseWorkflowError(
+            f"ToolUniverse workflow has no executable steps: {workflow}"
+        )
     for index, step in enumerate(steps):
         if not isinstance(step, dict):
-            raise ToolUniverseWorkflowError(f"ToolUniverse step must be an object: {workflow}[{index}]")
+            raise ToolUniverseWorkflowError(
+                f"ToolUniverse step must be an object: {workflow}[{index}]"
+            )
         tool_name = str(step.get("tool_name", "")).strip()
         if not tool_name:
-            raise ToolUniverseWorkflowError(f"ToolUniverse step missing tool_name: {workflow}[{index}]")
+            raise ToolUniverseWorkflowError(
+                f"ToolUniverse step missing tool_name: {workflow}[{index}]"
+            )
         arguments = step.get("arguments", {})
         if not isinstance(arguments, dict):
             raise ToolUniverseWorkflowError(
                 f"ToolUniverse step arguments must be an object: {workflow}[{index}]"
             )
         required_context = step.get("required_context", [])
-        if not isinstance(required_context, list) or not all(isinstance(item, str) for item in required_context):
+        if not isinstance(required_context, list) or not all(
+            isinstance(item, str) for item in required_context
+        ):
             raise ToolUniverseWorkflowError(
                 f"ToolUniverse step required_context must be a string list: {workflow}[{index}]"
             )
@@ -384,7 +420,9 @@ def workflow_tool_names(
     for workflow in workflows:
         spec = catalog.workflows.get(workflow)
         if not isinstance(spec, dict):
-            raise ToolUniverseWorkflowError(f"ToolUniverse workflow is not configured: {workflow}")
+            raise ToolUniverseWorkflowError(
+                f"ToolUniverse workflow is not configured: {workflow}"
+            )
         for step in spec["steps"]:
             name = str(step["tool_name"]).strip()
             if name not in names:
@@ -404,13 +442,10 @@ def validate_local_tool_overrides(
     """
     for name, handler in overrides.items():
         if not name or name != name.strip():
-            raise ToolUniverseWorkflowError(
-                f"invalid local override name: {name!r}"
-            )
+            raise ToolUniverseWorkflowError(f"invalid local override name: {name!r}")
         if getattr(handler, "tool_name", None) != name:
             raise ToolUniverseWorkflowError(
-                "local override key does not match handler.tool_name: "
-                f"{name!r}"
+                f"local override key does not match handler.tool_name: {name!r}"
             )
 
 
@@ -420,9 +455,7 @@ def validate_override_names_in_catalog(
     overrides: Mapping[str, LocalToolOverride],
 ) -> None:
     """Reject local override names absent from governed workflows."""
-    configured = set(
-        workflow_tool_names(catalog, tuple(catalog.workflows))
-    )
+    configured = set(workflow_tool_names(catalog, tuple(catalog.workflows)))
     unknown = sorted(set(overrides) - configured)
     if unknown:
         raise ToolUniverseWorkflowError(
@@ -436,9 +469,7 @@ def vendor_tool_names(
     override_names: frozenset[str],
 ) -> tuple[str, ...]:
     """Return configured names not routed through local overrides."""
-    return tuple(
-        name for name in configured_names if name not in override_names
-    )
+    return tuple(name for name in configured_names if name not in override_names)
 
 
 def load_tooluniverse_engine(
@@ -559,10 +590,9 @@ def run_workflow(
                 )
                 successful_steps += 1
                 continue
-            if (
-                step_failure_policy(step) != "record_unavailable"
-                or not is_external_source_unavailability(error)
-            ):
+            if step_failure_policy(
+                step
+            ) != "record_unavailable" or not is_external_source_unavailability(error):
                 raise
             unavailable = unavailable_step_evidence_item(
                 workflow=workflow,
@@ -611,7 +641,9 @@ def step_failure_policy(step: dict[str, Any]) -> str:
     """
     policy = str(step.get("failure_policy", "fail")).strip()
     if policy not in STEP_FAILURE_POLICIES:
-        raise ToolUniverseWorkflowError(f"invalid ToolUniverse failure policy: {policy!r}")
+        raise ToolUniverseWorkflowError(
+            f"invalid ToolUniverse failure policy: {policy!r}"
+        )
     return policy
 
 
@@ -754,8 +786,7 @@ def expand_step_contexts(
     values = context.get(str(foreach_key))
     if not isinstance(values, list) or not values:
         raise ToolUniverseWorkflowError(
-            "ToolUniverse foreach_context requires a non-empty list: "
-            f"{foreach_key}"
+            f"ToolUniverse foreach_context requires a non-empty list: {foreach_key}"
         )
     return [{**context, "foreach_value": value} for value in values]
 
@@ -783,9 +814,7 @@ def skipped_workflow_artifact(
         Tool run artifact documenting the skipped workflow.
     """
     missing = ", ".join(missing_context)
-    artifact_id = (
-        f"artifact_{uuid5(NAMESPACE_URL, entities.artifact_id + workflow + ':tooluniverse').hex[:16]}"
-    )
+    artifact_id = f"artifact_{uuid5(NAMESPACE_URL, entities.artifact_id + workflow + ':tooluniverse').hex[:16]}"
     return ToolRunArtifact(
         artifact_id=artifact_id,
         workflow=workflow,
@@ -904,7 +933,9 @@ def template_context(
     resistance_graph_terms = subgraph_query_terms(graph, "resistance_path")
     resistance_graph_relations = subgraph_relation_terms(graph, "resistance_path")
     drug_target_graph_terms = subgraph_query_terms(graph, "drug_target_biomarker")
-    drug_target_graph_relations = subgraph_relation_terms(graph, "drug_target_biomarker")
+    drug_target_graph_relations = subgraph_relation_terms(
+        graph, "drug_target_biomarker"
+    )
     biomarker_graph_terms = subgraph_query_terms(graph, "biomarker_monitoring")
     biomarker_graph_relations = subgraph_relation_terms(graph, "biomarker_monitoring")
 
@@ -965,11 +996,19 @@ def template_context(
     )
     therapy_pressure_terms = bounded_query_terms(
         priority_terms=[*diseases, *gene_terms, *variants, *therapy_graph_terms],
-        secondary_terms=[*therapy_graph_relations, "therapy pressure", "selective pressure"],
+        secondary_terms=[
+            *therapy_graph_relations,
+            "therapy pressure",
+            "selective pressure",
+        ],
     )
     resistance_path_terms = bounded_query_terms(
         priority_terms=[*diseases, *gene_terms, *resistance_graph_terms],
-        secondary_terms=[*resistance_graph_relations, "resistance mechanism", "escape route"],
+        secondary_terms=[
+            *resistance_graph_relations,
+            "resistance mechanism",
+            "escape route",
+        ],
     )
     drug_target_biomarker_terms = bounded_query_terms(
         priority_terms=[*diseases, *gene_terms, *drug_target_graph_terms],
@@ -998,7 +1037,9 @@ def template_context(
         secondary_terms=[*drug_target_graph_terms, *therapy_graph_terms],
     )
     return {
-        "entities": unique_nonempty([entity.normalized_label for entity in entities.entities]),
+        "entities": unique_nonempty(
+            [entity.normalized_label for entity in entities.entities]
+        ),
         "genes": genes,
         "diseases": diseases,
         "variants": variants,
@@ -1035,7 +1076,9 @@ def template_context(
     }
 
 
-def subgraph_query_terms(graph: GraphEvidenceArtifact, retrieval_mode: str) -> list[str]:
+def subgraph_query_terms(
+    graph: GraphEvidenceArtifact, retrieval_mode: str
+) -> list[str]:
     """Return query terms for a targeted graph retrieval mode."""
     terms: list[str] = []
     for subgraph in graph.subgraphs:
@@ -1044,7 +1087,9 @@ def subgraph_query_terms(graph: GraphEvidenceArtifact, retrieval_mode: str) -> l
     return unique_nonempty(terms)
 
 
-def subgraph_relation_terms(graph: GraphEvidenceArtifact, retrieval_mode: str) -> list[str]:
+def subgraph_relation_terms(
+    graph: GraphEvidenceArtifact, retrieval_mode: str
+) -> list[str]:
     """Return relation terms attached to a targeted graph retrieval mode."""
     edge_ids: set[str] = set()
     for subgraph in graph.subgraphs:
@@ -1148,9 +1193,7 @@ def build_literature_queries(
         disease_clause = render_boolean_clause(disease_terms, "OR")
         variant_clause = render_boolean_clause(variant_terms, "OR")
         clauses = [
-            f"({clause})"
-            for clause in (disease_clause, variant_clause)
-            if clause
+            f"({clause})" for clause in (disease_clause, variant_clause) if clause
         ]
         queries.append(" AND ".join(clauses))
     return unique_nonempty(queries)[:max_queries]
@@ -1214,7 +1257,9 @@ def omit_empty_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def render_arguments(template: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+def render_arguments(
+    template: dict[str, Any], context: dict[str, Any]
+) -> dict[str, Any]:
     """Render configured ToolUniverse arguments from dynamic context."""
     return {key: render_value(value, context) for key, value in template.items()}
 
@@ -1223,7 +1268,9 @@ def render_value(value: Any, context: dict[str, Any]) -> Any:
     if isinstance(value, str) and value.startswith("$"):
         key = value[1:]
         if key not in context:
-            raise ToolUniverseWorkflowError(f"unknown ToolUniverse argument placeholder: {value}")
+            raise ToolUniverseWorkflowError(
+                f"unknown ToolUniverse argument placeholder: {value}"
+            )
         return context[key]
     if isinstance(value, list):
         return [render_value(item, context) for item in value]
@@ -1245,7 +1292,9 @@ def reject_tool_error_result(
             raise ToolUniverseWorkflowError(
                 f"ToolUniverse tool returned error: {workflow}[{step_index}] {tool_name}: {result}"
             )
-    if isinstance(result, str) and result.strip().casefold().startswith(("error", "toolvalidationerror")):
+    if isinstance(result, str) and result.strip().casefold().startswith(
+        ("error", "toolvalidationerror")
+    ):
         raise ToolUniverseWorkflowError(
             f"ToolUniverse tool returned error text: {workflow}[{step_index}] {tool_name}: {result[:500]}"
         )
@@ -1347,8 +1396,6 @@ def to_text(value: Any) -> str:
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
     except TypeError:
         return repr(value)
-
-
 
 
 def _recent_pubmed_date_filter() -> str:

@@ -1,713 +1,138 @@
-# Translume 
+# Run Translume with Docker and OpenAI
 
-<p align="center"> <img src="docs/translume-logo.png" alt="Translume logo" width="900"/> </p> <p align="center"> <strong>Turning oncology reports into near-time, explainable, clinician-reviewable tumor-behavior intelligence</strong> &nbsp;&nbsp;&nbsp;</p> <p style="font-weight:lighter;" align="center">The future foundation for Adaptive Precision Oncology &nbsp;&nbsp;&nbsp;</p><p align="center"> <img alt="UV" src="https://img.shields.io/badge/UV-0.5.18-6f2c91?style=for-the-badge&logo=python&logoColor=white"/> &nbsp;&nbsp;&nbsp; <img alt="AgentLite" src="https://img.shields.io/badge/AgentLite-0.1.2-2d9cdb?style=for-the-badge"/> &nbsp;&nbsp;&nbsp; <img alt="OpenRouter API" src="https://img.shields.io/badge/OpenRouter-API-5f6368?style=for-the-badge"/> &nbsp;&nbsp;&nbsp; <img alt="Datasets" src="https://img.shields.io/badge/Datasets-Hugging%20Face-4c8eda?style=for-the-badge"/> </p> 
+## 1. Install and start Docker
 
+Install [Docker Desktop](https://docs.docker.com/get-started/get-docker/) for your laptop and start it. On Linux, Docker Engine with the Compose plugin also works. Docker must be running Linux containers.
 
-  
-<p align="center">
-  <a href="https://translume.github.io/web/index.html">
-    <img src="https://img.shields.io/badge/Project-Website-4c8eda?style=for-the-badge" alt="Project Website" />
-  </a>
-  &nbsp;&nbsp;&nbsp;
+Open a terminal and check:
 
-  <a href="https://translume.github.io/web/papers.html">
-    <img src="https://img.shields.io/badge/Research-Papers-7b61ff?style=for-the-badge" alt="Research Papers" />
-  </a>
-  &nbsp;&nbsp;&nbsp;
-
-  <a href="https://translume.github.io/web/platform.html">
-    <img src="https://img.shields.io/badge/Platform-Overview-00bcd4?style=for-the-badge" alt="Platform Overview" />
-  </a>
-  &nbsp;&nbsp;&nbsp;
-
-  <a href="https://translume.github.io/web/tutorials.html">
-    <img src="https://img.shields.io/badge/Tutorials-Demos-14b8a6?style=for-the-badge" alt="Tutorials & Demos" />
-  </a>
-</p>
-
-
-Translume is a clinical output compiler for translational oncology. It ingests an oncology molecular report, extracts structured molecular findings, maps them into biological axes, ranks molecular fits for expert review, explains “why from omics,” builds a Finding → Mechanism → Molecular Fit → Validation Test chain, identifies confirmatory testing needs, and produces a source-backed tumor-behavior hypothesis without making treatment recommendations. Modern oncology teams do not lack molecular data. They lack a fast, defensible way to turn NGS, WGS, FISH, IHC, RNA, pathology, and research reports into reviewable clinical-translational reasoning. Molecular reports surface variants, copy-number changes, expression signals, limitations, and negative findings, but those facts usually remain disconnected from mechanism, evidence strength, validation needs, and disease behavior. Translume closes that gap by converting raw report content into a structured review surface where every major claim is tied to source text, evidence class, uncertainty, provenance, and human validation. 
-
-The MVP focuses on one high-value workflow: one oncology report becomes one structured, explainable, clinician-reviewable tumor-behavior intelligence packet. The output shows what the report found, why each finding may matter biologically, what is unsupported, what must be validated next, which claims are facts versus hypotheses, and who accepted, rejected, or flagged each claim. This reduces tumor-board and translational review burden while creating reusable structured reasoning that can later support longitudinal disease modeling. The system is intentionally not a treatment recommendation engine, diagnostic device, outcome predictor, or adaptive precision oncology platform yet. It is the foundation those future systems require: accurate document extraction, source-backed chunks, local structured model outputs, biomedical graph context, governed scientific-tool evidence, bounded omics/literature reasoning, human validation controls, and a provenance-backed ledger. 
-
-## Current MVP Scope
-```
-→ PDF report of NGS, WGS, FISH, IHC, etc...
-→ Docling / Granite Docling document extraction
-→ section-aware chunks
-→ OpenSearch indexing
-→ local vLLM structured clinical extraction
-→ normalized molecular entities
-→ KG graph context
-→ Governed evidence workflows
-→ Bounded omics/literature reasoning
-→ molecular phenotype
-→ molecular-fit matrix
-→ mechanism Sankey
-→ confirmatory testing plan
-→ tumor-behavior model
-→ evidence-classified claim cards
-→ human validation
-→ clinical ledger export
-```
----
-
-
-Translume is a local-first clinical output compiler that turns one oncology molecular report into reviewable tumor-behavior intelligence: source-backed findings, evidence-classified claims, mechanism paths, validation tests, human review controls, and provenance-backed ledger export.
-
-This repository is a modular MVP workflow, not a clinical device. It intentionally does not produce treatment recommendations, outcome predictions, transition probabilities, or autonomous clinical decisions.
-
-## Stack
-
-- Python packages managed by `uv` workspaces.
-- FastAPI API workflow for upload → extraction → review-packet export.
-- Gradio UI cockpit that calls the production API path.
-- OpenSearch retrieval/index substrate.
-- Postgres ledger/artifact metadata.
-- Local vLLM structured output model provider.
-- Docling / Granite Docling document extraction boundary.
-- Harvard MIMS repos vendored under `third_party/upstream` and wrapped by Translume ports/adapters.
-
-## Quick development commands
-
-```bash
-uv sync --all-packages --dev
-make test
-make docker-config
+```sh
+docker version
+docker compose version
 ```
 
-## Precision oncology JSON batch service
+Both commands must succeed. The application runs on CPU. All learned-model inference, including document understanding, embeddings, evidence judging, and report generation, uses your OpenAI API account.
 
-The standalone `precision_oncology_json_pipeline` runs as a persistent Docker
-Compose service so commands can be executed inside it. Start it with:
+Leave sufficient RAM and free disk space available to Docker. The initial setup downloads the real scientific reference data and container images. The three DepMap matrices alone total about 4.1 GB; OptimusKG, Reactome, database storage, and images require additional space. These are reference datasets, not locally executed models.
 
-```bash
-docker compose up --build -d precision-oncology-pipeline
+## 2. Extract the project
+
+Extract the supplied ZIP. Open a terminal in the extracted `mvp-main` folder, the folder containing `docker-compose.yml` and this README.
+
+## 3. Create your environment file
+
+On macOS or Linux:
+
+```sh
+cp .env.example .env
 ```
 
-Set `PRECISION_ONCOLOGY_INPUT_PATH` and
-`PRECISION_ONCOLOGY_OUTPUT_DIR` in `.env` to use other host paths. For a
-cost-controlled live run, also set `DOWNSTREAM_OPENAI_API_KEY`, then execute:
+In Windows PowerShell:
 
-```bash
-docker compose exec --user pipeline precision-oncology-pipeline \
-  python /app/precision_oncology_pipeline.py \
-  --input /inputs/review_packet.json \
-  --output-dir /outputs \
-  --model gpt-5.6-luna \
-  --quick-test
+```powershell
+Copy-Item .env.example .env
 ```
 
-Use `--user pipeline` so generated files retain the configured host UID/GID.
-The host `./precision_oncology_json_pipeline` directory is bind-mounted at
-`/app`, so source edits are immediately visible in the running container.
-The service is an independent container and does not start or depend on the
-Translume API, database, search, vLLM, or MIMS services.
+Open `.env` in a text editor. Set the empty `OPENAI_API_KEY=` entry to your actual OpenAI project API key, then save the file. Do not add spaces around `=`. The key must have API billing/quota and access to the configured models.
 
-## Dynamic pathway analyzer service
+The included model settings are ready to use:
 
-The standalone `dynamic_pathway_analyzer` directory is available as a
-persistent Docker Compose command container. Configure
-`DOWNSTREAM_OPENAI_API_KEY` in `.env`, then start it with:
-
-```bash
-docker compose up --build -d dynamic-pathway-analyzer
+```dotenv
+OPENAI_REASONING_MODEL=gpt-6-astra
+OPENAI_DOCUMENT_MODEL=gpt-6-astra
+OPENAI_REASONING_EFFORT=xhigh
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+OPENAI_EMBEDDING_DIMENSIONS=1536
+OPENAI_REQUEST_TIMEOUT_SECONDS=900
 ```
 
-Run a pathway analysis against a JSON file inside the bind-mounted directory:
+The application sends `reasoning.mode=pro` to the Responses API. Keep the defaults for the intended Astra Pro workflow. The API key remains in your local `.env`; it is not copied into the Docker images.
 
-```bash
-docker compose exec --user analyzer dynamic-pathway-analyzer \
-  python /app/dynamic_pathway_analyzer.py \
-  /app/state_after_trial_prescreens.json \
-  --diagnosis "dedifferentiated chondrosarcoma" \
-  --output-dir /app/pathway_output
+## 4. Build and start the application
+
+From the project folder, run:
+
+```sh
+docker compose up --build -d
 ```
 
-The host `./dynamic_pathway_analyzer` directory is mounted at `/app`, so input,
-source, and generated output files are shared with the container. Configure
-`DYNAMIC_PATHWAY_UID` and `DYNAMIC_PATHWAY_GID` when the host user does not use
-UID/GID `1000`. Stop the service with:
+The first startup builds the CPU images, starts the databases, downloads the required MedeaDB and OptimusKG datasets, validates those files, and creates the database schema and search indexes. It then starts the document, evidence, API, UI, and report services. Existing complete data is reused on subsequent starts.
 
-```bash
-docker compose stop dynamic-pathway-analyzer
+The build and initial downloads can take considerable time. To see progress from another terminal in the same folder:
+
+```sh
+docker compose logs --tail=100 -f data-init
 ```
 
-The analyzer is independent of the Translume application stack. Its live model
-and web-search operations use the OpenAI API and may incur usage charges.
+Press Ctrl+C to stop following the log. This leaves the containers running.
 
-## UI-driven downstream pathway analysis
+Check startup status:
 
-The Gradio cockpit accepts a required diagnosis together with the oncology PDF.
-After Translume persists the review packet, it runs the precision-oncology
-pipeline and both dynamic pathway-analysis stages through internal services.
-The cockpit then displays the pathway analysis, research memo, and tumor-board
-causal summary in its **Pathway analysis** tab.
-
-After the pathway content loads, **Download Pathway Analysis PDF** creates a
-local, paginated export containing all three displayed sections. The same
-export is available after a completed-session ZIP is loaded. PDF generation
-runs only in the Gradio container, does not fetch remote images or execute
-embedded HTML, and retains the clinician-review disclaimer.
-
-To display a previously completed run without rerunning any service, ZIP one
-`data/artifacts/session_*` directory. In the cockpit sidebar, open **Load
-completed session**, upload the ZIP, and click **Load completed session**.
-The importer reads the pathway analysis, research memo, tumor-board summary,
-tumor-board manifest, and `translume_review_packet.json` directly from one
-coherent completed session. The packet is validated as `ReviewPacketExport`
-and must match the pathway session. The importer then populates **Clinical
-review**, **Evidence details**, **Technical audit**, **Raw packet**, and
-**Pathway analysis** through the same panel renderer used for live API results.
-It does not synthesize artifacts or rerun services. Archives with missing,
-ambiguous, unsafe, malformed, empty, mismatched, or hash-invalid artifacts are
-rejected.
-
-Artifacts are isolated below `data/artifacts/<session_id>/`. The precision
-pipeline writes its `run_<id>` directory under `precision_oncology_outputs`,
-then the pathway and tumor-board outputs are written beneath the same session
-directory. The UI and external callers must use the Translume API; neither is
-given Docker-socket access or a direct command-execution interface.
-
-Start the full workflow services with:
-
-```bash
-make gradio-up
+```sh
+docker compose ps -a
 ```
 
-Set `DOWNSTREAM_OPENAI_API_KEY` for the downstream model calls. The defaults
-for internal runner URLs and timeouts are documented in `.env.example`. This
-target starts the precision-oncology and dynamic-pathway runners alongside the
-API and UI. Do not set `OPENAI_API_KEY`; demo and production API containers
-reject remote-provider credentials.
+`data-init` should show `Exited (0)`. The application services should become healthy. Startup deliberately fails if the real datasets, required services, or OpenAI model access are unavailable.
 
-### Structured-output request budgets
+If startup stops, inspect the failing service before retrying:
 
-The local vLLM workflow bounds every structured response with
-`VLLM_STRUCTURED_OUTPUT_MAX_TOKENS`. Report extraction additionally uses the
-served model tokenizer plus explicit input, initial-output, and retry-output
-budgets. The chunk count is a secondary guard. Length-stopped requests are
-deterministically subdivided and validated leaves are merged; partial JSON is
-never used. Long chunks retain their original source ID while being segmented,
-so report text is not discarded to shorten a prompt.
-Leaf responses use a bounded internal schema to prevent repeated strings or
-array entries from consuming the output window. Those bounds apply per source
-unit only; the final merged report remains capable of containing every finding.
-
-Confirmatory-test generation uses a separate validation-focused compactor and
-an exact rendered-prompt token preflight. Configure its input allowance with
-`CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET` (default `8000`). Oversized broad
-evidence bundles are not sent to vLLM.
-
-Tumor-behavior generation serializes its compacted evidence payload as
-canonical compact JSON and measures the complete rendered prompt with the
-served model tokenizer before generation. Configure the input allowance with
-`TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET` (default `24000`), leaving room for
-`VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` and serving overhead. The same bound protects
-the larger truncation retry, so an oversized prompt fails locally instead of
-reaching vLLM as a context-length request.
-
-Clinical-narrative generation uses a dedicated bounded generation schema. Its
-Markdown is capped at 8,000 characters, its safety note at 500 characters, and
-model-authored provenance is limited to four short IDs. Translume replaces
-those IDs with the complete canonical bundle provenance after validation. This
-keeps the narrative within the structured-output allowance without weakening
-source containment or changing the persisted public schema.
-
-Local structured stages retry one length-stopped response with
-`VLLM_STRUCTURED_OUTPUT_RETRY_MAX_TOKENS` (default `6000`). Structured decoding
-also applies generation-only string and array limits to prevent repeated rows
-or text from exhausting the response window. Repeated failures identify the
-schema, output allowance, and attempt count.
-
-If tumor-behavior generation reaches the general output limit, it is retried
-once with `VLLM_TUMOR_BEHAVIOR_MAX_TOKENS` (default `6000`). A second
-token-limit stop fails with an explicit truncation error. Malformed completed
-responses are not retried, and generated clinical content is not included in
-the error message.
-
-Narrative containment treats administrative missing-value notation such as
-`N/A`, `NA`, `not applicable`, and `unknown` as non-clinical text. Ordinary
-slash notation is ignored unless it contains a biomedical-symbol anchor;
-terms such as `BRAF/MEK` remain subject to source containment.
-
-Mechanism Sankey graph invariants participate in the bounded structured-output
-repair loop. Conflicting duplicate node IDs or missing link endpoints receive
-one repair attempt; a second invalid graph uses the source-backed deterministic
-Sankey fallback and records `deterministic_fallback` provenance instead of
-failing report processing.
-
-Ranked treatment options deterministically fill empty before-use tests and
-limitations from source-derived matrix and actionable-biology validation text.
-When source limitation text is unavailable, a conservative clinician-review
-limitation is used so an otherwise valid option row does not fail processing.
-
-### Pathway-source availability
-
-`pathway_context` uses Reactome, PathwayCommons, and KEGG. If an external
-source is temporarily unavailable, its status, source name, HTTP status, and
-reason are preserved as unavailable-source evidence while the remaining
-pathway sources continue. At least one pathway source must return real output;
-otherwise processing fails without fabricating pathway evidence.
-
-Reactome search runs locally through the governed `ReactomeContent_search`
-name and a release-pinned AWS Public ECR GraphDB image. The graph is private to
-Compose; PathwayCommons and KEGG remain vendor ToolUniverse calls. Use
-`make reactome-image`, `make reactome-status`, and `make reactome-smoke` to
-prepare and verify it. There is no remote Reactome fallback. See
-`docs/architecture/reactome_local_graphdb.md`.
-
-## MVP invariant
-
-Every clinical statement must be traceable to source report text, a structured artifact, graph/tool/Medea evidence, or a human validation decision.
-
-
-## Production workflow status
-
-The API endpoint `/api/v1/reports/process` now runs the real MVP compiler path:
-raw PDF storage, PyMuPDF document extraction, section-aware chunking, deterministic
-source-backed report extraction, entity normalization, strict MIMS evidence
-provider integration, clinical artifact compilation, claim cards, narrative,
-provenance, and review-packet export.
-
-`TRANSLUME_REQUIRE_MIMS=true` is the default. Missing OptimusKG, ToolUniverse, or
-Medea artifacts fail explicitly rather than silently fabricating evidence. Set
-`TRANSLUME_REQUIRE_MIMS=false` only for local development of the core compiler.
-
-See `docs/architecture/production_workflow.md` and
-`docs/architecture/next_steps.md`.
-
-
-## Gradio UI production launch
-
-The Gradio Oncologist Cockpit now launches directly through:
-
-```bash
-python -m translume_ui.app
+```sh
+docker compose logs --tail=200 data-init translume-api tooluniverse-service medea-service
 ```
 
-The UI container no longer attempts to run Gradio as an ASGI app through
-Uvicorn. Inside Docker, `TRANSLUME_API_BASE_URL` is set to
-`http://translume-api:8080` so the upload and validation actions call the real
-FastAPI service over the Compose network. The UI health check performs a real
-HTTP request to `http://localhost:7860` and the live VM validator now includes a
-required `ui_health` command.
+For an OpenAI authentication, permission, or quota error, correct the key or account access and rerun `docker compose up --build -d`. For a data download error, restore access to the reported Hugging Face or Harvard Dataverse URL and rerun the same command. A failed download is never replaced with sample data. For a container killed because of insufficient memory, increase Docker's memory allocation and restart it.
 
-## OpenSearch persistence
+## 5. Generate your report
 
-The `/api/v1/reports/process` workflow now requires a real OpenSearch store by
-default through `TRANSLUME_REQUIRE_OPENSEARCH=true`. The workflow creates the MVP
-indexes and persists document chunks, report findings, structured artifacts,
-normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning,
-claim cards, artifact provenance, validation decisions, and ledger events.
+Open [http://localhost:7860](http://localhost:7860) in your browser.
 
-Initialize indexes manually when needed:
+1. Upload your actual oncology report PDF under **Oncology report PDF** (maximum 100 MB and 500 pages).
+2. Choose the matching **Report type**.
+3. Enter the report's actual **Diagnosis**.
+4. Click **Generate report and pathway analysis** once.
+5. Leave the page open while the application processes the report, retrieves evidence, and completes the remote OpenAI stages. Long reasoning and research runs can take substantial time.
+6. Review the **Pathway analysis**, **Clinical review**, **Technical audit**, and **Raw packet** tabs. The workflow retains human validation; model-generated hypotheses require review.
 
-```bash
-make init-opensearch
+To follow processing:
+
+```sh
+docker compose logs --tail=100 -f translume-api docling-service medea-service precision-oncology-pipeline dynamic-pathway-analyzer
 ```
 
-For local unit tests without a running OpenSearch process, the persistence layer
-is exercised through a recording store. The product path uses the HTTP
-OpenSearch client in `translume_clients.opensearch.OpenSearchVectorStore`.
+## 6. Save the results
 
-## Postgres ledger/artifact metadata
+In **Pathway analysis**, click **Download Pathway Analysis PDF**, then download the generated file. It contains the pathway analysis, research memo, and tumor-board causal summary.
 
-The report-processing workflow now requires durable Postgres metadata by default
-through `TRANSLUME_REQUIRE_POSTGRES=true`. Postgres is the source of truth for
-case/session metadata, source-file references, document chunk metadata,
-structured artifact metadata, report findings, normalized entities, graph/tool
-/Medea evidence metadata, evidence claims, provenance, validation decisions,
-ledger events, and the full review-packet payload.
+In **Technical audit**, click **Fetch technical packet export** to download the persisted packet JSON, including provenance and review information. The **Clinical review** tab retains the reviewer decision controls.
 
-Initialize Postgres tables manually when needed:
+The full downstream files are also written to `data/artifacts` in the extracted project folder, grouped by session and run. Uploaded reports, review records, search indexes, scientific datasets, and API audit journals persist in Docker volumes.
 
-```bash
-make init-postgres
-```
+## 7. Run the real end-to-end verification when required
 
-Runtime defaults:
+This optional command makes additional billable OpenAI calls and processes a real report through the same services.
 
-```text
-POSTGRES_DSN=postgresql://translume:translume@postgres:5432/translume
-POSTGRES_CONNECT_TIMEOUT_SECONDS=10
-TRANSLUME_REQUIRE_POSTGRES=true
-```
-
-OpenSearch remains the retrieval/evidence index. Postgres is the durable ledger
-and artifact metadata store.
-
-## Docling / Granite Docling integration
-
-The MVP now treats layout-aware document extraction as a required production
-boundary. The API constructs a `DoclingServiceClient` from `DOCLING_SERVICE_URL`
-and the workflow runs Docling extraction plus a PyMuPDF baseline before section
-chunking. If `TRANSLUME_REQUIRE_DOCLING=true`, missing or failing Docling
-extraction fails explicitly instead of silently falling back to a lower-fidelity
-path.
-
-Docling is used only for document conversion: pages, blocks, tables, bounding
-boxes, OCR/layout confidence, extraction warnings, and source text. It does not
-produce clinical findings, mechanisms, validations, tumor-behavior hypotheses,
-or evidence claims. Clinical artifacts are generated only after document chunks
-are source-backed and indexed.
-
-Relevant environment variables:
-
-```text
-DOCLING_SERVICE_URL=http://docling-service:8090
-DOCLING_TIMEOUT_SECONDS=240
-TRANSLUME_REQUIRE_DOCLING=true
-DOCLING_EXTRACTION_METHOD=docling
-```
-
-Operational flow:
-
-```text
-PDF upload
-→ raw file storage
-→ Docling service `/extract`
-→ DocumentExtractionOutput
-→ PyMuPDF baseline extraction
-→ extraction quality scoring
-→ best extraction selection
-→ section-aware chunks
-→ OpenSearch/Postgres persistence
-→ structured clinical compiler
-```
-
-## Real MIMS service execution
-
-The MVP now calls MIMS services over HTTP instead of reading precomputed evidence
-files from the API process. `translume-api` constructs service clients for:
-
-```text
-OPTIMUSKG_SERVICE_URL=http://optimuskg-service:8091
-TOOLUNIVERSE_SERVICE_URL=http://tooluniverse-service:8092
-MEDEA_SERVICE_URL=http://medea-service:8093
-MIMS_TIMEOUT_SECONDS=240
-TRANSLUME_TOOL_WORKFLOWS=literature_validation,pathway_context,target_context,variant_context,trial_context_review,therapy_context,resistance_mechanism_context,biomarker_retesting_context,guideline_context,clinical_trial_context,lineage_transformation_context,recent_therapy_agent_backfill_context
-```
-
-The service containers load vendored Harvard repositories from:
-
-```text
-third_party/upstream/OptimusKG
-third_party/upstream/ToolUniverse
-third_party/upstream/Medea
-```
+Create `data/input` inside the project folder and place your actual readable PDF there with the filename `report.pdf`. In `.env`, set `TRANSLUME_E2E_REPORT_TYPE` to the matching report type and fill `TRANSLUME_E2E_DIAGNOSIS` with the actual diagnosis.
 
 Run:
 
-```bash
-make vendor-repos
-make mims-data
-make mims-data-status
-make audit-vendor-model-calls
-make catalog-vendor-repos
+```sh
+docker compose --profile verification run --rm verify
 ```
 
-`make vendor-repos` is Git-only. It clones missing repositories or runs
-`git pull --ff-only` for existing Git checkouts. If GitHub is unavailable,
-`make vendor-bootstrap-from-zips` can unpack local zip archives for offline
-inspection only, but zip-extracted folders are not production-updateable and
-will fail `make vendor-status`.
+The command checks service health, actual Astra Pro structured output, actual OpenAI embeddings, report processing, remote-call provenance, database/search persistence, a `needs_review` validation round trip, and the three downstream report artifacts. Success is a JSON result with `"status": "ok"` and a zero exit code. A failed check exits nonzero; inspect the reported error and service logs. No demonstration report or fabricated result is supplied.
 
-`make mims-data` provisions the complete Hugging Face MedeaDB snapshot at
-`data/medea_cache/MedeaDB` and the exact OptimusKG LCC Parquet pair at
-`data/optimuskg_cache` through the upstream OptimusKG client. Docker Compose
-mounts those host caches at `/app/data/medea_cache/MedeaDB` and
-`/app/data/optimuskg_cache`, matching `MEDEADB_PATH` and
-`OPTIMUSKG_CACHE_DIR` inside the services. `make integration-full-stack-up`
-performs this provisioning automatically before its read-only preflight.
+## 8. Stop and restart
 
-The Medea `/reason` path still runs `LiteratureSearch`, `PaperJudge`, and
-`OpenScholarReasoning`; when MedeaDB is present it also parses bounded DepMap
-observations through upstream Medea and supplies them to the literature query.
-Direct database status and pairwise correlation endpoints are available at
-`/database/status` and `/database/depmap-correlation`. See
-`docs/architecture/mims_data_runtime.md` for parser locations, path overrides,
-download controls, and the distinction between the full provisioned snapshot
-and the DepMap resource currently used for automatic report enrichment.
+Stop the application while retaining data:
 
-Strict behavior remains: if a required MIMS repository, workflow config, OptimusKG parquet data, ToolUniverse engine/tool, or Medea local-vLLM path is unavailable, the workflow fails explicitly. It does not fabricate graph evidence, tool evidence, or bounded reasoning. ToolUniverse must cover the full MVP evidence set: `literature_validation`, `pathway_context`, `target_context`, `variant_context`, `trial_context_review`, `therapy_context`, `resistance_mechanism_context`, `biomarker_retesting_context`, `guideline_context`, `clinical_trial_context`, `lineage_transformation_context`, and `recent_therapy_agent_backfill_context`.
-
-Literature validation groups source-derived genes into bounded OR clauses and
-pairs them with the report disease, such as
-`"lung cancer" AND (EGFR OR KRAS OR BRAF)`. This avoids the overly restrictive
-implicit-AND behavior of a single multi-gene query. Each PubMed and Europe PMC
-result retains the exact query used and still requires clinical review.
-
-When current-case MIMS evidence is available, tumor-behavior output must cite at
-least one current-case OptimusKG, ToolUniverse, or Medea artifact/node/edge ID.
-Free-text Medea hypotheses are evidence content, not prompt-side citation IDs.
-If a local structured-model response omits valid support, Translume sends one
-constrained correction request containing only the valid current-case IDs. A
-second omission fails explicitly; the workflow never fabricates MIMS support or
-silently weakens the validation requirement.
-
-## Human validation-card workflow
-
-The MVP now exposes real validation-card actions. Claims generated by the review
-packet compiler can be marked `validated`, `rejected`, or `needs_review` by a
-human reviewer. Decisions are loaded from and persisted back to Postgres, then
-the updated packet is re-indexed into OpenSearch. The UI does not update claims
-optimistically and the API does not fabricate missing packets or claims.
-
-Endpoints:
-
-```text
-GET  /api/v1/review-packets/{session_id}/validation-cards
-POST /api/v1/review-packets/{session_id}/claims/{claim_id}/validation
-GET  /api/v1/review-packets/{session_id}/export
+```sh
+docker compose down
 ```
 
-Example validation payload:
+Start it again from the same project folder:
 
-```json
-{
-  "status": "validated",
-  "reviewer_id": "reviewer@example.org",
-  "reviewer_note": "Source and evidence context reviewed."
-}
+```sh
+docker compose up --build -d
 ```
 
-The validation decision updates the claim status, appends a durable validation
-decision, appends a `claim_validation_decision_recorded` ledger event, persists
-the full updated packet to Postgres, and re-indexes updated claim, validation,
-ledger, and review-packet documents in OpenSearch.
-
-
-## Full Docker/GPU/local-vLLM integration
-
-The repository now includes a real full-stack integration runner for the MVP demo
-path. It requires Docker Compose, a visible NVIDIA GPU when using the GPU profile,
-a real configured `VLLM_MODEL`, vendored MIMS repositories, and a real oncology
-report PDF at `TRANSLUME_E2E_REPORT_PATH`.
-
-```bash
-cp .env.example .env
-# edit .env: set VLLM_MODEL and TRANSLUME_E2E_REPORT_PATH
-make vendor-repos
-make integration-full-stack
-```
-
-The integration does not use mocks or fabricated evidence. It validates service
-health, OpenSearch indexes, Postgres schema, local vLLM structured outputs, real
-report upload, MIMS-enriched review-packet content, validation-card persistence,
-and review-packet export. See `docs/architecture/full_stack_integration.md`.
-
-## Live VM validation
-
-Use this after `.env` is configured and the MIMS repositories are vendored:
-
-```bash
-make live-vm-validate
-```
-
-For a longer failure report that continues through diagnostics after the first
-required failure:
-
-```bash
-make live-vm-validate-diagnostics
-```
-
-Reports are written to:
-
-```text
-data/exports/runtime_diagnostics/
-```
-
-This is the production MVP deployability gate. It verifies the real Docker/GPU
-stack, local vLLM structured outputs, Docling, OpenSearch, Postgres, MIMS
-services, report upload processing, validation-card roundtrip, and export.
-
-## Harvard MIMS Vendor Update Workflow
-
-Production/demo validation requires `third_party/upstream/Medea`, `third_party/upstream/OptimusKG`, and `third_party/upstream/ToolUniverse` to be real Git clones, not zip-extracted folders. Clone or fast-forward pull them with:
-
-```bash
-make vendor-repos
-make vendor-status
-```
-
-Manual update commands are ordinary Git:
-
-```bash
-git -C third_party/upstream/Medea pull --ff-only
-git -C third_party/upstream/OptimusKG pull --ff-only
-git -C third_party/upstream/ToolUniverse pull --ff-only
-```
-
-Zip bootstrap is available only for offline inspection via `make vendor-bootstrap-from-zips`; it does not satisfy production status because it cannot support `git pull`. Translume-owned extension logic stays outside Harvard repos in `packages/translume-ports`, `packages/translume-adapters`, and `services/*-service`.
-
-## PRIME_DIRECTIVES production gate
-
-The project now includes a hard production/demo gate that enforces the non-negotiable runtime contract for Translume. The gate does not prove the full Docker/GPU stack works; it prevents the stack from starting or being validated in production/demo mode when required real dependencies are disabled, missing, zip-bootstrapped, or configured to bypass local-model execution.
-
-Run it before live validation:
-
-```bash
-cp .env.example .env
-# edit .env with real values, including VLLM_MODEL and service URLs
-make vendor-repos
-make vendor-status
-make validate-prime-directives
-```
-
-The gate fails if MIMS repos are not real Git checkouts, if remote model-provider credentials are active, if required services such as MIMS, Docling, OpenSearch, or Postgres are disabled, if `VLLM_MODEL` is blank or placeholder-like, or if the UI Dockerfile no longer runs the real Gradio entrypoint.
-
-This gate is intentionally strict. Passing unit tests does not imply MVP readiness; live Docker/GPU/vLLM/MIMS validation is still required.
-
-
-## Early upload/session metadata persistence
-
-Tutorial 4 added a strict auditability change: after a PDF is stored, Translume immediately persists the case session, source-file metadata, and upload ledger event to Postgres before document extraction or clinical artifact generation begins. The workflow also records started, succeeded, and failed ledger events for major stages. If a required stage fails, the error is not hidden; a failure event is recorded when Postgres is configured and the exception propagates to the caller.
-
-This change does not make the full MVP runtime-validated. It makes failed and partial runs inspectable, which is required before moving more logic into OpenSearch retrieval and local-vLLM structured artifact generation.
-
-
-## Early OpenSearch chunk indexing
-
-Source-backed document chunks are now indexed into OpenSearch before report extraction and downstream artifact generation. In required OpenSearch mode, report extraction retrieves those chunks back from OpenSearch and will not continue if retrieval returns zero chunks. This makes OpenSearch part of the retrieval/evidence path rather than only a final packet persistence target. The current retrieval path is metadata/lexical scoped by case, session, and source file; vector/HNSW retrieval is not claimed as active until a real embedding generation path is implemented.
-
-
-## Tutorial 6 — Convert clinical artifacts to local vLLM structured outputs
-
-The production workflow now requires a configured local structured-output model provider for clinical artifact generation. Report extraction, molecular phenotype, molecular-fit matrix, mechanism Sankey, confirmatory testing, tumor-behavior model, claim evidence, and the final clinical narrative are generated through the local vLLM provider and validated against their Pydantic schemas. Deterministic code remains only for source alignment, validation, safety checks, provenance, ledger events, persistence, and service orchestration.
-
-This does not prove Docker/GPU/vLLM runtime in this sandbox. In demo or production mode, `VLLM_MODEL` and `VLLM_BASE_URL` must point to a real local vLLM service configured for structured outputs. Missing local model configuration must fail loudly; no placeholder model output is allowed in the product path.
-
-## Tutorial 7 — Source-grounded model-driven report extraction
-
-Report extraction is now constrained to the local structured-output model path. The old deterministic extractor no longer returns clinical findings; it fails loudly with migration guidance. In the product path, report extraction consumes OpenSearch-retrieved document chunks, asks the local vLLM provider for a schema-valid `ReportExtractionOutput`, source-aligns every molecular finding back to retrieved chunks, forces human review flags, and downgrades unsupported findings to low confidence.
-
-This preserves the first trust checkpoint: Translume must show what the report says before adding graph, literature, tool, Medea, or tumor-behavior interpretation. Missing source chunks, invalid structured output, unsafe text, or unsupported confident findings fail explicitly rather than producing a polished but ungrounded packet.
-
-
-## Narrative containment enforcement
-
-The production workflow now runs deterministic narrative containment after `ClinicalNarrativeCompilerOutput` is generated and before `ReviewPacketExport` is built. The validator checks that gene-like symbols, therapy-like terms, alteration/signal phrases, and declared `source_artifact_ids` are present in the structured source artifacts. Unsupported content raises an explicit error, records a workflow failure event, and prevents a polished review packet from being exported with unsupported clinical claims. Passing containment creates a `NarrativeContainmentReport` on the bundle and adds artifact-specific provenance for the containment validation artifact.
-
-## Tutorial 8: narrative fact containment enforcement
-
-The production workflow now validates the generated clinical narrative before review-packet export. `ClinicalNarrativeCompilerOutput` must be contained by the structured artifacts in the bundle: report extraction, normalized entities, graph evidence, ToolUniverse outputs, Medea reasoning, phenotype, matrix, Sankey, confirmatory tests, tumor-behavior model, claim cards, and provenance. Unsupported gene-like terms, therapy-like terms, alteration-like phrases, or unknown source artifact IDs fail loudly instead of being returned as a polished narrative. A passing narrative creates a `NarrativeContainmentReport` and containment provenance; a failing narrative records a workflow failure event and blocks export.
-
-
-### Harvard MIMS data provisioning and OptimusKG graph parsing
-
-`make mims-data` now provisions both external data payloads before the full-stack integration path starts. OptimusKG is downloaded through its real Python client into `data/optimuskg_cache`, mounted at `/app/data/optimuskg_cache`, and then parsed from the client-returned Parquet paths with Polars. Node `properties` JSON is used for entity matching and only matching edges are emitted as graph evidence. The service retains OptimusKG's lazy `get_file()` behavior, while pre-provisioning makes network and cache failures visible before clinical workflow execution.
-
-### Medea literature reasoning plus MedeaDB
-
-The Medea service now uses both requested capabilities. It preserves Medea's literature search/judging/reasoning path through local vLLM and also opens the downloaded `data/medea_cache/MedeaDB/depmap_24q2` data through upstream Medea's `GeneCorrelationLookup`. Bounded DepMap observations for report genes are supplied to the literature query as exploratory evidence and returned alongside the literature synthesis. `/database/status` and `/database/depmap-correlation` provide direct database inspection, while `/runtime-contract` proves that the real database parser can open the mounted data. With the default `MEDEA_REQUIRE_DATABASE=true`, missing data fails loudly rather than degrading to literature-only behavior.
-
-See [`docs/architecture/mims_data_runtime.md`](docs/architecture/mims_data_runtime.md) for exact host/container paths, Make targets, parser locations, endpoints, and override variables.
-
-
-## Evidence-derived tumor behavior validation
-
-TumorBehaviorModelOutput is generated through the local vLLM structured-output path and then validated for case-derived evidence support. The fixed state vocabulary is allowed, but selected states, transition hypotheses, rationale, and supporting artifacts must come from the current report extraction, normalized entities, OptimusKG graph evidence, ToolUniverse artifacts, Medea reasoning, molecular phenotype, molecular-fit matrix, mechanism Sankey, and confirmatory testing gaps. Generic hardcoded transitions, unsupported support IDs, transition probabilities, outcome predictions, and treatment-directing language fail the production workflow instead of being returned as a polished review packet.
-
-## Artifact provenance enforcement
-
-Every review-packet artifact must carry artifact-specific provenance before export. Translume records which schema validated the artifact, which model or provider produced it, which prompt/schema hash was used when applicable, which source chunks and upstream artifacts informed it, and whether generation completed successfully. If provenance is missing or generic, production packet export fails loudly rather than returning an unverifiable clinical review packet.
-
-
-## Tutorial 14 completed: lexical retrieval scope enforcement
-
-The MVP retrieval scope is now explicit and enforced. Translume uses OpenSearch lexical and metadata-scoped retrieval for source document chunks, filtered by case ID, session ID, and source file ID. The document chunk index no longer emits `knn_vector` mappings or accepts embeddings in the production path. If `TRANSLUME_RETRIEVAL_MODE` is set to `vector`, `hybrid`, `hnsw`, or `knn`, the production gate and retrieval functions fail loudly because there is not yet a real local embedding generation and indexing path. This prevents the project from claiming vector or HNSW retrieval before embeddings are actually produced, indexed, retrieved, and live-validated.
-
-Future vector retrieval should be added only by implementing a real local embedding provider, generating embeddings for every indexed chunk, storing the vectors in OpenSearch, and proving vector queries in live VM validation. Until then, docs, runtime reports, and UI language must describe retrieval as lexical/metadata-grounded.
-
-## Clinician-facing artifact panels
-
-The Gradio cockpit now renders the exact persisted `ReviewPacketExport` returned by FastAPI as clinician-facing panels rather than using raw JSON as the primary experience. The UI performs the real report-processing API call, then reloads the packet through the persisted export endpoint before rendering it. If the persisted packet is incomplete, lacks provenance, or has failed narrative containment, the cockpit blocks rendering and shows the actual error.
-
-The clinical surface includes source-backed findings, normalized entities, molecular phenotype, molecular-fit review matrix, the mechanism Sankey, confirmatory tests, case-derived tumor-state evidence, transition hypotheses, OptimusKG graph context, ToolUniverse evidence, Medea bounded reasoning, claim validation, provenance, and the discovery ledger. The technical JSON remains available in a separate tab for audit inspection, but it is not the primary clinical surface.
-
-Claim-validation actions call the real validation API, then reload the persisted packet from Postgres so the UI does not update optimistically. Review-packet downloads also come from the persisted export endpoint; the UI does not reconstruct or fabricate export content locally.
-
----
-
-# Important Notice: Intended Use, Human Oversight, and Ethical Use Statement
-
-Translume is an information-processing, evidence-compilation, and clinical review support platform. It is designed to assist qualified professionals in organizing, reviewing, and tracing information derived from oncology and related biomedical documents. It is not intended to function as a diagnostic system, treatment recommendation engine, medical device, autonomous clinical decision-maker, or substitute for professional medical judgment.
-
-All outputs generated by Translume—including findings, hypotheses, tumor-behavior models, evidence summaries, biological interpretations, validation suggestions, reasoning artifacts, and visualizations—are intended solely to support human review and discussion. These outputs may contain inaccuracies, omissions, incomplete evidence, or interpretations that require further verification.
-
-Clinical decisions, diagnoses, prognoses, treatment selections, patient management decisions, research conclusions, regulatory submissions, and other consequential actions must never be based solely on system-generated output. All information produced by the platform must be independently reviewed, interpreted, and validated by appropriately qualified and credentialed healthcare professionals, researchers, laboratory personnel, or other authorized subject-matter experts.
-
-Translume does not establish clinical truth, determine standards of care, predict outcomes, guarantee completeness of evidence, or replace multidisciplinary review processes. The presence of supporting evidence, literature references, graph relationships, computational reasoning, or generated hypotheses should not be interpreted as proof of clinical validity, efficacy, safety, causality, or medical appropriateness.
-
-Users are responsible for ensuring compliance with all applicable laws, regulations, institutional policies, ethical standards, privacy requirements, data-governance frameworks, and professional practice obligations governing the use of clinical, biomedical, research, or patient-related information.
-
-The platform is intended to augment human expertise by improving transparency, traceability, reviewability, and evidence organization. Human judgment remains the final authority for all interpretations, conclusions, recommendations, and actions derived from information presented by the system.
-
-By using Translume, users acknowledge that the platform serves as a decision-support and evidence-review aid only, and that appropriately qualified human oversight is required for all clinical, research, operational, and regulatory use cases.
-
-# Intended Use, Limitations, and Ethical Use Statement
-
-Translume is designed to support clinical and translational oncology teams by organizing complex oncology reports into structured, source-backed, reviewable information. It helps extract findings, surface evidence, identify uncertainty, show possible biological mechanisms, and support expert review.
-
-## What Translume Does
-
-Translume helps convert oncology reports into structured review packets that may include:
-
-Source-backed molecular findings from uploaded reports.
-
-Normalized clinical and biological entities.
-
-Evidence summaries from approved knowledge sources and tools.
-
-Mechanism-oriented views that help explain why a finding may matter biologically.
-
-Tumor-behavior hypotheses derived from the specific case evidence.
-
-Evidence-classified claim cards for expert review.
-
-Human validation workflows that allow qualified reviewers to accept, reject, or flag claims.
-
-Provenance records showing where outputs came from and what supported them.
-
-Ledger records that preserve review history, decisions, and traceability.
-
-Exportable review packets for clinical, translational, research, or operational review.
-
-The purpose is to improve clarity, transparency, traceability, and review efficiency.
-
-## What Translume Does Not Do
-
-Translume does not diagnose disease.
-
-Translume does not recommend treatment.
-
-Translume does not determine a standard of care.
-
-Translume does not predict patient outcomes.
-
-Translume does not replace oncologists, pathologists, molecular tumor boards, genetic counselors, laboratory directors, or other qualified professionals.
-
-Translume does not make autonomous clinical decisions.
-
-Translume does not establish clinical truth.
-
-Translume does not guarantee that evidence is complete, current, or clinically sufficient.
-
-Translume does not determine whether a therapy is safe, effective, appropriate, available, reimbursable, or indicated for a specific patient.
-
-Any output from Translume should be treated as informational, preliminary, and subject to expert review.
-
-## Human Review Requirement
-
-All Translume outputs must be reviewed by appropriately qualified and credentialed clinical, scientific, or laboratory personnel before they are used in any clinical, research, operational, regulatory, or patient-related context.
-
-A human-in-the-loop review process is required. Final responsibility for interpretation, validation, communication, and action remains with qualified professionals.
-
-## Foundation for Adaptive Precision Oncology
-
-Translume is not itself an adaptive precision oncology platform today. It is a foundation for moving toward that future.
-
-By creating structured, traceable, source-backed, and human-validated records from oncology reports, Translume helps build the data and reasoning layer needed for future systems that may support longitudinal tumor modeling, evidence learning, cohort analysis, adaptive research workflows, and more personalized oncology review.
-
-The near-term goal is not autonomous medicine. The goal is to make complex oncology information more usable, reviewable, auditable, and scalable so that expert teams can work faster and with greater confidence.
+Keep the extracted project folder and its `data/artifacts` directory. Do not add `--volumes` or `-v` to the stop command unless you intend to delete the stored databases and reference data.

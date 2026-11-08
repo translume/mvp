@@ -1,51 +1,52 @@
-# Structured Outputs
+# OpenAI structured outputs
 
-All model-generated clinical artifacts must be generated through local vLLM structured outputs and validated against Pydantic schemas before use.
+## Request contract
 
-The vLLM service must be started with:
+The application uses the official OpenAI Responses API. The default request model is `gpt-6-astra`, with `reasoning.mode=pro` and configured effort. Structured JSON uses `text.format` with `type=json_schema`, a schema name, `strict=true`, and the sanitized wire schema. Requests also set `store=false` and an explicit `max_output_tokens`.
 
-```bash
---structured-outputs-config.backend=auto
-```
+The SDK is used by the downstream runners; the shared application boundary uses authenticated HTTPX requests to the same official endpoints. Neither boundary permits a local OpenAI-compatible endpoint.
 
-Remote model APIs are blocked by default in private MVP mode.
+## Schema conversion
 
-## Adaptive report extraction
+The wire schema closes objects with `additionalProperties=false`, requires every wire property, expresses nullable fields explicitly, and preserves supported bounds and references. Application Pydantic models remain the semantic validation layer. Unsupported annotations are removed only from the wire schema; the internal domain schema is not weakened to accept an invalid clinical artifact.
 
-Report extraction uses the tokenizer hosted by the configured vLLM model.
-Page-ordered source units are accumulated only while they fit the configured
-input-token budget; the chunk-count setting is a secondary guard. Long chunks
-are segmented without changing their public source ID, so report text is not
-discarded.
+The source code owns deterministic identifiers and source alignment. Generated outputs must refer to allowed source chunks, findings, graph/tool artifacts, and evidence. Invalid citations are errors, not silently invented source records.
 
-`finish_reason=length` is a control signal, not malformed JSON. Translume never
-parses or persists that partial response. It deterministically splits a
-multi-unit request, gives a single unit one larger bounded retry, and then
-subdivides it. Recovery stops at the configured depth or minimum segment size.
+## Context and output budgets
 
-Each extraction leaf uses an internal bounded schema with concise strings and
-small per-leaf arrays. This prevents a local model from repeating an item until
-the token limit. The public merged `ReportExtractionOutput` remains uncapped;
-the backend combines every validated leaf, so the bounds do not impose a
-whole-report finding limit.
+Before generation, the shared provider calls `/v1/responses/input_tokens` with the final request's prompt, instructions, wire schema, and reasoning configuration. Input count plus reserved output and safety margin must fit the configured operational context budget. This budget is intentionally conservative.
 
-```text
-input budget + retry output tokens + safety tokens <= model context tokens
-```
+Report extraction measures complete candidate requests, batches source chunks, and recursively splits oversized or output-truncated batches within explicit depth limits. Leaf results are validated and merged deterministically. No source batch is dropped to make the count fit.
 
-Confirmatory testing uses its own evidence compactor rather than the general
-evidence serializer. The fully rendered prompt is measured with the served
-model tokenizer and must fit `CONFIRMATORY_TESTING_INPUT_TOKEN_BUDGET` before
-generation. Its internal output schema also bounds test rows and free text;
-the validated result is converted back to the public confirmatory schema.
+An incomplete response is never accepted as completed JSON. An output-token-limit failure may receive one larger bounded output attempt, or a source-preserving split where that stage supports splitting. Content filters, refusals, authentication failures, and quota failures do not enter a clinical repair loop. Existing stage-specific effort overrides in the downstream precision pipeline are retained and recorded as the effective request settings.
 
-Narrative `source_artifact_ids` are system-owned metadata. Model-returned IDs
-are replaced with the ordered IDs from the current clinical artifact bundle.
-Unknown `artifact_*` tokens written into narrative Markdown participate in the
-bounded repair loop and cannot pass containment.
+## Receipts and provenance
 
-All non-report structured stages receive one shared retry after
-`finish_reason=length`, using `VLLM_STRUCTURED_OUTPUT_RETRY_MAX_TOKENS`.
-Generation-only JSON Schemas add bounded strings and arrays while persisted
-public schemas remain unchanged. Report extraction continues to use recursive
-source splitting rather than the shared retry.
+Each actual attempt has request/schema hashes, timing, status, configured model/mode/effort, observed model and response/request IDs when returned, and token usage. These receipts are attached to generated artifacts or their component provenance, and appended to the service audit journal. A failed request is recorded as failed; the requested model is not presented as an observed response model.
+
+Task-local capture scopes isolate concurrent artifact generation. Document extraction retains its receipts even if the native-text candidate is selected after quality evaluation. Source-page identities are stable; the converter does not fabricate bounding boxes or confidence scores.
+
+## Embeddings
+
+The embedding adapter calls `/v1/embeddings` using `text-embedding-3-large` and configured dimensions. It rejects empty inputs, oversized inputs/batches, missing or duplicate indices, wrong vector lengths, non-finite values, and mismatched model responses. Its conservative input sizing uses UTF-8 byte bounds instead of loading a local tokenizer. CPU cosine comparison of returned vectors performs ranking without any local learned model.
+
+## Relevant code
+
+- `packages/translume-clients/src/translume_clients/openai_client.py`
+- `packages/translume-adapters/src/translume_adapters/model_providers/openai_provider.py`
+- `packages/translume-adapters/src/translume_adapters/embedding_providers/`
+- `packages/translume-schemas/src/translume_schemas/model_calls.py`
+- `packages/translume-core/src/translume_core/compiler/`
+- `services/docling-service/src/docling_service/`
+- `services/medea-service/src/medea_service/`
+- `precision_oncology_json_pipeline/precision_oncology_pipeline.py`
+- `dynamic_pathway_analyzer/openai_runtime.py`
+
+## Official API references
+
+- [Reasoning guide](https://platform.openai.com/docs/guides/reasoning)
+- [Structured outputs](https://platform.openai.com/docs/guides/structured-outputs)
+- [Responses API](https://platform.openai.com/docs/api-reference/responses)
+- [Embeddings API](https://platform.openai.com/docs/api-reference/embeddings/create)
+
+See `VALIDATION.md` for the distinction between executed request-contract tests and live API verification.

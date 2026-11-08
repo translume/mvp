@@ -15,9 +15,18 @@ from translume_core.compiler.mechanism_sankey import (
     generate_mechanism_sankey_from_context,
 )
 from translume_core.provenance.hashing import stable_json_hash
-from translume_core.provenance.provenance import build_artifact_provenance
+from translume_core.provenance.provenance import (
+    build_artifact_provenance,
+    capture_model_calls,
+    model_call_snapshot,
+)
 from translume_core.safety.language import validate_safety_language
-from translume_ports.model_provider import ModelOutputTruncatedError
+from translume_ports.model_provider import (
+    ModelInputBudgetError,
+    ModelOutputTruncatedError,
+    ModelProviderError,
+)
+from translume_schemas.base import TranslumeBaseModel
 from translume_schemas.claims import ClaimEvidenceOutput
 from translume_schemas.confirmatory import ConfirmatoryTest, ConfirmatoryTestingOutput
 from translume_schemas.decision_brief import OncologistDecisionBrief
@@ -35,7 +44,10 @@ from translume_schemas.tumor_behavior import STATE_LABELS, TumorBehaviorModelOut
 T = TypeVar("T", bound=BaseModel)
 
 _BANNED_UNSUPPORTED_CERTAINTY_PHRASES = [
-    "will be cured"
+    "will respond",
+    "will be cured",
+    "guaranteed response",
+    "definitive cure",
 ]
 
 _VAGUE_NARRATIVE_ALTERATION = re.compile(
@@ -131,7 +143,7 @@ _MAX_PROMPT_TUMOR_INPUT_TEXT_CHARS = 140
 _MAX_PROMPT_TUMOR_INPUT_SUMMARY_CHARS = 360
 _MAX_PROMPT_TUMOR_SUPPORT_ID_CHARS = 160
 _MAX_PROMPT_TUMOR_BEHAVIOR_PAYLOAD_CHARS = 40000
-_DEFAULT_TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET = 24000
+_DEFAULT_TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET = 80000
 _MAX_PROMPT_NARRATIVE_FINDINGS = 6
 _MAX_PROMPT_NARRATIVE_AXES = 3
 _MAX_PROMPT_NARRATIVE_MATRIX_ROWS = 2
@@ -168,6 +180,12 @@ class IrreducibleReportExtractionTruncationError(
     StructuredArtifactGenerationError
 ):
     """Raised when a report batch cannot be safely subdivided further."""
+
+
+class StructuredArtifactInputBudgetError(
+    ModelInputBudgetError, StructuredArtifactGenerationError
+):
+    """A measured input overflow that must be split, never clinically repaired."""
 
 
 class _BoundedMolecularFinding(MolecularFinding):
@@ -288,13 +306,13 @@ async def generate_report_extraction_with_model(
     prompts_root: Path,
     created_at: datetime,
     batch_max_chunks: int = _REPORT_EXTRACTION_BATCH_MAX_CHUNKS,
-    input_token_budget: int = 2200,
-    initial_max_tokens: int = 2500,
-    retry_max_tokens: int = 5000,
+    input_token_budget: int = 80000,
+    initial_max_tokens: int = 16384,
+    retry_max_tokens: int = 32768,
     max_split_depth: int = 6,
     min_segment_chars: int = 400,
 ) -> StructuredArtifactResult[ReportExtractionOutput]:
-    """Generate source-grounded ReportExtractionOutput through local vLLM.
+    """Generate source-grounded ReportExtractionOutput through OpenAI.
 
     Acceptance criteria:
         1. Uses retrieved OpenSearch chunks, not raw in-memory page text.
@@ -312,6 +330,7 @@ async def generate_report_extraction_with_model(
            inference.
     """
     source_chunks = _require_retrieved_source_chunks(retrieved_chunks)
+    call_start = len(model_call_snapshot(model_provider))
     prompt_source_units = _segment_report_chunks_for_prompt(source_chunks)
     planned_artifact_id = _artifact_id(source_file_id, "ReportExtractionOutput")
     prompt_batches = await _plan_token_bounded_report_extraction_batches(
@@ -322,6 +341,7 @@ async def generate_report_extraction_with_model(
         batch_max_chunks=batch_max_chunks,
     )
     batch_artifacts: list[ReportExtractionOutput] = []
+    leaf_provenance: list[ArtifactProvenance] = []
     for batch_index, prompt_chunks in enumerate(prompt_batches):
         leaf_artifacts = await _generate_report_extraction_adaptively(
             prompt_chunks=prompt_chunks,
@@ -340,6 +360,8 @@ async def generate_report_extraction_with_model(
             max_split_depth=max_split_depth,
             min_segment_chars=min_segment_chars,
             depth=0,
+            input_token_budget=input_token_budget,
+            provenance_records=leaf_provenance,
         )
         batch_artifacts.extend(leaf_artifacts)
     merged = _merge_report_extraction_batches(
@@ -377,6 +399,8 @@ async def generate_report_extraction_with_model(
             "batched_model_extraction" if len(prompt_batches) > 1 else "generated"
         ),
         artifact_id=planned_artifact_id,
+        component_provenance=leaf_provenance,
+        model_calls=model_call_snapshot(model_provider)[call_start:],
     )
     return StructuredArtifactResult(artifact=aligned, provenance=provenance)
 
@@ -389,7 +413,7 @@ async def generate_molecular_phenotype_with_model(
     prompts_root: Path,
     created_at: datetime,
 ) -> StructuredArtifactResult[MolecularPhenotypeOutput]:
-    """Generate MolecularPhenotypeOutput through local vLLM structured output."""
+    """Generate MolecularPhenotypeOutput through OpenAI structured output."""
     artifact_id = _artifact_id(context.artifact_id, "MolecularPhenotypeOutput")
     compact_context = compact_evidence_context_for_molecular_phenotype_prompt(
         context
@@ -418,7 +442,7 @@ async def generate_molecular_fit_matrix_with_model(
     prompts_root: Path,
     created_at: datetime,
 ) -> StructuredArtifactResult[TherapyEvidenceMatrixOutput]:
-    """Generate TherapyEvidenceMatrixOutput through local vLLM structured output."""
+    """Generate TherapyEvidenceMatrixOutput through OpenAI structured output."""
     artifact_id = _artifact_id(context.artifact_id, "TherapyEvidenceMatrixOutput")
     compact_context = compact_evidence_context_for_prompt(context)
     result = await _generate_artifact(
@@ -491,7 +515,7 @@ async def generate_mechanism_sankey_with_model(
     prompts_root: Path,
     created_at: datetime,
 ) -> StructuredArtifactResult[MechanismSankeyOutput]:
-    """Generate MechanismSankeyOutput through local vLLM structured output."""
+    """Generate MechanismSankeyOutput through OpenAI structured output."""
     artifact_id = _artifact_id(context.artifact_id, "MechanismSankeyOutput")
     compact_context = compact_evidence_context_for_mechanism_sankey_prompt(
         context
@@ -723,9 +747,9 @@ async def generate_confirmatory_testing_with_model(
     model_name: str,
     prompts_root: Path,
     created_at: datetime,
-    input_token_budget: int = 8000,
+    input_token_budget: int = 80000,
 ) -> StructuredArtifactResult[ConfirmatoryTestingOutput]:
-    """Generate ConfirmatoryTestingOutput through local vLLM structured output."""
+    """Generate ConfirmatoryTestingOutput through OpenAI structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ConfirmatoryTestingOutput")
     payload = _require_confirmatory_testing_payload_bound(
         {
@@ -809,7 +833,7 @@ async def generate_tumor_behavior_model_with_model(
     created_at: datetime,
     input_token_budget: int = _DEFAULT_TUMOR_BEHAVIOR_INPUT_TOKEN_BUDGET,
 ) -> StructuredArtifactResult[TumorBehaviorModelOutput]:
-    """Generate TumorBehaviorModelOutput through local vLLM structured output.
+    """Generate TumorBehaviorModelOutput through OpenAI structured output.
 
     Acceptance criteria:
         1. The rendered prompt is measured with the served model tokenizer.
@@ -1469,7 +1493,7 @@ async def generate_claim_evidence_with_model(
     prompts_root: Path,
     created_at: datetime,
 ) -> StructuredArtifactResult[ClaimEvidenceListOutput]:
-    """Generate ClaimEvidenceOutput list through local vLLM structured output."""
+    """Generate ClaimEvidenceOutput list through OpenAI structured output."""
     artifact_id = _artifact_id(context.artifact_id, "ClaimEvidenceListOutput")
     result = await _generate_artifact(
         prompt_name="claim_evidence",
@@ -1570,7 +1594,7 @@ async def generate_clinical_narrative_with_model(
     )
 
 
-class ClaimEvidenceListOutput(BaseModel):
+class ClaimEvidenceListOutput(TranslumeBaseModel):
     """Structured-output wrapper because the runtime stores claims as a list."""
 
     artifact_id: str
@@ -1864,7 +1888,7 @@ def compact_evidence_context_for_prompt(
         context: Full evidence context bundle.
 
     Returns:
-        JSON-serializable compact evidence context for vLLM prompts.
+        JSON-serializable compact evidence context for OpenAI prompts.
     """
     entity_labels = entity_labels_from_context(context)
     findings = [
@@ -2450,7 +2474,7 @@ def compact_clinical_artifact_bundle_for_prompt(
         bundle: Full clinical artifact bundle.
 
     Returns:
-        JSON-serializable compact bundle for vLLM prompts.
+        JSON-serializable compact bundle for OpenAI prompts.
     """
     compact_context = (
         compact_evidence_context_for_prompt(bundle.evidence_context)
@@ -5736,29 +5760,22 @@ async def _generate_artifact(
         planned_artifact_id=planned_artifact_id,
         payload_json=payload_json,
     )
-    if input_token_budget is not None:
-        await _require_prompt_within_token_budget(
-            model_provider=model_provider,
-            model_name=model_name,
+    schema = schema_model.model_json_schema()
+    with capture_model_calls(model_provider) as captured:
+        attempt_result = await _generate_valid_artifact_attempt(
+            prompt_name=prompt_name,
+            schema_model=schema_model,
+            schema=schema,
+            planned_artifact_id=planned_artifact_id,
             system_prompt=prompts.system,
             user_prompt=user_prompt,
+            payload_json=payload_json,
+            model_provider=model_provider,
+            model_name=model_name,
+            artifact_validator=artifact_validator,
+            max_tokens=max_tokens,
             input_token_budget=input_token_budget,
-            schema_name=schema_model.__name__,
         )
-    schema = schema_model.model_json_schema()
-    attempt_result = await _generate_valid_artifact_attempt(
-        prompt_name=prompt_name,
-        schema_model=schema_model,
-        schema=schema,
-        planned_artifact_id=planned_artifact_id,
-        system_prompt=prompts.system,
-        user_prompt=user_prompt,
-        payload_json=payload_json,
-        model_provider=model_provider,
-        model_name=model_name,
-        artifact_validator=artifact_validator,
-        max_tokens=max_tokens,
-    )
     provenance = build_artifact_provenance(
         artifact_type=schema_model.__name__,
         schema_name=schema_model.__name__,
@@ -5771,6 +5788,7 @@ async def _generate_artifact(
         source_file_id=source_file_id,
         generation_status=_generation_status_for_attempts(attempt_result.attempts),
         artifact_id=planned_artifact_id,
+        model_calls=captured.records,
     )
     return StructuredArtifactResult(artifact=attempt_result.artifact, provenance=provenance)
 
@@ -5783,21 +5801,35 @@ async def _require_prompt_within_token_budget(
     user_prompt: str,
     input_token_budget: int,
     schema_name: str,
+    json_schema: dict[str, object] | None = None,
+    max_tokens: int | None = None,
 ) -> None:
     """Fail before generation when a rendered prompt exceeds its input budget."""
     if input_token_budget <= 0:
         raise ValueError("input_token_budget must be positive")
-    prompt_text = f"{system_prompt}\n\n{user_prompt}"
-    counter = getattr(model_provider, "count_tokens", None)
-    prompt_tokens = (
-        await counter(model_name=model_name, text=prompt_text)
-        if callable(counter)
-        else max(1, (len(prompt_text) + 3) // 4)
-    )
+    exact_counter = getattr(model_provider, "count_structured_request", None)
+    if callable(exact_counter) and json_schema is not None:
+        prompt_tokens = await exact_counter(
+            model_name=model_name, system_prompt=system_prompt,
+            user_prompt=user_prompt, schema_name=schema_name,
+            json_schema=json_schema, max_tokens=max_tokens,
+        )
+    else:
+        # Domain/test providers may expose only text counting. Production's
+        # OpenAI provider always takes the exact request branch above and also
+        # enforces its context reservation immediately before generation.
+        prompt_text = f"{system_prompt}\n\n{user_prompt}"
+        counter = getattr(model_provider, "count_tokens", None)
+        prompt_tokens = (
+            await counter(model_name=model_name, text=prompt_text)
+            if callable(counter)
+            else len(prompt_text.encode("utf-8"))
+        )
     if prompt_tokens > input_token_budget:
-        raise StructuredArtifactGenerationError(
-            f"{schema_name} rendered prompt exceeds input token budget: "
-            f"{prompt_tokens} > {input_token_budget}"
+        raise StructuredArtifactInputBudgetError(
+            schema_name=schema_name,
+            input_tokens=prompt_tokens,
+            input_token_budget=input_token_budget,
         )
 
 
@@ -5814,6 +5846,7 @@ async def _generate_valid_artifact_attempt(
     model_name: str,
     artifact_validator: Callable[[T], T] | None = None,
     max_tokens: int | None = None,
+    input_token_budget: int | None = None,
 ) -> _StructuredArtifactAttemptResult[T]:
     """Return a valid artifact, retrying once for malformed output.
 
@@ -5846,6 +5879,14 @@ async def _generate_valid_artifact_attempt(
     last_error: BaseException | None = None
     raw_output: object | None = None
     for attempt_index in range(_STRUCTURED_OUTPUT_MAX_ATTEMPTS):
+        if input_token_budget is not None:
+            await _require_prompt_within_token_budget(
+                model_provider=model_provider, model_name=model_name,
+                system_prompt=system_prompt, user_prompt=current_user_prompt,
+                input_token_budget=input_token_budget,
+                schema_name=schema_model.__name__, json_schema=schema,
+                max_tokens=max_tokens,
+            )
         try:
             completion_kwargs = {
                 "model_name": model_name,
@@ -5856,6 +5897,10 @@ async def _generate_valid_artifact_attempt(
             }
             if max_tokens is not None:
                 completion_kwargs["max_tokens"] = max_tokens
+            if input_token_budget is not None and callable(
+                getattr(model_provider, "count_structured_request", None)
+            ):
+                completion_kwargs["input_token_budget"] = input_token_budget
             raw_output = await model_provider.structured_completion(
                 **completion_kwargs
             )
@@ -5887,6 +5932,10 @@ async def _generate_valid_artifact_attempt(
                     cause=error,
                 )
             ) from error
+        except ModelProviderError:
+            # Auth, quota, model configuration, refusal, and network failures
+            # cannot be repaired by asking a model to change clinical output.
+            raise
         except RuntimeError as error:
             last_error = error
             if _contains_timeout_wording(error) or _is_final_attempt(attempt_index):
@@ -6145,7 +6194,7 @@ def _structured_model_failure_message(
 
     Args:
         prompt_name: Structured-output prompt identifier.
-        schema_name: Pydantic schema name requested from vLLM.
+        schema_name: Pydantic schema name requested from OpenAI.
         system_prompt: System prompt text.
         user_prompt: User prompt text.
         payload_json: Prompt payload JSON text.
@@ -6312,6 +6361,8 @@ async def _plan_token_bounded_report_extraction_batches(
     """Return ordered batches bounded by the served model's tokenizer."""
     if input_token_budget <= 0:
         raise ValueError("input_token_budget must be positive")
+    if batch_max_chunks <= 0:
+        raise ValueError("batch_max_chunks must be positive")
     ordered = sorted(retrieved_chunks, key=_retrieved_chunk_page_order)
     batches: list[list[RetrievedDocumentChunk]] = []
     current: list[RetrievedDocumentChunk] = []
@@ -6325,7 +6376,7 @@ async def _plan_token_bounded_report_extraction_batches(
         item_tokens = (
             await counter(model_name=model_name, text=payload_text)
             if callable(counter)
-            else max(1, (len(payload_text) + 3) // 4)
+            else len(payload_text.encode("utf-8"))
         )
         would_overflow = current and (
             current_tokens + item_tokens > input_token_budget
@@ -6360,6 +6411,8 @@ async def _generate_report_extraction_adaptively(
     max_split_depth: int,
     min_segment_chars: int,
     depth: int,
+    input_token_budget: int = 80000,
+    provenance_records: list[ArtifactProvenance] | None = None,
 ) -> list[ReportExtractionOutput]:
     """Generate validated leaves, recursively splitting truncated batches."""
     output_tokens = retry_max_tokens if depth > 0 and len(prompt_chunks) == 1 else initial_max_tokens
@@ -6410,16 +6463,20 @@ async def _generate_report_extraction_adaptively(
             prompts_root=prompts_root,
             created_at=created_at,
             max_tokens=output_tokens,
+            input_token_budget=input_token_budget,
         )
-    except ModelOutputTruncatedError as error:
+    except (ModelOutputTruncatedError, ModelInputBudgetError) as error:
+        is_output_limit = isinstance(error, ModelOutputTruncatedError)
+        reason = error.finish_reason if is_output_limit else "input_token_budget"
+        content_chars = error.content_chars if is_output_limit else 0
         if depth >= max_split_depth:
             raise IrreducibleReportExtractionTruncationError(
                 "ReportExtractionOutput remained truncated at maximum split "
                 f"depth={depth}, chunks={len(prompt_chunks)}, "
-                f"finish_reason={error.finish_reason!r}, "
-                f"content_chars={error.content_chars}"
+                f"finish_reason={reason!r}, "
+                f"content_chars={content_chars}"
             ) from error
-        if len(prompt_chunks) == 1 and depth == 0:
+        if len(prompt_chunks) == 1 and depth == 0 and is_output_limit:
             return await _generate_report_extraction_adaptively(
                 prompt_chunks=prompt_chunks,
                 all_source_chunks=all_source_chunks,
@@ -6437,6 +6494,8 @@ async def _generate_report_extraction_adaptively(
                 max_split_depth=max_split_depth,
                 min_segment_chars=min_segment_chars,
                 depth=1,
+                input_token_budget=input_token_budget,
+                provenance_records=provenance_records,
             )
         split_batches = _split_truncated_report_batch(
             prompt_chunks,
@@ -6446,8 +6505,8 @@ async def _generate_report_extraction_adaptively(
             raise IrreducibleReportExtractionTruncationError(
                 "ReportExtractionOutput remained truncated for an irreducible "
                 f"source unit at depth={depth}, "
-                f"finish_reason={error.finish_reason!r}, "
-                f"content_chars={error.content_chars}"
+                f"finish_reason={reason!r}, "
+                f"content_chars={content_chars}"
             ) from error
         leaves: list[ReportExtractionOutput] = []
         for split_chunks in split_batches:
@@ -6469,9 +6528,13 @@ async def _generate_report_extraction_adaptively(
                     max_split_depth=max_split_depth,
                     min_segment_chars=min_segment_chars,
                     depth=depth + 1,
+                    input_token_budget=input_token_budget,
+                    provenance_records=provenance_records,
                 )
             )
         return leaves
+    if provenance_records is not None:
+        provenance_records.append(result.provenance)
     return [
         _source_align_report_extraction(
             ReportExtractionOutput.model_validate(result.artifact.model_dump()),
@@ -6796,7 +6859,7 @@ def _retrieved_chunk_prompt_payload(item: RetrievedDocumentChunk) -> dict[str, o
     Acceptance criteria:
         1. Determinism: Same chunk returns the same payload.
         2. No mutation: Do not mutate the retrieved chunk.
-        3. Prompt bound: Source text is capped for vLLM context safety.
+        3. Prompt bound: Source text is capped for OpenAI context safety.
         4. Grounding: Preserve source IDs, page range, section, method, and
            score.
     """

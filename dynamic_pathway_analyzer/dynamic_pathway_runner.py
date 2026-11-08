@@ -6,11 +6,11 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
 
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 _ARTIFACT_ROOT = Path(os.getenv("PIPELINE_ARTIFACT_ROOT", "/app/outputs"))
@@ -42,7 +42,23 @@ class DynamicRunResponse(BaseModel):
 @app.get("/health")
 def health() -> dict[str, str]:
     """Return runner readiness without executing a model call."""
-    return {"status": "ok", "service": "dynamic-pathway-analyzer"}
+    if not os.getenv("OPENAI_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required.")
+    if os.getenv("OPENAI_REASONING_MODE", "pro") != "pro":
+        raise HTTPException(status_code=503, detail="OpenAI Pro mode is required.")
+    if (
+        os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        != "https://api.openai.com/v1"
+    ):
+        raise HTTPException(
+            status_code=503, detail="Official OpenAI endpoint required."
+        )
+    return {
+        "status": "ok",
+        "service": "dynamic-pathway-analyzer",
+        "provider": "openai",
+        "reasoning_mode": "pro",
+    }
 
 
 @app.post("/runs", response_model=DynamicRunResponse)
@@ -62,6 +78,7 @@ def run_dynamic_pathway_analysis(
     diagnosis = request.diagnosis.strip()
     if not diagnosis:
         raise HTTPException(status_code=422, detail="Diagnosis is required.")
+    deadline = time.monotonic() + _run_timeout()
 
     session_root = _ARTIFACT_ROOT / session_id
     input_path = (
@@ -88,10 +105,17 @@ def run_dynamic_pathway_analysis(
             "--output-dir",
             str(pathway_root),
             "--model",
-            os.getenv("OPENAI_MODEL", "gpt-5.6"),
+            _reasoning_model(),
             "--normalizer-model",
-            os.getenv("OPENAI_NORMALIZER_MODEL", "gpt-5.6"),
+            os.getenv("OPENAI_NORMALIZER_MODEL", _reasoning_model()),
+            "--reasoning-mode",
+            os.getenv("OPENAI_REASONING_MODE", "pro"),
+            "--reasoning-effort",
+            os.getenv("OPENAI_REASONING_EFFORT", "xhigh"),
+            "--request-timeout",
+            os.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "900"),
         ],
+        timeout_seconds=_remaining_seconds(deadline),
     )
     stem = input_path.stem
     pathway_path = pathway_root / f"{stem}.pathway_analysis.md"
@@ -112,10 +136,15 @@ def run_dynamic_pathway_analysis(
             "--output-dir",
             str(tumor_root),
             "--model",
-            os.getenv("OPENAI_MODEL", "gpt-5.6"),
+            _reasoning_model(),
+            "--reasoning-mode",
+            os.getenv("OPENAI_REASONING_MODE", "pro"),
             "--reasoning-effort",
-            os.getenv("OPENAI_REASONING_EFFORT", "medium"),
+            os.getenv("OPENAI_REASONING_EFFORT", "xhigh"),
+            "--request-timeout",
+            os.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "900"),
         ],
+        timeout_seconds=_remaining_seconds(deadline),
     )
     summary_path = tumor_root / "onco_board_summary.md"
     return DynamicRunResponse(
@@ -146,22 +175,71 @@ def _validated_identifier(value: str, label: str) -> str:
     return normalized
 
 
-def _run_command(label: str, command: list[str]) -> None:
-    result = subprocess.run(
-        command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+def _run_command(
+    label: str,
+    command: list[str],
+    *,
+    timeout_seconds: float | None = None,
+) -> None:
+    """Execute a bounded command and return only secret-redacted diagnostics."""
+    timeout = _run_timeout() if timeout_seconds is None else timeout_seconds
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise HTTPException(
+            status_code=504,
+            detail=f"{label} exceeded {timeout:g} seconds.",
+        ) from error
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        detail = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}\b", "[REDACTED]", detail)
+        detail = re.sub(r"(?i)\bBearer\s+\S+", "Bearer [REDACTED]", detail)
+        detail = re.sub(
+            r"(?i)\b(api[_-]?key)\s*[=:]\s*\S+",
+            r"\1=[REDACTED]",
+            detail,
+        )
         raise HTTPException(
             status_code=422,
             detail=(
-                f"{label} failed with exit code {result.returncode}: "
-                f"{detail[:2000]}"
+                f"{label} failed with exit code {result.returncode}: {detail[-2000:]}"
             ),
         )
+
+
+def _reasoning_model() -> str:
+    """Resolve the same model role used by the main application."""
+    return os.getenv("OPENAI_REASONING_MODEL", os.getenv("OPENAI_MODEL", "gpt-6-astra"))
+
+
+def _run_timeout() -> float:
+    """Return the finite deadline shared by both subprocesses."""
+    try:
+        value = float(os.getenv("DYNAMIC_PATHWAY_RUN_TIMEOUT_SECONDS", "7200"))
+    except ValueError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Invalid analyzer run timeout.",
+        ) from error
+    if not 1 <= value <= 86400:
+        raise HTTPException(status_code=503, detail="Invalid analyzer run timeout.")
+    return value
+
+
+def _remaining_seconds(deadline: float) -> float:
+    """Fail before starting another subprocess if the analysis deadline expired."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise HTTPException(
+            status_code=504, detail="Dynamic analysis deadline exceeded."
+        )
+    return remaining
 
 
 def _require_markdown(path: Path, label: str) -> str:

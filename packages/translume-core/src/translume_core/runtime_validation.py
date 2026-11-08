@@ -295,7 +295,7 @@ def classify_runtime_failures(
                 explanation="One or more required runtime validation commands failed.",
                 next_actions=(
                     "Open the generated diagnostics report.",
-                    "Run `make live-vm-logs` to inspect service logs.",
+                    "Run `docker compose logs --tail=300` to inspect service logs.",
                     "Fix the first failing required command before rerunning validation.",
                 ),
             )

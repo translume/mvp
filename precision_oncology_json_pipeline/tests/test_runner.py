@@ -137,3 +137,54 @@ def test_persist_failure_diagnostic_is_session_scoped(tmp_path: Path) -> None:
     persisted = run_directory / "pipeline_failure.json"
     assert persisted.is_file()
     assert "validation failed" in persisted.read_text()
+
+
+def test_pipeline_command_propagates_shared_openai_roles(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENAI_REASONING_MODEL", "gpt-6-astra")
+    monkeypatch.setenv("OPENAI_REASONING_MODE", "pro")
+    monkeypatch.setenv("OPENAI_REASONING_EFFORT", "xhigh")
+    monkeypatch.setenv("OPENAI_MODEL", "ignored-legacy-model")
+    command = precision_oncology_runner._pipeline_command(
+        tmp_path / "input.json",
+        tmp_path / "outputs",
+    )
+    assert command[command.index("--model") + 1] == "gpt-6-astra"
+    assert command[command.index("--reasoning-mode") + 1] == "pro"
+    assert command[command.index("--reasoning-effort") + 1] == "xhigh"
+
+
+def test_runner_timeout_persists_failure_and_returns_gateway_timeout(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(precision_oncology_runner, "_ARTIFACT_ROOT", tmp_path)
+    monkeypatch.setenv("PRECISION_ONCOLOGY_RUN_TIMEOUT_SECONDS", "5")
+
+    def timeout_run(command, **kwargs):
+        assert kwargs["timeout"] == 5
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(precision_oncology_runner.subprocess, "run", timeout_run)
+    with pytest.raises(HTTPException) as captured:
+        precision_oncology_runner.run_precision_pipeline(
+            precision_oncology_runner.PrecisionRunRequest(
+                session_id="session_unit",
+                review_packet={"unit": True},
+            )
+        )
+    assert captured.value.status_code == 504
+    diagnostic = tmp_path / "session_unit" / "pipeline_failure.json"
+    assert diagnostic.is_file()
+    assert '"exit_code": 124' in diagnostic.read_text()
+
+
+def test_health_requires_remote_configuration_without_disclosing_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(HTTPException) as captured:
+        precision_oncology_runner.health()
+    assert captured.value.status_code == 503
+    monkeypatch.setenv("OPENAI_API_KEY", "unit-test-only")
+    monkeypatch.setenv("OPENAI_REASONING_MODE", "pro")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    response = precision_oncology_runner.health()
+    assert response["provider"] == "openai"
+    assert "unit-test-only" not in str(response)

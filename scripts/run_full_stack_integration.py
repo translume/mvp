@@ -5,8 +5,8 @@ import argparse
 import asyncio
 import json
 import os
-import time
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +28,12 @@ for package_path in PACKAGE_PATHS:
     if value not in sys.path:
         sys.path.insert(0, value)
 
+from translume_clients.opensearch import OpenSearchClientConfig, OpenSearchVectorStore
+from translume_clients.postgres import PostgresClientConfig, PostgresLedgerStore
+from translume_core.indexing.persistence import ensure_mvp_indexes
+from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
+from translume_schemas.model_calls import ModelProviderError
+
 from scripts.full_stack_preflight import (
     DEFAULT_REQUIREMENTS,
     PreflightError,
@@ -35,11 +41,6 @@ from scripts.full_stack_preflight import (
     load_requirements,
     run_preflight,
 )
-from translume_clients.opensearch import OpenSearchClientConfig, OpenSearchVectorStore
-from translume_clients.postgres import PostgresClientConfig, PostgresLedgerStore
-from translume_core.indexing.persistence import ensure_mvp_indexes
-from translume_core.indexing.retrieval_scope import require_lexical_retrieval_scope
-
 
 
 class FullStackIntegrationError(RuntimeError):
@@ -78,6 +79,7 @@ class FullStackIntegrationResult:
     session_id: str
     claim_id: str
     checked_paths: tuple[str, ...]
+    downstream_artifact_paths: tuple[str, ...]
 
 
 WORKFLOW_SET_FIELDS = frozenset(
@@ -124,39 +126,17 @@ def health_field_mismatch(
     return None
 
 
-def build_vllm_structured_output_request(
-    *,
-    model: str,
-    schema: Mapping[str, object],
+def build_openai_structured_output_request(
+    *, model: str, schema: Mapping[str, object], reasoning_effort: str = "xhigh"
 ) -> dict[str, object]:
-    """Build the vLLM structured-output preflight request.
-
-    Acceptance criteria:
-        1. Uses a single `user` message for chat-template compatibility.
-        2. Preserves the configured JSON schema response format.
-        3. Uses deterministic generation settings.
-        4. Does not mutate the supplied schema.
-
-    Args:
-        model: Model name served by the local vLLM endpoint.
-        schema: JSON schema response-format object from requirements.
-
-    Returns:
-        OpenAI-compatible chat completion request payload.
-    """
+    """Build a real Astra Pro Responses smoke test without mutating its schema."""
     return {
         "model": model,
-        "temperature": 0,
-        "messages": [
-            {
-                "role": "user",
-                "content": (
-                    "Return only schema-valid JSON for this status check. "
-                    "Return status ready for Translume."
-                ),
-            }
-        ],
-        "response_format": {"type": "json_schema", "json_schema": dict(schema)},
+        "input": "Return status ready for Translume using the supplied schema.",
+        "reasoning": {"mode": "pro", "effort": reasoning_effort},
+        "text": {"format": {"type": "json_schema", **dict(schema)}},
+        "max_output_tokens": 16384,
+        "store": False,
     }
 
 
@@ -186,7 +166,9 @@ def get_path(payload: object, path: str) -> object:
             try:
                 current = current[int(part)]
             except (ValueError, IndexError) as error:
-                raise FullStackIntegrationError(f"missing response path: {path}") from error
+                raise FullStackIntegrationError(
+                    f"missing response path: {path}"
+                ) from error
         else:
             raise FullStackIntegrationError(f"path is not traversable: {path}")
     return current
@@ -357,7 +339,9 @@ def validate_retrieval_scope(
     if not isinstance(config, dict):
         raise ValueError("retrieval_scope requirements must be an object")
     mode_env = str(config.get("mode_env", "TRANSLUME_RETRIEVAL_MODE"))
-    mode = env_value(mode_env, environment) or str(config.get("required_mode", "lexical"))
+    mode = env_value(mode_env, environment) or str(
+        config.get("required_mode", "lexical")
+    )
     try:
         require_lexical_retrieval_scope(mode)
     except Exception as error:
@@ -372,7 +356,9 @@ async def validate_opensearch(
     config = requirements.get("opensearch")
     if not isinstance(config, dict):
         raise ValueError("opensearch requirements must be an object")
-    base_url = env_value(str(config["url_env"]), environment) or str(config["default_url"])
+    base_url = env_value(str(config["url_env"]), environment) or str(
+        config["default_url"]
+    )
     health_path = str(config["health_path"])
     endpoint = ServiceEndpoint(
         name="opensearch",
@@ -387,7 +373,9 @@ async def validate_opensearch(
     store = OpenSearchVectorStore(
         OpenSearchClientConfig(
             base_url=base_url,
-            timeout_seconds=float(env_value("OPENSEARCH_TIMEOUT_SECONDS", environment) or "30"),
+            timeout_seconds=float(
+                env_value("OPENSEARCH_TIMEOUT_SECONDS", environment) or "30"
+            ),
         )
     )
     await ensure_mvp_indexes(
@@ -441,42 +429,51 @@ async def validate_postgres(
     missing = sorted(set(str(item) for item in required_tables) - existing)
     if missing:
         raise FullStackIntegrationError(
-            "Postgres table(s) missing after schema initialization: " + ", ".join(missing)
+            "Postgres table(s) missing after schema initialization: "
+            + ", ".join(missing)
         )
 
 
-async def validate_vllm_structured_output(
-    requirements: Mapping[str, object],
-    environment: Mapping[str, str],
+async def validate_openai_structured_output(
+    requirements: Mapping[str, object], environment: Mapping[str, str]
 ) -> None:
-    """Validate real local vLLM structured-output generation."""
-    config = requirements.get("vllm")
-    if not isinstance(config, dict):
-        raise ValueError("vllm requirements must be an object")
-    base_url = env_value(str(config["base_url_env"]), environment) or str(config["default_base_url"])
-    model = env_value(str(config["model_env"]), environment)
-    schema = config.get("structured_schema")
-    if not isinstance(schema, dict):
-        raise ValueError("vllm.structured_schema must be an object")
-    async with httpx.AsyncClient(timeout=120) as client:
-        models_response = await client.get(f"{base_url.rstrip('/')}/models")
-        if models_response.status_code >= 400:
-            raise FullStackIntegrationError(
-                f"vLLM /models failed: {models_response.status_code} {models_response.text}"
-            )
-        request = build_vllm_structured_output_request(model=model, schema=schema)
-        response = await client.post(f"{base_url.rstrip('/')}/chat/completions", json=request)
-    if response.status_code >= 400:
-        raise FullStackIntegrationError(
-            f"vLLM structured output failed: {response.status_code} {response.text}"
+    """Make real authenticated Responses and embeddings calls; never simulate."""
+    from translume_adapters.embedding_providers.openai_embedding_provider import (
+        OpenAIEmbeddingProvider,
+    )
+    from translume_clients.openai_client import OpenAIClient
+
+    config = requirements.get("openai")
+    if not isinstance(config, dict) or not isinstance(
+        config.get("structured_schema"), dict
+    ):
+        raise ValueError("openai.structured_schema must be configured")
+    request = build_openai_structured_output_request(
+        model=environment["OPENAI_REASONING_MODEL"],
+        schema=config["structured_schema"],
+        reasoning_effort=environment.get("OPENAI_REASONING_EFFORT", "xhigh"),
+    )
+    async with OpenAIClient(
+        api_key=environment["OPENAI_API_KEY"],
+        base_url=environment.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+        timeout_seconds=float(environment.get("OPENAI_REQUEST_TIMEOUT_SECONDS", "900")),
+        audit_path=environment.get("OPENAI_AUDIT_PATH") or None,
+        correlation_id="deployment-verification",
+    ) as client:
+        await client.count_tokens(request)
+        parsed = await client.structured_completion(request)
+        if parsed != {"status": "ready", "service": "translume"}:
+            raise FullStackIntegrationError("OpenAI returned invalid readiness output")
+        embeddings = OpenAIEmbeddingProvider(
+            client,
+            model_name=environment.get(
+                "OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"
+            ),
+            dimensions=int(environment.get("OPENAI_EMBEDDING_DIMENSIONS", "1536")),
         )
-    payload = response.json()
-    content = payload.get("choices", [{}])[0].get("message", {}).get("content")
-    parsed = content if isinstance(content, dict) else json.loads(str(content))
-    if parsed != {"status": "ready", "service": "translume"}:
-        raise FullStackIntegrationError(
-            "vLLM structured output returned unexpected payload: " + json.dumps(parsed)
-        )
+        vectors = await embeddings.embed(["Translume deployment verification"])
+        if len(vectors) != 1:
+            raise FullStackIntegrationError("OpenAI embedding verification failed")
 
 
 async def process_real_report(
@@ -502,7 +499,9 @@ async def process_real_report(
         )
     payload = response.json()
     if not isinstance(payload, dict):
-        raise FullStackIntegrationError("report processing did not return a JSON object")
+        raise FullStackIntegrationError(
+            "report processing did not return a JSON object"
+        )
     return payload
 
 
@@ -559,7 +558,9 @@ async def validate_human_review_roundtrip(
         isinstance(decision, dict) and decision.get("claim_id") == claim_id
         for decision in decisions
     ):
-        raise FullStackIntegrationError("validation decision was not persisted in export")
+        raise FullStackIntegrationError(
+            "validation decision was not persisted in export"
+        )
     return claim_id
 
 
@@ -575,7 +576,9 @@ async def validate_persistence_side_effects(
     postgres = requirements.get("postgres")
     if not isinstance(opensearch, dict) or not isinstance(postgres, dict):
         raise ValueError("persistence requirements are malformed")
-    os_url = env_value(str(opensearch["url_env"]), environment) or str(opensearch["default_url"])
+    os_url = env_value(str(opensearch["url_env"]), environment) or str(
+        opensearch["default_url"]
+    )
     query = {"query": {"term": {"session_id": session_id}}, "size": 1}
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
@@ -589,7 +592,9 @@ async def validate_persistence_side_effects(
     hits = response.json().get("hits", {}).get("hits", [])
     if not hits:
         raise FullStackIntegrationError("OpenSearch has no evidence claim for session")
-    dsn = env_value(str(postgres["dsn_env"]), environment) or str(postgres["default_dsn"])
+    dsn = env_value(str(postgres["dsn_env"]), environment) or str(
+        postgres["default_dsn"]
+    )
     psycopg, _jsonb = _load_psycopg_for_integration()
     async with await psycopg.AsyncConnection.connect(dsn) as connection:
         async with connection.cursor() as cursor:
@@ -614,8 +619,8 @@ async def run_full_stack_integration(
     """Run the real Translume full-stack integration path.
 
     Acceptance criteria:
-        1. Requires a real PDF path and real configured vLLM model.
-        2. Requires API, Docling, MIMS, OpenSearch, Postgres, and vLLM services.
+        1. Requires a real PDF path and real configured OpenAI model.
+        2. Requires API, Docling, MIMS, OpenSearch, Postgres, and OpenAI services.
         3. Initializes OpenSearch indexes and Postgres tables against real services.
         4. Uploads the real PDF through the production API endpoint.
         5. Requires the review packet to contain all MVP evidence artifacts.
@@ -627,7 +632,6 @@ async def run_full_stack_integration(
         environment=environment,
         root=root,
         require_docker=False,
-        require_gpu=False,
     )
     requirements = load_requirements(requirements_path)
     await wait_for_all_services(
@@ -639,8 +643,10 @@ async def run_full_stack_integration(
     validate_retrieval_scope(requirements, environment)
     await validate_opensearch(requirements, environment)
     await validate_postgres(requirements, environment)
-    await validate_vllm_structured_output(requirements, environment)
-    report_path = Path(env_value("TRANSLUME_E2E_REPORT_PATH", environment)).expanduser().resolve()
+    await validate_openai_structured_output(requirements, environment)
+    report_path = (
+        Path(env_value("TRANSLUME_E2E_REPORT_PATH", environment)).expanduser().resolve()
+    )
     api_url = env_value("TRANSLUME_API_URL", environment) or "http://localhost:8080"
     report_type = env_value("TRANSLUME_E2E_REPORT_TYPE", environment) or "NGS"
     packet = await process_real_report(
@@ -651,23 +657,117 @@ async def run_full_stack_integration(
     )
     checked_paths = assert_non_empty_paths(
         packet,
-        tuple(str(path) for path in requirements.get("review_packet_required_non_empty_paths", [])),
+        tuple(
+            str(path)
+            for path in requirements.get("review_packet_required_non_empty_paths", [])
+        ),
     )
     assert_absent_phrases(
         packet,
-        tuple(str(item) for item in requirements.get("review_packet_required_absent_phrases", [])),
+        tuple(
+            str(item)
+            for item in requirements.get("review_packet_required_absent_phrases", [])
+        ),
     )
     await validate_persistence_side_effects(
         packet=packet,
         requirements=requirements,
         environment=environment,
     )
+    validate_remote_provenance(packet)
     claim_id = await validate_human_review_roundtrip(api_url=api_url, packet=packet)
+    downstream_paths = await validate_downstream_report(
+        api_url=api_url,
+        packet=packet,
+        diagnosis=env_value("TRANSLUME_E2E_DIAGNOSIS", environment),
+        timeout_seconds=api_timeout_seconds,
+    )
     return FullStackIntegrationResult(
         case_id=str(packet["case_id"]),
         session_id=str(packet["session_id"]),
         claim_id=claim_id,
         checked_paths=checked_paths,
+        downstream_artifact_paths=downstream_paths,
+    )
+
+
+def validate_remote_provenance(packet: Mapping[str, object]) -> None:
+    """Verify completed clinical inference has real OpenAI response receipts."""
+    receipts: dict[str, dict[str, object]] = {}
+
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            calls = value.get("model_calls", [])
+            if isinstance(calls, list):
+                for call in calls:
+                    if isinstance(call, dict) and isinstance(call.get("call_id"), str):
+                        receipts[call["call_id"]] = call
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(dict(packet))
+    generation = [
+        call for call in receipts.values() if call.get("endpoint") == "/responses"
+    ]
+    if not generation:
+        raise FullStackIntegrationError(
+            "Packet has no actual OpenAI generation receipts"
+        )
+    for call in generation:
+        if call.get("provider") != "openai" or call.get("reasoning_mode") != "pro":
+            raise FullStackIntegrationError(
+                "Packet contains an unapproved inference provider or mode"
+            )
+    completed = [
+        call for call in generation if call.get("response_status") == "completed"
+    ]
+    if not completed or any(not call.get("response_id") for call in completed):
+        raise FullStackIntegrationError(
+            "Completed generation is missing actual response IDs"
+        )
+
+
+async def validate_downstream_report(
+    *,
+    api_url: str,
+    packet: Mapping[str, object],
+    diagnosis: str,
+    timeout_seconds: float,
+) -> tuple[str, ...]:
+    """Run both real downstream services and validate all three report sections."""
+    from translume_schemas.downstream import DownstreamAnalysisResult
+
+    if not diagnosis.strip():
+        raise FullStackIntegrationError(
+            "Set TRANSLUME_E2E_DIAGNOSIS to the actual report diagnosis"
+        )
+    session_id = str(packet["session_id"])
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        response = await client.post(
+            f"{api_url.rstrip('/')}/api/v1/review-packets/{session_id}/downstream-analysis",
+            json={"diagnosis": diagnosis},
+        )
+    if response.status_code != 200:
+        raise FullStackIntegrationError(
+            f"Downstream analysis failed (HTTP {response.status_code}): {response.text[:1000]}"
+        )
+    result = DownstreamAnalysisResult.model_validate(response.json())
+    if result.session_id != session_id:
+        raise FullStackIntegrationError("Downstream report has a different session ID")
+    sections = (
+        result.pathway_analysis_markdown,
+        result.research_memo_markdown,
+        result.tumor_board_summary_markdown,
+    )
+    if any(not content.strip() for content in sections):
+        raise FullStackIntegrationError("Downstream report contains an empty section")
+    return (
+        result.pathway_analysis_path,
+        result.research_memo_path,
+        result.tumor_board_summary_path,
     )
 
 
@@ -684,12 +784,12 @@ def _load_psycopg_for_integration() -> tuple[Any, type[Any]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run real Translume Docker/GPU/local-vLLM full-stack integration."
+        description="Run real Translume Docker/CPU/OpenAI full-stack integration."
     )
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS)
     parser.add_argument("--wait-timeout-seconds", type=float, default=600.0)
     parser.add_argument("--wait-interval-seconds", type=float, default=5.0)
-    parser.add_argument("--api-timeout-seconds", type=float, default=900.0)
+    parser.add_argument("--api-timeout-seconds", type=float, default=21600.0)
     args = parser.parse_args()
     try:
         result = asyncio.run(
@@ -702,7 +802,13 @@ def main() -> int:
                 api_timeout_seconds=args.api_timeout_seconds,
             )
         )
-    except (PreflightError, FullStackIntegrationError) as error:
+    except (
+        PreflightError,
+        FullStackIntegrationError,
+        ModelProviderError,
+        httpx.HTTPError,
+        ValueError,
+    ) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, indent=2))
         return 1
     print(json.dumps({"status": "ok", **result.__dict__}, indent=2, default=list))

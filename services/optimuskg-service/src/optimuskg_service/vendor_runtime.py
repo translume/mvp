@@ -84,19 +84,13 @@ def import_vendor_module(repo_path: Path, module_names: tuple[str, ...]) -> Any:
     )
 
 
-def assert_remote_model_env_blocked(
-    *,
-    allow_local_openai: bool = False,
-) -> None:
+def assert_remote_model_env_blocked() -> None:
     """Reject remote model-provider environment configuration.
 
     Acceptance criteria:
         1. Blocks known remote model API keys when present.
-        2. Allows local OpenAI-compatible vLLM only when explicitly requested.
+        2. Keeps this retrieval-only service free of inference credentials.
         3. Does not mutate environment variables.
-
-    Args:
-        allow_local_openai: Whether OPENAI_API_KEY may be set for local vLLM.
 
     Raises:
         VendorRuntimeError: If remote model credentials are configured.
@@ -105,8 +99,6 @@ def assert_remote_model_env_blocked(
     for key in REMOTE_MODEL_ENV_KEYS:
         value = os.getenv(key, "").strip()
         if not value:
-            continue
-        if allow_local_openai and key == "OPENAI_API_KEY":
             continue
         blocked.append(key)
     if blocked:

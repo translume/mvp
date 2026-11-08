@@ -18,8 +18,6 @@ from translume_core.prime_directives import (
 )
 from translume_core.vendor.repositories import (
     VendorRepositoryError,
-    load_vendor_repo_specs,
-    require_updateable_vendor_repos,
 )
 
 try:
@@ -164,7 +162,7 @@ def validate_model_identifier(
     model_id: str,
     disallowed_exact: Sequence[str],
 ) -> str:
-    """Validate that the clinical vLLM model identifier is not a placeholder.
+    """Validate that the clinical OpenAI model identifier is not a placeholder.
 
     Acceptance criteria:
         1. Blank model identifiers are rejected.
@@ -173,7 +171,7 @@ def validate_model_identifier(
         4. Function is deterministic and pure.
 
     Args:
-        model_id: Candidate vLLM model identifier.
+        model_id: Candidate OpenAI model identifier.
         disallowed_exact: Exact placeholder values from config.
 
     Returns:
@@ -186,42 +184,21 @@ def validate_model_identifier(
     blocked = {item.casefold() for item in disallowed_exact}
     if stripped.casefold() in blocked:
         raise PreflightError(
-            "VLLM_MODEL must be a real local/Hugging Face model identifier, "
+            "OPENAI_REASONING_MODEL must be a real OpenAI model identifier, "
             f"not {stripped!r}"
         )
     return stripped
 
 
 def validate_vendor_repositories(root: Path) -> tuple[str, ...]:
-    """Validate that MIMS vendors are real updateable Git clones.
+    """Verify the exact bundled MIMS source snapshots without executing them."""
+    from translume_core.vendor.packaged import require_packaged_vendor_sources
 
-    Acceptance criteria:
-        1. OptimusKG, ToolUniverse, and Medea must be configured.
-        2. Each target must contain a `.git` worktree.
-        3. Each target must match the configured origin remote.
-        4. Zip-extracted vendor directories fail preflight.
-        5. Function does not import or mutate vendor repositories.
-
-    Args:
-        root: Repository root.
-
-    Returns:
-        Tuple of validated vendor repository names.
-
-    Raises:
-        PreflightError: If any vendor repository is not updateable.
-    """
-    config = root / "third_party" / "vendor_repos.json"
     try:
-        specs = load_vendor_repo_specs(config, root)
-        report = require_updateable_vendor_repos(specs)
-    except (FileNotFoundError, VendorRepositoryError) as error:
-        raise PreflightError(
-            "Harvard MIMS vendors must be real Git clones for production. "
-            "Run `make vendor-repos` on a networked VM and rerun preflight. "
-            f"Details: {error}"
-        ) from error
-    return tuple(state.name for state in report.states)
+        require_packaged_vendor_sources(root)
+    except (OSError, ValueError, VendorRepositoryError) as error:
+        raise PreflightError(f"MIMS source verification failed: {error}") from error
+    return ("Medea", "OptimusKG", "ToolUniverse")
 
 
 def _host_path(value: str, root: Path) -> Path:
@@ -244,7 +221,7 @@ def validate_mims_data(
     """
     medea_host = env_value("MEDEA_DATA_HOST_DIR", environment)
     explicit_medeadb = env_value("MEDEADB_PATH", environment)
-    if explicit_medeadb and not explicit_medeadb.startswith("/app/"):
+    if explicit_medeadb:
         medeadb_path = _host_path(explicit_medeadb, root)
     elif medea_host:
         medeadb_path = _host_path(medea_host, root) / "MedeaDB"
@@ -253,7 +230,7 @@ def validate_mims_data(
 
     optimus_host = env_value("OPTIMUSKG_DATA_HOST_DIR", environment)
     explicit_cache = env_value("OPTIMUSKG_CACHE_DIR", environment)
-    if explicit_cache and not explicit_cache.startswith("/app/"):
+    if explicit_cache:
         optimus_cache = _host_path(explicit_cache, root)
     elif optimus_host:
         optimus_cache = _host_path(optimus_host, root)
@@ -271,14 +248,14 @@ def validate_mims_data(
         raise PreflightError(
             "MedeaDB is incomplete at "
             f"{medea.path}: {', '.join(medea.missing)}. "
-            "Run `make medea-data`."
+            "Re-run the Docker data-init service."
         )
     optimus = inspect_optimuskg_cache(optimus_cache, use_lcc=use_lcc)
     if not optimus.available:
         raise PreflightError(
             "OptimusKG cache is incomplete at "
             f"{optimus.cache_dir}: {', '.join(optimus.missing)}. "
-            "Run `make optimuskg-data`."
+            "Re-run the Docker data-init service."
         )
     try:
         validate_optimuskg_parquet(
@@ -288,7 +265,7 @@ def validate_mims_data(
     except MimsDataError as error:
         raise PreflightError(
             "OptimusKG cache exists but cannot be parsed by Translume: "
-            f"{error}. Run `make optimuskg-data`."
+            f"{error}. Re-run the Docker data-init service."
         ) from error
     return (
         f"medeadb:{medea.path}",
@@ -324,39 +301,6 @@ def validate_docker_available() -> tuple[str, ...]:
     return ("docker", "docker compose")
 
 
-def validate_gpu_visible(require_gpu: bool) -> tuple[str, ...]:
-    """Validate GPU visibility when requested.
-
-    Acceptance criteria:
-        1. If `require_gpu` is false, no GPU probe is performed.
-        2. If true, `nvidia-smi` must exist and exit successfully.
-        3. Function does not mutate system state.
-
-    Args:
-        require_gpu: Whether to require a visible NVIDIA GPU.
-
-    Returns:
-        Tuple naming checked GPU prerequisites.
-
-    Raises:
-        PreflightError: If GPU is required but not visible.
-    """
-    if not require_gpu:
-        return ()
-    if shutil.which("nvidia-smi") is None:
-        raise PreflightError("nvidia-smi is required when --require-gpu is set")
-    try:
-        subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as error:
-        raise PreflightError(f"GPU probe failed: {error}") from error
-    return ("nvidia-smi",)
-
-
 def validate_retrieval_scope(
     requirements: Mapping[str, Any], environment: Mapping[str, str]
 ) -> str:
@@ -388,17 +332,16 @@ def run_preflight(
     environment: Mapping[str, str],
     root: Path,
     require_docker: bool,
-    require_gpu: bool,
 ) -> PreflightResult:
     """Run deterministic full-stack preflight validation.
 
     Acceptance criteria:
         1. Validates required environment from config.
         2. Validates report PDF path.
-        3. Validates non-placeholder vLLM model id.
+        3. Validates real OpenAI model ID.
         4. Validates vendor repositories.
         5. Validates host-side MedeaDB and OptimusKG data caches.
-        6. Optionally validates Docker and GPU availability.
+        6. Optionally validates Docker availability.
         7. Validates retrieval scope does not overclaim vector/HNSW.
         8. Does not start services or fabricate readiness.
 
@@ -407,7 +350,6 @@ def run_preflight(
         environment: Environment mapping.
         root: Repository root.
         require_docker: Whether to require Docker CLI.
-        require_gpu: Whether to require visible NVIDIA GPU.
 
     Returns:
         Preflight validation summary.
@@ -428,13 +370,15 @@ def run_preflight(
     checked.append(
         str(validate_report_path(env_value("TRANSLUME_E2E_REPORT_PATH", environment)))
     )
-    vllm = requirements.get("vllm", {})
-    if not isinstance(vllm, dict):
-        raise PreflightError("vllm requirements must be an object")
+    openai = requirements.get("openai", {})
+    if not isinstance(openai, dict):
+        raise PreflightError("openai requirements must be an object")
     checked.append(
         validate_model_identifier(
-            env_value(str(vllm.get("model_env", "VLLM_MODEL")), environment),
-            tuple(str(item) for item in vllm.get("model_id_disallowed_exact", [])),
+            env_value(
+                str(openai.get("model_env", "OPENAI_REASONING_MODEL")), environment
+            ),
+            tuple(str(item) for item in openai.get("model_id_disallowed_exact", [])),
         )
     )
     checked.extend(validate_vendor_repositories(root))
@@ -442,17 +386,15 @@ def run_preflight(
     checked.append(validate_retrieval_scope(requirements, environment))
     if require_docker:
         checked.extend(validate_docker_available())
-    checked.extend(validate_gpu_visible(require_gpu))
     return PreflightResult(checked_items=tuple(checked))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate prerequisites for Translume full-stack GPU integration."
+        description="Validate prerequisites for Translume CPU/OpenAI full-stack integration."
     )
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS)
     parser.add_argument("--require-docker", action="store_true")
-    parser.add_argument("--require-gpu", action="store_true")
     args = parser.parse_args()
     try:
         result = run_preflight(
@@ -460,7 +402,6 @@ def main() -> int:
             environment=os.environ,
             root=ROOT,
             require_docker=args.require_docker,
-            require_gpu=args.require_gpu,
         )
     except (OSError, ValueError, PreflightError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, indent=2))
