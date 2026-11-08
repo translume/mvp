@@ -15,6 +15,7 @@ Both commands must succeed. The application runs on CPU. All learned-model infer
 
 Leave sufficient RAM and free disk space available to Docker. The initial setup downloads the real scientific reference data and container images. The three DepMap matrices alone total about 4.1 GB; OptimusKG, Reactome, database storage, and images require additional space. These are reference datasets, not locally executed models.
 
+
 ## 2. Extract the project
 
 Extract the supplied ZIP. Open a terminal in the extracted `mvp-main` folder, the folder containing `docker-compose.yml` and this README.
@@ -47,6 +48,98 @@ OPENAI_REQUEST_TIMEOUT_SECONDS=900
 ```
 
 The application sends `reasoning.mode=pro` to the Responses API. Keep the defaults for the intended Astra Pro workflow. The API key remains in your local `.env`; it is not copied into the Docker images.
+
+**Add your OpenAI API key to `mvp-main/.env`—the file in the same folder as `docker-compose.yml`. The application uses that one key for both Astra and the OpenAI embedding model.**
+
+These instructions match the [updated ZIP](https://chatgpt.com/library?file_id=libfile_81b0cab0e24c81919d8fee7b586e4f62&account_id=personal).
+
+## 1. Get your OpenAI API key
+
+If you already have a project API key, use it. Otherwise, open the [OpenAI API keys page](https://platform.openai.com/api-keys), select your project, and create a key. The key needs permission to use the models configured below. OpenAI API keys authenticate requests using the permissions of their associated user or service account. [OpenAI API](https://developers.openai.com/api/docs/guides/api-keys?utm_source=chatgpt.com)
+
+## 2. Create the `.env` file
+
+Extract the ZIP and open a terminal in the **`mvp-main`** folder.
+
+**If `.env` already exists, skip the copy command and open that existing file.**
+
+On **macOS or Linux**:
+
+```bash
+cp .env.example .env
+```
+
+On **Windows PowerShell**:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The filename must be exactly **`.env`**, including the leading dot. If using a Windows text editor, make sure it does not save the file as `.env.txt`.
+
+## 3. Paste the key into this exact setting
+
+Open `.env` in a plain-text editor. On a Mac, you can open it with:
+
+```bash
+open -e .env
+```
+
+On Windows:
+
+```powershell
+notepad .env
+```
+
+Find this line:
+
+```dotenv
+OPENAI_API_KEY=
+```
+
+**Paste your complete, actual API key immediately after the `=` on that same line, then save the file.** Use no spaces around `=`.
+
+You enter the key only once in this root `.env` file. Docker passes it to the application services that make model calls.
+
+## 4. Keep these model settings
+
+These values are already included in `.env.example`:
+
+```dotenv
+OPENAI_REASONING_MODEL=gpt-6-astra
+OPENAI_DOCUMENT_MODEL=gpt-6-astra
+OPENAI_REASONING_EFFORT=xhigh
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+OPENAI_EMBEDDING_DIMENSIONS=1536
+OPENAI_REQUEST_TIMEOUT_SECONDS=900
+```
+
+| Setting | Used for |
+|---|---|
+| `OPENAI_REASONING_MODEL` | Astra reasoning and report generation |
+| `OPENAI_DOCUMENT_MODEL` | Remote PDF/document understanding |
+| `OPENAI_EMBEDDING_MODEL` | Remote text embeddings for evidence ranking |
+| `OPENAI_EMBEDDING_DIMENSIONS` | Length of the returned embedding vectors |
+
+**Astra Pro mode is already enabled in `docker-compose.yml`** through `OPENAI_REASONING_MODE: pro`. The application sends that as `reasoning.mode="pro"` in its Responses API requests, which is how OpenAI enables Pro execution. [OpenAI API](https://developers.openai.com/api/docs/guides/reasoning?utm_source=chatgpt.com)
+
+## 5. Start the application
+
+With Docker running, execute this from the same `mvp-main` folder:
+
+```bash
+docker compose up --build -d
+```
+
+Use this command again after changing the API key so Docker applies the updated configuration.
+
+Check startup:
+
+```bash
+docker compose ps -a
+```
+
+Once the services are healthy, open **[http://localhost:7860](http://localhost:7860)**, upload your report, enter the diagnosis, and click **Generate report and pathway analysis**.
 
 ## 4. Build and start the application
 
